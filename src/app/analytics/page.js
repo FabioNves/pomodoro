@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import Navbar from "@/components/Navbar";
 
 const BACKEND_URL =
   process.env.NODE_ENV === "development"
@@ -94,6 +95,8 @@ const Analytics = () => {
 
   return (
     <div className="w-screen h-screen flex flex-col justify-center items-center gap-4 bg-gray-900 text-white">
+      <Navbar />
+      <h1 className="text-3xl font-bold py-4">Weekly Analytics</h1>
       <div className="flex gap-2">
         <button
           onClick={() => setSelectedWeek(selectedWeek - 1)}

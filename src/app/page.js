@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import PomodoroTimer from "../components/PomodoroTimer";
 import LoginPage from "../components/LoginPage";
 import { jwtDecode } from "jwt-decode"; // Correct import for named export
+import Navbar from "../components/Navbar";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -59,28 +60,23 @@ export default function App() {
     setUser(userData);
   };
 
+  const handleSignOut = () => {
+    localStorage.removeItem("accessToken");
+    setUser(null);
+  };
+
   // Prevent rendering until after hydration
   if (!hasMounted) return null;
 
   return (
     <div>
-      {!user ? (
-        <LoginPage onLoginSuccess={handleLoginSuccess} />
-      ) : (
-        <>
-          <nav className="flex h-16 justify-center gap-5 p-4 bg-gray-800 text-white">
-            <Link href="/" className="hover:underline">
-              Timer
-            </Link>
-            <Link href="/analytics" className="hover:underline">
-              Analytics
-            </Link>
-          </nav>
-          <main>
-            <PomodoroTimer />
-          </main>
-        </>
-      )}
+      <Navbar user={user} onSignOut={handleSignOut} />
+      <main>
+        <PomodoroTimer />
+      </main>
+      <footer className="flex justify-center items-center h-8 bg-gray-800 text-white">
+        <p>&copy; 2025 PomoDRIVE App</p>
+      </footer>
     </div>
   );
 }
