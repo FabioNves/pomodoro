@@ -4,7 +4,7 @@ const SessionTasks = ({ tasks, toggleBackToDo }) => {
   return (
     <div className="w-full h-full bg-gray-800 p-4 rounded-lg">
       <h2 className="text-xl font-bold">Session tasks doing</h2>
-      <ul className="mt-3 overflow-scroll">
+      <ul className="mt-3 overflow-y-scroll">
         {tasks.map((task, index) => (
           <li
             key={index}

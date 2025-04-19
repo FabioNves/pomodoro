@@ -9,7 +9,7 @@ const SessionHistory = ({
   sessions = [], // Use sessions passed as a prop
 }) => {
   return (
-    <div className="flex flex-col gap-4 w-full h-96 mt-5 bg-gray-800 p-4 rounded-lg overflow-scroll">
+    <div className="flex flex-col gap-4 w-full h-96 mt-5 bg-gray-800 p-4 rounded-lg overflow-y-scroll">
       <h2 className="text-xl font-bold">Session History</h2>
       <div className="flex gap-4 my-4">
         <button

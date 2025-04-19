@@ -106,7 +106,7 @@ const PomodoroTimer = () => {
 
   if (!user) {
     return (
-      <div className="w-screen h-[calc(100vh-6rem)] flex flex-col justify-center items-center p-5 px-40 bg-gray-900 text-white">
+      <div className="w-full  h-[calc(100vh-6rem)] flex flex-col justify-center items-center p-5 px-40 bg-gray-900 text-white">
         <h1 className="text-3xl font-bold py-4">Pomodoro Timer</h1>
         <div className="w-full flex justify-around items-start gap-2 py-4 px-8 border-2 border-white rounded-md">
           <TimerControls handleSessionCompletion={handleSessionCompletion} />
@@ -129,7 +129,7 @@ const PomodoroTimer = () => {
   );
 
   return (
-    <div className="w-screen h-[calc(100vh-6rem)] flex flex-col justify-center items-center p-5 px-40 bg-gray-900 text-white overflow-scroll">
+    <div className="w-screen h-[calc(100vh-6rem)] flex flex-col justify-center items-center p-5 px-40 bg-gray-900 text-white overflow-auto scrollbar-hide">
       <h1 className="text-3xl font-bold py-4">Pomodoro Timer</h1>
       <p>Welcome back {user.name}</p>
       <div className="w-full flex justify-around items-start gap-2 py-4 px-8 border-2 border-white rounded-md">
