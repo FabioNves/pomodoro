@@ -37,6 +37,25 @@ const PomodoroTimer = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    const fetchSessions = async () => {
+      try {
+        const userId = user?.userId || localStorage.getItem("userId");
+        const response = await fetch("/api/sessions", {
+          headers: { "user-id": userId },
+        });
+        if (!response.ok) throw new Error("Failed to fetch sessions");
+        const data = await response.json();
+        setSessions(data);
+      } catch (err) {
+        setError("Could not load sessions");
+        setSessions([]);
+      }
+    };
+    fetchSessions();
+  }, [user]);
+
   const handleLoginSuccess = (userData) => {
     setUser(userData);
   };

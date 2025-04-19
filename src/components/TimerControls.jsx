@@ -95,7 +95,12 @@ const TimerControls = ({ handleSessionCompletion }) => {
   const handleStart = () => {
     setStartFocus(true);
     setIsRunning(true);
-    setStartTimestamp(Date.now());
+    setStartTimestamp(Date.now() - (focusTime * 60 - time) * 1000); // Resume from paused time
+  };
+
+  const handlePause = () => {
+    setIsRunning(false);
+    setStartTimestamp(null);
   };
 
   const handleReset = () => {
@@ -153,7 +158,7 @@ const TimerControls = ({ handleSessionCompletion }) => {
       <div className="w-full flex justify-around bg-slate-100/15 p-4 rounded-md mt-4">
         <button
           className="bg-blue-500 text-white px-4 py-2 rounded"
-          onClick={isRunning ? handleReset : handleStart}
+          onClick={isRunning ? handlePause : handleStart}
         >
           {isRunning ? "Pause" : "Start"}
         </button>
