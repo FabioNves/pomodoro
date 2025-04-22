@@ -2,7 +2,7 @@ import React from "react";
 
 const SessionTasks = ({ tasks, toggleBackToDo }) => {
   return (
-    <div className="w-full h-full bg-gray-800 p-4 rounded-lg">
+    <div className="w-full h-min-full bg-gray-800 p-4 rounded-lg">
       <h2 className="text-xl font-bold">Session tasks doing</h2>
       <ul className="mt-3 overflow-y-scroll">
         {tasks.map((task, index) => (
