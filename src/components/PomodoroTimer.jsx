@@ -1,10 +1,13 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+
+import React, { useState, useEffect, useCallback } from "react";
 import TimerControls from "./TimerControls";
 import SessionTasks from "./SessionTasks";
+import CompletedSessions from "./CompletedSessions";
 import TodoList from "./TodoList";
-import SessionHistory from "./SessionHistory";
-import LoginPage from "./LoginPage";
+import GoogleSignIn from "./GoogleSignIn";
+import { motion, AnimatePresence } from "framer-motion";
+import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 
 const PomodoroTimer = () => {
@@ -39,21 +42,44 @@ const PomodoroTimer = () => {
 
   useEffect(() => {
     if (!user) return;
-    const fetchSessions = async () => {
+
+    const fetchData = async () => {
+      const userId = user?.userId || localStorage.getItem("userId");
+
       try {
-        const userId = user?.userId || localStorage.getItem("userId");
-        const response = await fetch("/api/sessions", {
+        // Fetch sessions
+        const sessionsResponse = await fetch("/api/sessions", {
           headers: { "user-id": userId },
         });
-        if (!response.ok) throw new Error("Failed to fetch sessions");
-        const data = await response.json();
-        setSessions(data);
+        if (sessionsResponse.ok) {
+          const sessionsData = await sessionsResponse.json();
+          setSessions(sessionsData);
+        }
+
+        // Fetch brands
+        const brandsResponse = await fetch("/api/brands", {
+          headers: { "user-id": userId },
+        });
+        if (brandsResponse.ok) {
+          const brandsData = await brandsResponse.json();
+          setBrands(brandsData);
+        }
+
+        // Fetch milestones
+        const milestonesResponse = await fetch("/api/milestones", {
+          headers: { "user-id": userId },
+        });
+        if (milestonesResponse.ok) {
+          const milestonesData = await milestonesResponse.json();
+          setMilestones(milestonesData);
+        }
       } catch (err) {
-        setError("Could not load sessions");
-        setSessions([]);
+        console.error("Error fetching data:", err);
+        setError("Could not load data");
       }
     };
-    fetchSessions();
+
+    fetchData();
   }, [user]);
 
   const handleLoginSuccess = (userData) => {
@@ -114,6 +140,15 @@ const PomodoroTimer = () => {
 
         console.log("Session saved successfully");
         setTasks([]);
+
+        // Refresh sessions after completion
+        const refreshResponse = await fetch("/api/sessions", {
+          headers: { "user-id": userId },
+        });
+        if (refreshResponse.ok) {
+          const updatedSessions = await refreshResponse.json();
+          setSessions(updatedSessions);
+        }
       } catch (error) {
         console.error("Error saving session", error);
       }
@@ -123,61 +158,81 @@ const PomodoroTimer = () => {
 
   if (!hasMounted) return null;
 
-  if (!user) {
-    return (
-      <div className="w-full  h-[calc(100vh-6rem)] flex flex-col justify-center items-center p-5 px-40 bg-gray-900 text-white">
-        <h1 className="text-3xl font-bold py-4">Pomodoro Timer</h1>
-        <div className="w-full flex justify-around items-start gap-2 py-4 px-8 border-2 border-white rounded-md">
-          <TimerControls handleSessionCompletion={handleSessionCompletion} />
-        </div>
-        <div className="w-full flex justify-center mt-4">
-          <LoginPage onLoginSuccess={handleLoginSuccess} />
-        </div>
-      </div>
-    );
-  }
-
-  const filteredSessions = sessions.filter((session) =>
-    selectedDay === "today"
-      ? session.date.startsWith(new Date().toISOString().split("T")[0])
-      : session.date.startsWith(
-          new Date(new Date().setDate(new Date().getDate() - 1))
-            .toISOString()
-            .split("T")[0]
-        )
-  );
-
   return (
-    <div className="w-screen h-full flex flex-col justify-center items-center pt-4 pb-8 px-40 bg-gray-900 text-white scrollbar-hide overflow-y-scroll">
-      <h1 className="text-3xl font-bold py-4">Pomodoro Timer</h1>
-      <p>Welcome back {user.name}</p>
-      <div className="w-full h-full flex justify-around items-start gap-2 py-4 px-8 border-2 border-white rounded-md">
-        <TimerControls handleSessionCompletion={handleSessionCompletion} />
-        <div className="w-1/3 h-auto">
-          <SessionTasks tasks={tasks} toggleBackToDo={toggleBackToDo} />
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="flex flex-col items-center gap-8">
+          {/* Header */}
+          <motion.div
+            className="text-center"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <h1 className="text-md md:text-xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              Boost your productivity with focused work sessions
+            </h1>
+          </motion.div>
+
+          {/* Authentication Section */}
+          {!user && (
+            <motion.div
+              className="w-full max-w-md"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <GoogleSignIn onLoginSuccess={handleLoginSuccess} />
+            </motion.div>
+          )}
+
+          {/* Main Content */}
+          {user && (
+            <motion.div
+              className="w-full space-y-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              {/* Timer Section */}
+              <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
+                <TimerControls
+                  handleSessionCompletion={handleSessionCompletion}
+                />
+              </div>
+
+              {/* Todo List and Session Tasks Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Todo List Section */}
+                <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
+                  <TodoList
+                    user={user}
+                    todoInput={todoInput}
+                    setTodoInput={setTodoInput}
+                    todoTasks={todoTasks}
+                    addTodoTask={addTodoTask}
+                    setTodoTasks={setTodoTasks}
+                    transferTaskToSession={transferTaskToSession}
+                    brands={brands}
+                    setBrands={setBrands}
+                    milestones={milestones}
+                    setMilestones={setMilestones}
+                  />
+                </div>
+
+                {/* Session Tasks Section */}
+                <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
+                  <SessionTasks tasks={tasks} toggleBackToDo={toggleBackToDo} />
+                </div>
+              </div>
+
+              {/* Completed Sessions */}
+              <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
+                <CompletedSessions sessions={sessions} />
+              </div>
+            </motion.div>
+          )}
         </div>
-      </div>
-      <div className="w-full flex gap-8 justify-center">
-        <TodoList
-          user={user}
-          todoInput={todoInput}
-          setTodoInput={setTodoInput}
-          todoTasks={todoTasks}
-          addTodoTask={addTodoTask}
-          setTodoTasks={setTodoTasks}
-          transferTaskToSession={transferTaskToSession}
-          brands={brands}
-          setBrands={setBrands}
-          milestones={milestones}
-          setMilestones={setMilestones}
-        />
-        <SessionHistory
-          user={user}
-          selectedDay={selectedDay}
-          setSelectedDay={setSelectedDay}
-          error={error}
-          sessions={filteredSessions}
-        />
       </div>
     </div>
   );

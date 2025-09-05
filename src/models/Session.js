@@ -18,4 +18,6 @@ const sessionSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model("Session", sessionSchema);
+// Check if model already exists before creating it
+module.exports =
+  mongoose.models.Session || mongoose.model("Session", sessionSchema);

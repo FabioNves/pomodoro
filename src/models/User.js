@@ -6,4 +6,5 @@ const userSchema = new mongoose.Schema({
   imageUrl: { type: String },
 });
 
-module.exports = mongoose.model("User", userSchema);
+// Check if model already exists before creating it
+module.exports = mongoose.models.User || mongoose.model("User", userSchema);

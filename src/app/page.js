@@ -69,9 +69,9 @@ export default function App() {
   if (!hasMounted) return null;
 
   return (
-    <div>
+    <div className="min-h-screen bg-gray-900">
       <Navbar user={user} onSignOut={handleSignOut} />
-      <main>
+      <main className="pt-24 pb-8">
         <PomodoroTimer />
       </main>
       <footer className="flex justify-center items-center h-8 bg-gray-800 text-white">

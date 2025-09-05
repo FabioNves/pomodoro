@@ -15,6 +15,7 @@ const TimerControls = ({ handleSessionCompletion }) => {
   const [isBreakRunning, setIsBreakRunning] = useState(false);
   const [bTime, setBTime] = useState(breakTime * 60);
   const [startTimestamp, setStartTimestamp] = useState(null);
+  const [breakStartTimestamp, setBreakStartTimestamp] = useState(null);
 
   const alarmSoundRef = useRef(null);
 
@@ -50,39 +51,41 @@ const TimerControls = ({ handleSessionCompletion }) => {
 
   useEffect(() => {
     let breakTimer;
-    if (isBreakRunning) {
+    if (isBreakRunning && !breakEnded) {
+      if (!breakStartTimestamp) setBreakStartTimestamp(Date.now());
       breakTimer = setInterval(() => {
-        setBTime((prevTime) => {
-          if (prevTime <= 1) {
-            clearInterval(breakTimer);
-            setStartBreak(false);
-
-            setBreakEnded((prevBreakEnded) => {
-              if (!prevBreakEnded) {
-                setIsRunning(false);
-                setIsBreakRunning(false);
-                setFocusTime(25);
-                setTime(focusTime * 60);
-                setFocusEnded(false);
-                setStartBreak(false);
-                handleSessionCompletion(focusTime, breakTime);
-                if (alarmSoundRef.current && !alarmSoundRef.current.paused) {
-                  alarmSoundRef.current.pause();
-                  alarmSoundRef.current.currentTime = 0;
-                }
-                if (alarmSoundRef.current) alarmSoundRef.current.play();
-                return true;
-              }
-              return prevBreakEnded;
-            });
-            return 0;
+        const elapsed = Math.floor((Date.now() - breakStartTimestamp) / 1000);
+        const remaining = breakTime * 60 - elapsed;
+        if (remaining <= 0) {
+          setBTime(0);
+          setBreakEnded(true);
+          setStartBreak(false);
+          setIsRunning(false);
+          setIsBreakRunning(false);
+          setFocusTime(25);
+          setTime(focusTime * 60);
+          setFocusEnded(false);
+          clearInterval(breakTimer);
+          handleSessionCompletion(focusTime, breakTime);
+          if (alarmSoundRef.current && !alarmSoundRef.current.paused) {
+            alarmSoundRef.current.pause();
+            alarmSoundRef.current.currentTime = 0;
           }
-          return prevTime - 1;
-        });
+          if (alarmSoundRef.current) alarmSoundRef.current.play();
+        } else {
+          setBTime(remaining);
+        }
       }, 1000);
     }
     return () => clearInterval(breakTimer);
-  }, [isBreakRunning, handleSessionCompletion]);
+  }, [
+    isBreakRunning,
+    breakEnded,
+    breakTime,
+    breakStartTimestamp,
+    handleSessionCompletion,
+    focusTime,
+  ]);
 
   useEffect(() => {
     setTime(focusTime * 60);
@@ -109,6 +112,9 @@ const TimerControls = ({ handleSessionCompletion }) => {
     setFocusEnded(false);
     setStartBreak(false);
     setStartTimestamp(null);
+    setBreakStartTimestamp(null);
+    setIsBreakRunning(false);
+    setBreakEnded(false);
   };
 
   return (
@@ -170,6 +176,13 @@ const TimerControls = ({ handleSessionCompletion }) => {
               onClick={() => {
                 setStartBreak(true);
                 setIsBreakRunning(!isBreakRunning);
+                if (!isBreakRunning) {
+                  setBreakStartTimestamp(
+                    Date.now() - (breakTime * 60 - bTime) * 1000
+                  );
+                } else {
+                  setBreakStartTimestamp(null);
+                }
               }}
             >
               {isBreakRunning ? "Pause Break" : "Start Break"}

@@ -1,11 +1,15 @@
 import { connectToDB } from "@/lib/db";
 import Session from "@/models/Session";
 
-export async function GET(_, { params }) {
+export async function GET(request, { params }) {
   try {
-    const weekNumber = parseInt(params.week, 10);
+    const { week } = await params;
+    const weekNumber = parseInt(week, 10);
     const now = new Date();
     const year = now.getFullYear();
+
+    // Get user ID from headers
+    const userId = request.headers.get("user-id");
 
     const firstDayOfYear = new Date(year, 0, 1);
     const firstDayOfWeek = firstDayOfYear.getDay();
@@ -29,12 +33,23 @@ export async function GET(_, { params }) {
 
     await connectToDB();
 
-    const sessions = await Session.find({
+    const query = {
       date: { $gte: startOfWeek, $lte: endOfWeek },
-    });
+    };
+
+    if (userId) {
+      query.user = userId;
+    }
+
+    const sessions = await Session.find(query);
+
+    console.log(
+      `Found ${sessions.length} sessions for week ${weekNumber} for user ${userId}`
+    );
 
     return Response.json({ sessions, startOfWeek });
   } catch (error) {
+    console.error("Error fetching week sessions:", error);
     return Response.json({ error: "Error fetching sessions" }, { status: 500 });
   }
 }
