@@ -12,7 +12,7 @@ const sessionSchema = new mongoose.Schema({
       },
     },
   ],
-  user: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Optional for logged-in users
+  user: { type: String }, // Changed from ObjectId to String for Google user IDs
   sessionId: { type: String }, // For non-logged-in users
   isTemporary: { type: Boolean, default: false }, // Flag for temporary data
   date: { type: Date, default: Date.now },
