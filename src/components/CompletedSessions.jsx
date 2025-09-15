@@ -1,10 +1,23 @@
 "use client";
-import React from "react";
+import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 import { formatDate } from "../utils/timeUtils";
 
 const CompletedSessions = ({ sessions = [] }) => {
-  if (sessions.length === 0) {
+  // Filter and sort today's sessions
+  const todaysSessions = useMemo(() => {
+    const today = new Date();
+    const todayString = today.toDateString();
+
+    return sessions
+      .filter((session) => {
+        const sessionDate = new Date(session.date);
+        return sessionDate.toDateString() === todayString;
+      })
+      .sort((a, b) => new Date(b.date) - new Date(a.date)); // Newest first
+  }, [sessions]);
+
+  if (todaysSessions.length === 0) {
     return (
       <motion.div
         className="text-center py-8"
@@ -12,9 +25,9 @@ const CompletedSessions = ({ sessions = [] }) => {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <h2 className="text-2xl font-bold mb-4">Completed Sessions</h2>
+        <h2 className="text-2xl font-bold mb-4">Today's Sessions</h2>
         <p className="text-gray-400">
-          No completed sessions yet. Start a pomodoro session to see your
+          No sessions completed today yet. Start a pomodoro session to see your
           progress!
         </p>
       </motion.div>
@@ -28,12 +41,18 @@ const CompletedSessions = ({ sessions = [] }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <h2 className="text-2xl font-bold mb-6">Completed Sessions</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Today's Sessions</h2>
+        <span className="text-sm text-gray-400 bg-gray-800/50 px-3 py-1 rounded-full">
+          {todaysSessions.length} session
+          {todaysSessions.length !== 1 ? "s" : ""} completed
+        </span>
+      </div>
 
       <div className="grid gap-4 max-h-96 overflow-y-auto">
-        {sessions.slice(0, 10).map((session, index) => (
+        {todaysSessions.map((session, index) => (
           <motion.div
-            key={index}
+            key={`${session._id || session.date}-${index}`}
             className="bg-gray-700/50 rounded-lg p-4 border border-gray-600/50"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -41,11 +60,15 @@ const CompletedSessions = ({ sessions = [] }) => {
             whileHover={{ scale: 1.02 }}
           >
             <div className="flex justify-between items-start mb-3">
-              <h3 className="font-semibold text-lg">Session {index + 1}</h3>
+              <h3 className="font-semibold text-lg">
+                Session {todaysSessions.length - index}
+              </h3>
               <span className="text-sm text-gray-400">
-                {formatDate
-                  ? formatDate(session.date)
-                  : new Date(session.date).toLocaleDateString()}
+                {new Date(session.date).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })}
               </span>
             </div>
 
@@ -89,9 +112,54 @@ const CompletedSessions = ({ sessions = [] }) => {
                 </div>
               </div>
             )}
+
+            {(!session.tasks || session.tasks.length === 0) && (
+              <div className="text-gray-500 text-sm italic">
+                No tasks completed in this session
+              </div>
+            )}
           </motion.div>
         ))}
       </div>
+
+      {/* Summary for today */}
+      <motion.div
+        className="mt-6 p-4 bg-gray-800/30 rounded-lg border border-gray-600/30"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+      >
+        <h3 className="text-lg font-semibold mb-2">Today's Summary</h3>
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-2xl font-bold text-blue-400">
+              {todaysSessions.reduce(
+                (total, session) => total + session.focusTime,
+                0
+              )}
+            </p>
+            <p className="text-sm text-gray-400">Focus Minutes</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-green-400">
+              {todaysSessions.reduce(
+                (total, session) => total + session.breakTime,
+                0
+              )}
+            </p>
+            <p className="text-sm text-gray-400">Break Minutes</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-purple-400">
+              {todaysSessions.reduce(
+                (total, session) => total + (session.tasks?.length || 0),
+                0
+              )}
+            </p>
+            <p className="text-sm text-gray-400">Tasks Completed</p>
+          </div>
+        </div>
+      </motion.div>
     </motion.div>
   );
 };

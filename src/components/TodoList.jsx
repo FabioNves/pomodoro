@@ -102,23 +102,6 @@ const TodoList = ({
       <h2 className="text-xl font-bold">Task Planning</h2>
       <div className="flex flex-col mt-3 gap-2 bg-slate-200/20 p-2 rounded">
         <div className="flex gap-2">
-          <input
-            type="text"
-            className="flex-1 p-2 rounded bg-gray-700 text-white placeholder-gray-400"
-            value={todoInput}
-            onChange={(e) => setTodoInput(e.target.value)}
-            placeholder="What are you working on?"
-            onKeyPress={(e) => e.key === "Enter" && handleAddTodoTask()}
-          />
-          <button
-            className="bg-blue-500 hover:bg-blue-600 px-4 py-2 ml-2 rounded transition-colors"
-            onClick={handleAddTodoTask}
-          >
-            Add Task
-          </button>
-        </div>
-
-        <div className="flex gap-2">
           <select
             className="flex-1 p-2 rounded bg-gray-700 text-white border border-gray-600"
             value={selectedBrand}
@@ -159,6 +142,22 @@ const TodoList = ({
             disabled={!selectedBrand}
           >
             + Milestone
+          </button>
+        </div>
+        <div className="w-full flex flex-col gap-2">
+          <input
+            type="text"
+            className="flex-1 p-2 rounded bg-gray-700 text-white placeholder-gray-400"
+            value={todoInput}
+            onChange={(e) => setTodoInput(e.target.value)}
+            placeholder="What are you working on?"
+            onKeyPress={(e) => e.key === "Enter" && handleAddTodoTask()}
+          />
+          <button
+            className="bg-blue-500 hover:bg-blue-600 px-4 py-2 ml-2 rounded transition-colors"
+            onClick={handleAddTodoTask}
+          >
+            Add Task
           </button>
         </div>
       </div>
