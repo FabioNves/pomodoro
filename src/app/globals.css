@@ -8,7 +8,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-montserrat), var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -22,11 +22,42 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-montserrat), var(--font-geist-sans), Arial, Helvetica,
+    sans-serif;
+  font-weight: 500; /* Use Montserrat Medium as default */
 }
 
 html,
 body {
   overflow-x: hidden;
   width: 100vw;
+}
+
+/* Optional: Add specific font weight classes for Montserrat */
+.font-montserrat-thin {
+  font-weight: 100;
+}
+.font-montserrat-extralight {
+  font-weight: 200;
+}
+.font-montserrat-light {
+  font-weight: 300;
+}
+.font-montserrat-regular {
+  font-weight: 400;
+}
+.font-montserrat-medium {
+  font-weight: 500;
+}
+.font-montserrat-semibold {
+  font-weight: 600;
+}
+.font-montserrat-bold {
+  font-weight: 700;
+}
+.font-montserrat-extrabold {
+  font-weight: 800;
+}
+.font-montserrat-black {
+  font-weight: 900;
 }

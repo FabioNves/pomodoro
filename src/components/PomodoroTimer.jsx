@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 
-const PomodoroTimer = () => {
+const PomodoroTimer = ({ showNotification }) => {
   const [user, setUser] = useState(null);
   const [hasMounted, setHasMounted] = useState(false);
   const [todoInput, setTodoInput] = useState("");
@@ -22,8 +22,25 @@ const PomodoroTimer = () => {
   const [error, setError] = useState(null);
   const [sessions, setSessions] = useState([]);
 
+  // Add active project state that persists across sessions
+  const [activeProject, setActiveProject] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("activeProject");
+      return saved ? JSON.parse(saved) : { title: "", milestone: "" };
+    }
+    return { title: "", milestone: "" };
+  });
+
+  // Save active project to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("activeProject", JSON.stringify(activeProject));
+    }
+  }, [activeProject]);
+
   useEffect(() => {
     setHasMounted(true);
+
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("accessToken");
       if (token && token.split(".").length === 3) {
@@ -112,14 +129,27 @@ const PomodoroTimer = () => {
   const handleSessionCompletion = useCallback(
     async (focus, brk) => {
       const userId = user?.userId || localStorage.getItem("userId");
+
+      // If no active project is set, prompt user to select one
+      if (!activeProject.title) {
+        const availableBrands = brands.map((b) => b.name).join(", ");
+        alert(
+          `Please select a project first from: ${
+            availableBrands || "Create a project first"
+          }`
+        );
+        return;
+      }
+
       const sessionData = {
         focusTime: focus,
         breakTime: brk,
+        currentProject: activeProject, // Save the active project
         tasks: tasks.map((task) => ({
-          task: task.task,
+          task: task.task || "", // Optional task description
           brand: {
-            title: task.brand?.title || "",
-            milestone: task.brand?.milestone || "",
+            title: activeProject.title, // Use active project
+            milestone: activeProject.milestone || "",
           },
         })),
       };
@@ -139,7 +169,20 @@ const PomodoroTimer = () => {
         }
 
         console.log("Session saved successfully");
+
+        // Clear only the tasks, keep the active project
         setTasks([]);
+
+        if (showNotification) {
+          showNotification("🎯 Session Completed!", {
+            body: `Great work! You completed a ${focus}-minute focus session on ${
+              activeProject.title
+            }${
+              activeProject.milestone ? ` - ${activeProject.milestone}` : ""
+            }.`,
+            icon: "/favicon.ico",
+          });
+        }
 
         // Refresh sessions after completion
         const refreshResponse = await fetch("/api/sessions", {
@@ -153,14 +196,14 @@ const PomodoroTimer = () => {
         console.error("Error saving session", error);
       }
     },
-    [tasks, user]
+    [tasks, user, showNotification, activeProject, brands]
   );
 
   if (!hasMounted) return null;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="min-h-screen  text-white p-4">
+      <div className="max-w-7xl mx-auto">
         <div className="flex flex-col items-center gap-8">
           {/* Header */}
           <motion.div
@@ -198,14 +241,58 @@ const PomodoroTimer = () => {
               <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
                 <TimerControls
                   handleSessionCompletion={handleSessionCompletion}
+                  showNotification={showNotification}
+                  activeProject={activeProject}
                 />
               </div>
+              {/* Active Project Banner */}
+              {/* <motion.div
+                className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-xl p-4 border border-blue-500/30"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Current Project</h3>
+                    <p className="text-gray-300">
+                      {activeProject.title ? (
+                        <>
+                          <span className="text-blue-400">
+                            {activeProject.title}
+                          </span>
+                          {activeProject.milestone && (
+                            <span className="text-purple-400 ml-2">
+                              • {activeProject.milestone}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        "No project selected"
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      // Show project selector modal or redirect to project selection
+                      const projectSelector =
+                        document.getElementById("project-selector");
+                      if (projectSelector) {
+                        projectSelector.scrollIntoView({ behavior: "smooth" });
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
+                  >
+                    {activeProject.title ? "Change Project" : "Select Project"}
+                  </button>
+                </div>
+              </motion.div> */}
 
               {/* Todo List and Session Tasks Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Todo List Section */}
                 <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
                   <TodoList
+                    id="project-selector"
                     user={user}
                     todoInput={todoInput}
                     setTodoInput={setTodoInput}
@@ -217,12 +304,17 @@ const PomodoroTimer = () => {
                     setBrands={setBrands}
                     milestones={milestones}
                     setMilestones={setMilestones}
+                    activeProject={activeProject}
+                    setActiveProject={setActiveProject}
                   />
                 </div>
 
-                {/* Session Tasks Section */}
                 <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
-                  <SessionTasks tasks={tasks} toggleBackToDo={toggleBackToDo} />
+                  <SessionTasks
+                    tasks={tasks}
+                    toggleBackToDo={toggleBackToDo}
+                    activeProject={activeProject}
+                  />
                 </div>
               </div>
 

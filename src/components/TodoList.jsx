@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const TodoList = ({
   user,
@@ -13,9 +13,32 @@ const TodoList = ({
   setBrands,
   milestones,
   setMilestones,
+  activeProject,
+  setActiveProject,
 }) => {
-  const [selectedBrand, setSelectedBrand] = useState("");
-  const [selectedMilestone, setSelectedMilestone] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState(activeProject.title || "");
+  const [selectedMilestone, setSelectedMilestone] = useState(
+    activeProject.milestone || ""
+  );
+
+  // Update active project when selection changes
+  useEffect(() => {
+    if (
+      selectedBrand !== activeProject.title ||
+      selectedMilestone !== activeProject.milestone
+    ) {
+      setActiveProject({
+        title: selectedBrand,
+        milestone: selectedMilestone,
+      });
+    }
+  }, [selectedBrand, selectedMilestone, setActiveProject]);
+
+  // Sync with active project changes from parent
+  useEffect(() => {
+    setSelectedBrand(activeProject.title || "");
+    setSelectedMilestone(activeProject.milestone || "");
+  }, [activeProject]);
 
   const userId = user?.userId || localStorage.getItem("userId");
 
@@ -91,15 +114,38 @@ const TodoList = ({
   const handleAddTodoTask = () => {
     if (todoInput.trim() === "") return;
 
-    addTodoTask(todoInput, selectedBrand, selectedMilestone);
+    // Use active project if no specific project selected
+    const projectTitle = selectedBrand || activeProject.title;
+    const projectMilestone = selectedMilestone || activeProject.milestone;
+
+    if (!projectTitle) {
+      alert("Please select a project first!");
+      return;
+    }
+
+    addTodoTask(todoInput, projectTitle, projectMilestone);
     setTodoInput("");
-    setSelectedBrand("");
-    setSelectedMilestone("");
   };
 
   return (
     <div className="w-full mt-5 bg-gray-800 p-4 rounded-lg">
-      <h2 className="text-xl font-bold">Task Planning</h2>
+      <h2 className="text-xl font-bold">Project & Task Planning</h2>
+
+      {/* Active Project Display */}
+      <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+        <h3 className="text-sm font-medium text-blue-300 mb-2">
+          Active Project
+        </h3>
+        <p className="text-lg font-semibold">
+          {activeProject.title || "No project selected"}
+          {activeProject.milestone && (
+            <span className="text-purple-400 ml-2">
+              • {activeProject.milestone}
+            </span>
+          )}
+        </p>
+      </div>
+
       <div className="flex flex-col mt-3 gap-2 bg-slate-200/20 p-2 rounded">
         <div className="flex gap-2">
           <select
@@ -144,17 +190,20 @@ const TodoList = ({
             + Milestone
           </button>
         </div>
+
         <div className="w-full flex flex-col gap-2">
           <input
             type="text"
             className="flex-1 p-2 rounded bg-gray-700 text-white placeholder-gray-400"
             value={todoInput}
             onChange={(e) => setTodoInput(e.target.value)}
-            placeholder="What are you working on?"
+            placeholder={`What task are you working on${
+              activeProject.title ? ` for ${activeProject.title}` : ""
+            }?`}
             onKeyPress={(e) => e.key === "Enter" && handleAddTodoTask()}
           />
           <button
-            className="bg-blue-500 hover:bg-blue-600 px-4 py-2 ml-2 rounded transition-colors"
+            className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded transition-colors"
             onClick={handleAddTodoTask}
           >
             Add Task

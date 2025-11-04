@@ -5,13 +5,18 @@ const sessionSchema = new mongoose.Schema({
   breakTime: { type: Number, required: true },
   tasks: [
     {
-      task: { type: String, required: true },
+      task: { type: String, required: false },
       brand: {
-        title: { type: String },
+        title: { type: String, required: true },
         milestone: { type: String },
       },
     },
   ],
+   // Add current active project to session level
+  currentProject: {
+    title: { type: String, required: true },
+    milestone: { type: String },
+  },
   user: { type: String }, // Changed from ObjectId to String for Google user IDs
   sessionId: { type: String }, // For non-logged-in users
   isTemporary: { type: Boolean, default: false }, // Flag for temporary data
