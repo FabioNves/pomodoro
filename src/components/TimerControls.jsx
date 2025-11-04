@@ -229,9 +229,9 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
             <select
               value={focusTime}
               onChange={(e) => setFocusTime(Number(e.target.value))}
-              className="text-white bg-gray-700/50 border border-gray-600/50 p-2 rounded-md ml-2 focus:border-blue-500 focus:outline-none"
+              className="text-white bg-gray-700/50 border border-gray-600/50 p-2 rounded-sm ml-2 focus:border-blue-500 focus:outline-none"
             >
-              {[0.5, 25, 30, 35, 40, 45, 50].map((t) => (
+              {[20, 25, 30, 35, 40, 45, 50].map((t) => (
                 <option key={t} value={t} className="text-white bg-gray-800">
                   {t} min
                 </option>

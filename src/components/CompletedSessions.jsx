@@ -89,7 +89,7 @@ const CompletedSessions = ({ sessions = [] }) => {
             {(session.currentProject?.title ||
               (session.tasks &&
                 session.tasks.length > 0 &&
-                session.tasks[0].brand?.title)) && (
+                session.tasks[0]?.brand?.title)) && (
               <div className="mb-3">
                 <div className="flex items-center gap-2 p-2 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
                   <span className="text-indigo-300 font-medium">
@@ -97,14 +97,14 @@ const CompletedSessions = ({ sessions = [] }) => {
                   </span>
                   <span className="text-indigo-200 font-semibold">
                     {session.currentProject?.title ||
-                      session.tasks[0].brand.title}
+                      session.tasks[0]?.brand?.title}
                   </span>
                   {(session.currentProject?.milestone ||
-                    session.tasks[0].brand?.milestone) && (
+                    session.tasks[0]?.brand?.milestone) && (
                     <span className="text-purple-300 text-sm">
                       •{" "}
                       {session.currentProject?.milestone ||
-                        session.tasks[0].brand.milestone}
+                        session.tasks[0]?.brand?.milestone}
                     </span>
                   )}
                 </div>
@@ -130,10 +130,10 @@ const CompletedSessions = ({ sessions = [] }) => {
                         {taskObj.task && taskObj.task.trim()
                           ? taskObj.task
                           : `General work on ${
-                              taskObj.brand?.title || "project"
+                              taskObj?.brand?.title || "project"
                             }`}
                       </span>
-                      {taskObj.brand && (
+                      {taskObj?.brand && (
                         <div className="flex gap-2">
                           <span className="bg-purple-500/20 text-purple-300 px-2 py-1 rounded text-xs">
                             {taskObj.brand.title}

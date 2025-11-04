@@ -12,7 +12,7 @@ export async function POST(req) {
       });
     }
 
-    const { focusTime, breakTime, tasks } = await req.json();
+    const { focusTime, breakTime, tasks, currentProject } = await req.json();
 
     await connectToDB();
 
@@ -20,7 +20,8 @@ export async function POST(req) {
       focusTime,
       breakTime,
       tasks,
-      user: userId, // Use the userId from header
+      currentProject, // Add this field
+      user: userId,
     });
 
     await newSession.save();
