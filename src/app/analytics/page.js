@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import Navbar from "@/components/Navbar";
 import WeeklyAnalytics from "@/components/WeeklyAnalytics";
@@ -42,15 +42,7 @@ const Analytics = () => {
     mostProductiveMonth: null,
   });
 
-  useEffect(() => {
-    if (activeTab === "monthly") {
-      fetchMonthSessions();
-    } else if (activeTab === "yearly") {
-      fetchYearSessions();
-    }
-  }, [selectedMonth, selectedYear, yearForYearlyView, activeTab]);
-
-  const fetchYearSessions = async () => {
+  const fetchYearSessions = useCallback(async () => {
     try {
       console.log(`Fetching year sessions for ${yearForYearlyView}`);
 
@@ -147,9 +139,9 @@ const Analytics = () => {
         mostProductiveMonth: null,
       });
     }
-  };
+  }, [yearForYearlyView]);
 
-  const fetchMonthSessions = async () => {
+  const fetchMonthSessions = useCallback(async () => {
     try {
       console.log(
         `Fetching month sessions for ${selectedYear}/${selectedMonth + 1}`
@@ -238,7 +230,22 @@ const Analytics = () => {
         mostProductiveDay: null,
       });
     }
-  };
+  }, [selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    if (activeTab === "monthly") {
+      fetchMonthSessions();
+    } else if (activeTab === "yearly") {
+      fetchYearSessions();
+    }
+  }, [
+    selectedMonth,
+    selectedYear,
+    yearForYearlyView,
+    activeTab,
+    fetchMonthSessions,
+    fetchYearSessions,
+  ]);
 
   const getMonthName = (monthIndex) => {
     const months = [

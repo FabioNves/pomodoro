@@ -268,7 +268,7 @@ export default function App() {
                     </h3>
                     <p className="text-gray-400 text-sm">
                       Organize tasks by projects and milestones. Track what
-                      you're working on across all your sessions.
+                      you&apos;re working on across all your sessions.
                     </p>
                   </div>
 
