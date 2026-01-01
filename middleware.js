@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
 
+import { NextResponse } from "next/server";
+
 export function middleware(request) {
   const response = NextResponse.next();
-  response.headers.set(
-    "Content-Security-Policy",
-    "script-src 'self' 'sha256-/YHgaPUzIi8kPDawbWKu7/TAHdOcyMEjXZjRRIqp8jo=' https://accounts.google.com/gsi/client https://apis.google.com https://www.gstatic.com; " + // Added hash for inline theme script
-      "frame-src https://accounts.google.com/gsi/; " + // Allow GSI frames
-      "connect-src 'self' https://accounts.google.com/gsi/; " + // Allow connection to GSI endpoints
-      "object-src 'none'; " +
-      "base-uri 'self'; " + // Good practice
-      "form-action 'self';" // Good practice
-  );
-  // Consider adding style-src 'self' https://accounts.google.com/gsi/ if styles break
+  // CSP is now handled in next.config.mjs
   return response;
 }
 

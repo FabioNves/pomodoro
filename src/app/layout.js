@@ -75,8 +75,8 @@ export const metadata = {
   title: "PomoDRIVE",
   description: "A Pomodoro Timer with a Twist",
   icons: {
-    icon: "/logo/pomodrive-png/pomoDrive-icon.png",
-    shortcut: "/logo/pomodrive-png/pomoDrive-icon.png",
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
     apple: "/logo/pomodrive-png/pomoDrive-icon.png",
   },
   manifest: "/site.webmanifest",
