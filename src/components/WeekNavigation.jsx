@@ -14,14 +14,16 @@ const WeekNavigation = ({
       <div className="flex gap-2">
         <button
           onClick={() => setSelectedWeek(selectedWeek - 1)}
-          className="bg-slate-200/20 p-2 rounded hover:bg-slate-200/30 transition-colors"
+          className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
         >
           Prev
         </button>
-        <span className="bg-slate-200/20 p-2 rounded">Week {selectedWeek}</span>
+        <span className="bg-[#2563eb] text-white px-6 py-2 rounded shadow-md font-medium">
+          Week {selectedWeek}
+        </span>
         <button
           onClick={() => setSelectedWeek(selectedWeek + 1)}
-          className="bg-slate-200/20 p-2 rounded hover:bg-slate-200/30 transition-colors"
+          className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
         >
           Next
         </button>
@@ -40,10 +42,10 @@ const WeekNavigation = ({
             <motion.button
               key={i}
               onClick={() => handleSelectDay(i + 1)}
-              className={`bg-slate-200/20 p-2 rounded transition-colors ${
+              className={`p-2 rounded transition-all duration-300 shadow-sm ${
                 selectedDay === formattedDay
-                  ? "bg-blue-500/80"
-                  : "hover:bg-slate-200/30"
+                  ? "bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-md"
+                  : "bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md"
               }`}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}

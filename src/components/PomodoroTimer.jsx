@@ -105,7 +105,7 @@ const PomodoroTimer = ({ showNotification }) => {
 
   const transferTaskToSession = (index) => {
     const taskToTransfer = todoTasks[index];
-    setTasks([...tasks, taskToTransfer]);
+    setTasks([...tasks, { ...taskToTransfer, completed: false }]);
     setTodoTasks(todoTasks.filter((_, i) => i !== index));
   };
 
@@ -113,6 +113,14 @@ const PomodoroTimer = ({ showNotification }) => {
     const taskToMoveBack = tasks[index];
     setTodoTasks([...todoTasks, taskToMoveBack]);
     setTasks(tasks.filter((_, i) => i !== index));
+  };
+
+  const toggleTaskCompletion = (index) => {
+    setTasks(
+      tasks.map((task, i) =>
+        i === index ? { ...task, completed: !task.completed } : task
+      )
+    );
   };
 
   const addTodoTask = (task, brand, milestone) => {
@@ -147,6 +155,7 @@ const PomodoroTimer = ({ showNotification }) => {
         currentProject: activeProject, // Save the active project
         tasks: tasks.map((task) => ({
           task: task.task || "", // Optional task description
+          completed: task.completed || false,
           brand: {
             title: activeProject.title, // Use active project
             milestone: activeProject.milestone || "",
@@ -170,8 +179,9 @@ const PomodoroTimer = ({ showNotification }) => {
 
         console.log("Session saved successfully");
 
-        // Clear only the tasks, keep the active project
-        setTasks([]);
+        // Keep uncompleted tasks, remove only completed ones
+        const uncompletedTasks = tasks.filter((task) => !task.completed);
+        setTasks(uncompletedTasks);
 
         if (showNotification) {
           showNotification("🎯 Session Completed!", {
@@ -202,7 +212,7 @@ const PomodoroTimer = ({ showNotification }) => {
   if (!hasMounted) return null;
 
   return (
-    <div className="min-h-screen  text-white p-4">
+    <div className="min-h-screen text-gray-900 dark:text-white p-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col items-center gap-8">
           {/* Header */}
@@ -212,7 +222,7 @@ const PomodoroTimer = ({ showNotification }) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-md md:text-xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-md md:text-xl font-bold mb-4 bg-gradient-to-r from-[#88b6ff] to-[#014acd] bg-clip-text text-transparent">
               Boost your productivity with focused work sessions
             </h1>
           </motion.div>
@@ -238,7 +248,7 @@ const PomodoroTimer = ({ showNotification }) => {
               transition={{ duration: 0.5, delay: 0.3 }}
             >
               {/* Timer Section */}
-              <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
+              <div className="bg-white/80 dark:bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
                 <TimerControls
                   handleSessionCompletion={handleSessionCompletion}
                   showNotification={showNotification}
@@ -290,7 +300,7 @@ const PomodoroTimer = ({ showNotification }) => {
 
               {/* Todo List and Session Tasks Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
+                <div className="bg-white/80 dark:bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
                   <TodoList
                     id="project-selector"
                     user={user}
@@ -309,17 +319,18 @@ const PomodoroTimer = ({ showNotification }) => {
                   />
                 </div>
 
-                <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
+                <div className="bg-white/80 dark:bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
                   <SessionTasks
                     tasks={tasks}
                     toggleBackToDo={toggleBackToDo}
+                    toggleTaskCompletion={toggleTaskCompletion}
                     activeProject={activeProject}
                   />
                 </div>
               </div>
 
               {/* Completed Sessions */}
-              <div className="bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-700/50">
+              <div className="bg-white/80 dark:bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
                 <CompletedSessions sessions={sessions} />
               </div>
             </motion.div>

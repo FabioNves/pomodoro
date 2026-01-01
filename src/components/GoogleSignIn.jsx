@@ -18,9 +18,9 @@ const GoogleSignIn = ({ onLoginSuccess }) => {
         picture: decodedToken.picture,
       };
 
-      // Store the token and user ID in localStorage
+      // Store the token in localStorage (userId will be set by GoogleAuth backend flow)
       localStorage.setItem("accessToken", credentialResponse.credential);
-      localStorage.setItem("userId", decodedToken.sub);
+      // DON'T set userId here - it should come from the backend auth flow
 
       // Call the success handler
       onLoginSuccess(userData);

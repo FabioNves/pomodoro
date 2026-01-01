@@ -216,7 +216,7 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
         {startFocus && !focusEnded ? (
           // Show countdown timer during focus
           <motion.div
-            className="text-5xl font-bold mt-5 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
+            className="text-5xl font-bold mt-5 bg-gradient-to-r from-[#88b6ff] to-[#014acd] bg-clip-text text-transparent"
             animate={{ scale: [1, 1.02, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
@@ -230,14 +230,20 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <label className="text-gray-300 font-medium">Focus Time: </label>
+            <label className="text-gray-700 dark:text-gray-300 font-medium">
+              Focus Time:{" "}
+            </label>
             <select
               value={focusTime}
               onChange={(e) => setFocusTime(Number(e.target.value))}
-              className="text-white bg-gray-700/50 border border-gray-600/50 p-2 rounded-sm ml-2 focus:border-blue-500 focus:outline-none"
+              className="text-gray-900 dark:text-white bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600/50 p-2 rounded-sm ml-2 focus:border-[#014acd] focus:outline-none transition-colors duration-300"
             >
               {[20, 25, 30, 35, 40, 45, 50].map((t) => (
-                <option key={t} value={t} className="text-white bg-gray-800">
+                <option
+                  key={t}
+                  value={t}
+                  className="text-gray-900 dark:text-white bg-white dark:bg-gray-800"
+                >
                   {t} min
                 </option>
               ))}
@@ -251,12 +257,12 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="text-gray-300 font-medium text-center">
+            <div className="text-gray-700 dark:text-gray-300 font-medium text-center">
               <span className="text-lg">Focus Time: </span>
-              <span className="text-xl font-bold text-blue-400">
+              <span className="text-xl font-bold text-[#014acd] dark:text-[#88b6ff]">
                 {focusTime} min
               </span>
-              <div className="text-sm text-gray-400 mt-1">
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Session completed! 🎉
               </div>
             </div>
@@ -267,7 +273,7 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
         {startBreak && !breakEnded ? (
           // Show countdown timer during break
           <motion.div
-            className="text-5xl font-bold mt-5 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent"
+            className="text-5xl font-bold mt-5 bg-gradient-to-r from-green-400 to-[#88b6ff] bg-clip-text text-transparent"
             animate={{ scale: [1, 1.05, 1] }}
             transition={{ duration: 1, repeat: Infinity }}
           >
@@ -302,13 +308,13 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="text-gray-300 font-medium text-center">
+            <div className="text-gray-700 dark:text-gray-300 font-medium text-center">
               <span className="text-lg">Break Time: </span>
-              <span className="text-xl font-bold text-green-400">
+              <span className="text-xl font-bold text-green-500 dark:text-green-400">
                 {breakTime} min
               </span>
               {startBreak && (
-                <div className="text-sm text-gray-400 mt-1">
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   Break in progress... ☕
                 </div>
               )}
@@ -322,14 +328,20 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <label className="text-gray-300 font-medium">Break Time: </label>
+            <label className="text-gray-700 dark:text-gray-300 font-medium">
+              Break Time:{" "}
+            </label>
             <select
               value={breakTime}
               onChange={(e) => setBreakTime(Number(e.target.value))}
-              className="text-white bg-gray-700/50 border border-gray-600/50 p-2 rounded-md ml-2 focus:border-purple-500 focus:outline-none"
+              className="text-gray-900 dark:text-white bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600/50 p-2 rounded-md ml-2 focus:border-[#014acd] focus:outline-none transition-colors duration-300"
             >
               {[0, 5, 10, 15, 20].map((t) => (
-                <option key={t} value={t} className="text-white bg-gray-800">
+                <option
+                  key={t}
+                  value={t}
+                  className="text-gray-900 dark:text-white bg-white dark:bg-gray-800"
+                >
                   {t} min
                 </option>
               ))}
@@ -338,11 +350,11 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
         )}
       </div>
 
-      <div className="w-full flex justify-center gap-4 bg-gray-800/30 p-4 rounded-md mt-4">
+      <div className="w-full flex justify-center gap-4 bg-gray-200/30 dark:bg-gray-800/30 p-4 rounded-md mt-4 transition-colors duration-300">
         {/* Only show Start/Pause button when focus hasn't ended */}
         {!focusEnded && (
           <motion.button
-            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-8 py-2 rounded-lg font-medium transition-all duration-200"
+            className="bg-gradient-to-r from-[#88b6ff] to-[#014acd] hover:from-[#014acd] hover:to-[#88b6ff] text-white px-8 py-2 rounded-lg font-medium transition-all duration-200"
             onClick={isRunning ? handlePause : handleStart}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}

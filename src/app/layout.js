@@ -4,6 +4,7 @@ import "./globals.css";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "react-hot-toast";
 import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
+import { ThemeProvider } from "../hooks/useTheme";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -71,9 +72,9 @@ export const metadata = {
   title: "PomoDRIVE",
   description: "A Pomodoro Timer with a Twist",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    icon: "/logo/pomodrive-png/pomoDrive-icon.png",
+    shortcut: "/logo/pomodrive-png/pomoDrive-icon.png",
+    apple: "/logo/pomodrive-png/pomoDrive-icon.png",
   },
   manifest: "/site.webmanifest",
   openGraph: {
@@ -101,26 +102,49 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const theme = localStorage.getItem('theme');
+                  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  if (theme === 'dark' || (!theme && prefersDark)) {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} antialiased`}
       >
-        <GoogleOAuthProvider
-          clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
-        >
-          <ServiceWorkerRegistration />
-          {children}
-        </GoogleOAuthProvider>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 5000,
-            style: {
-              background: "#374151",
-              color: "#fff",
-            },
-          }}
-        />
+        <ThemeProvider>
+          <GoogleOAuthProvider
+            clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+          >
+            <ServiceWorkerRegistration />
+            {children}
+          </GoogleOAuthProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 5000,
+              className: "",
+              style: {
+                background: "var(--card-bg)",
+                color: "var(--foreground)",
+                border: "1px solid var(--border-color)",
+              },
+            }}
+          />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -20,6 +20,7 @@ const getCurrentYear = () => {
 
 const Analytics = () => {
   const [activeTab, setActiveTab] = useState("weekly");
+  const [user, setUser] = useState(null);
 
   // Monthly states
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
@@ -41,6 +42,30 @@ const Analytics = () => {
     averageSessionsPerMonth: 0,
     mostProductiveMonth: null,
   });
+
+  // Load user from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("accessToken");
+      if (token && token.split(".").length === 3) {
+        try {
+          const decodedUser = jwtDecode(token);
+          setUser(decodedUser);
+        } catch (error) {
+          console.error("Error decoding token:", error);
+          localStorage.removeItem("accessToken");
+        }
+      } else {
+        localStorage.removeItem("accessToken");
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("userId");
+    setUser(null);
+  };
 
   const fetchYearSessions = useCallback(async () => {
     try {
@@ -266,9 +291,11 @@ const Analytics = () => {
   };
 
   return (
-    <div className="w-screen min-h-screen flex flex-col justify-start items-center gap-4 bg-gray-900 text-white overflow-y-auto pt-24">
-      <Navbar />
-      <h1 className="text-3xl font-bold py-4">Analytics Dashboard</h1>
+    <div className="w-screen min-h-screen flex flex-col justify-start items-center gap-4 bg-[#f3f0f9] dark:bg-[#0a0a0a] text-gray-900 dark:text-white overflow-y-auto pt-24 transition-colors duration-300">
+      <Navbar user={user} onLogout={handleLogout} />
+      <h1 className="text-3xl font-bold py-4 bg-gradient-to-r from-[#88b6ff] to-[#014acd] bg-clip-text text-transparent">
+        Analytics Dashboard
+      </h1>
 
       {/* Tab Navigation */}
       <motion.div
@@ -279,24 +306,30 @@ const Analytics = () => {
       >
         <button
           onClick={() => setActiveTab("weekly")}
-          className={`px-6 py-2 rounded transition-colors ${
-            activeTab === "weekly" ? "bg-blue-500" : "bg-slate-200/20"
+          className={`px-6 py-2 rounded transition-all duration-300 ${
+            activeTab === "weekly"
+              ? "bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-md"
+              : "bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800"
           }`}
         >
           Weekly Analytics
         </button>
         <button
           onClick={() => setActiveTab("monthly")}
-          className={`px-6 py-2 rounded transition-colors ${
-            activeTab === "monthly" ? "bg-blue-500" : "bg-slate-200/20"
+          className={`px-6 py-2 rounded transition-all duration-300 ${
+            activeTab === "monthly"
+              ? "bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-md"
+              : "bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800"
           }`}
         >
           Monthly Analytics
         </button>
         <button
           onClick={() => setActiveTab("yearly")}
-          className={`px-6 py-2 rounded transition-colors ${
-            activeTab === "yearly" ? "bg-blue-500" : "bg-slate-200/20"
+          className={`px-6 py-2 rounded transition-all duration-300 ${
+            activeTab === "yearly"
+              ? "bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-md"
+              : "bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800"
           }`}
         >
           Yearly Analytics
@@ -324,11 +357,11 @@ const Analytics = () => {
                   setSelectedMonth(selectedMonth - 1);
                 }
               }}
-              className="bg-slate-200/20 p-2 rounded hover:bg-slate-200/30 transition-colors"
+              className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
             >
               Prev
             </button>
-            <span className="bg-slate-200/20 p-2 rounded">
+            <span className="bg-[#2563eb] text-white px-6 py-2 rounded shadow-md font-medium">
               {getMonthName(selectedMonth)} {selectedYear}
             </span>
             <button
@@ -340,7 +373,7 @@ const Analytics = () => {
                   setSelectedMonth(selectedMonth + 1);
                 }
               }}
-              className="bg-slate-200/20 p-2 rounded hover:bg-slate-200/30 transition-colors"
+              className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
             >
               Next
             </button>
@@ -371,16 +404,16 @@ const Analytics = () => {
           <div className="flex gap-2 items-center">
             <button
               onClick={() => setYearForYearlyView(yearForYearlyView - 1)}
-              className="bg-slate-200/20 p-2 rounded hover:bg-slate-200/30 transition-colors"
+              className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
             >
               Prev
             </button>
-            <span className="bg-slate-200/20 p-2 rounded">
+            <span className="bg-[#2563eb] text-white px-6 py-2 rounded shadow-md font-medium">
               {yearForYearlyView}
             </span>
             <button
               onClick={() => setYearForYearlyView(yearForYearlyView + 1)}
-              className="bg-slate-200/20 p-2 rounded hover:bg-slate-200/30 transition-colors"
+              className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
             >
               Next
             </button>

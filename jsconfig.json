@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
+    "skipLibCheck": true,
     "paths": {
       "@/*": ["./src/*"]
     }
-  }
+  },
+  "exclude": ["node_modules", ".next", "out"]
 }

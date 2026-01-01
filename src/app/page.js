@@ -99,22 +99,44 @@ export default function App() {
     try {
       const decodedToken = jwtDecode(credentialResponse.credential);
 
-      console.log("=== GOOGLE USER INFO ===");
-      console.log("User ID:", decodedToken.sub);
+      console.log("=== PAGE.JS: Google login started ===");
       console.log("Email:", decodedToken.email);
-      console.log("Name:", decodedToken.name);
-      console.log("=======================");
 
-      const userData = {
-        userId: decodedToken.sub,
-        email: decodedToken.email,
-        name: decodedToken.name,
-        picture: decodedToken.picture,
-      };
+      // Send the Google credential to backend to exchange for our own JWT
+      const backendResponse = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          googleToken: credentialResponse.credential,
+          // Note: credential flow doesn't provide refresh_token
+        }),
+      });
 
-      localStorage.setItem("accessToken", credentialResponse.credential);
-      localStorage.setItem("userId", decodedToken.sub);
-      setUser(userData);
+      if (!backendResponse.ok) {
+        throw new Error("Backend authentication failed");
+      }
+
+      const { token, user: backendUser } = await backendResponse.json();
+
+      console.log("=== PAGE.JS: Setting localStorage ===");
+      console.log("Backend user:", backendUser);
+      console.log("Setting userId to:", backendUser.userId || backendUser._id);
+
+      // Store our backend JWT and user info
+      localStorage.setItem("accessToken", token);
+      localStorage.setItem("userId", backendUser.userId || backendUser._id);
+      localStorage.setItem("userName", backendUser.name);
+
+      console.log("localStorage after setting:");
+      console.log("- userId:", localStorage.getItem("userId"));
+      console.log("- userName:", localStorage.getItem("userName"));
+
+      setUser({
+        userId: backendUser.userId || backendUser._id,
+        email: backendUser.email,
+        name: backendUser.name,
+        picture: backendUser.imageUrl,
+      });
     } catch (error) {
       console.error("Error handling Google login:", error);
     }
@@ -135,11 +157,11 @@ export default function App() {
   // Show welcome page with public timer when logged out
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-[#f3f0f9] via-[#88b6ff] to-[#014acd] dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 text-gray-900 dark:text-white overflow-hidden transition-colors duration-300">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden">
           <motion.div
-            className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl"
+            className="absolute -top-40 -right-40 w-80 h-80 bg-[#88b6ff]/20 dark:bg-blue-500/20 rounded-full blur-3xl"
             animate={{
               scale: [1, 1.2, 1],
               rotate: [0, 180, 360],
@@ -169,22 +191,21 @@ export default function App() {
           <div className="text-center max-w-4xl mx-auto pt-10 px-4">
             {/* Logo */}
             <motion.div
-              className="flex items-center justify-center mb-8"
+              className="flex items-center justify-center mb-4"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl mr-4">
-                <span className="text-white font-bold text-2xl">P</span>
-              </div>
-              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                PomoDRIVE
-              </h1>
+              <img
+                src="/logo/pomodrive-svg/pomoDrive-logo.svg"
+                alt="PomoDRIVE Logo"
+                className="h-20 md:h-48"
+              />
             </motion.div>
 
             {/* Subtitle */}
             <motion.h2
-              className="text-xl md:text-2xl font-semibold text-gray-300 mb-4"
+              className="text-xl md:text-2xl font-semibold text-gray-800 dark:text-gray-300 mb-4"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
@@ -194,7 +215,7 @@ export default function App() {
 
             {/* Description */}
             <motion.p
-              className="text-md text-gray-400 mb-8 max-w-2xl mx-auto leading-relaxed"
+              className="text-md text-gray-700 dark:text-gray-400 mb-8 max-w-2xl mx-auto leading-relaxed"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.6 }}
@@ -235,19 +256,19 @@ export default function App() {
             transition={{ duration: 0.8, delay: 1.2 }}
           >
             {/* Timer Card */}
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700/50 shadow-2xl">
+            <div className="bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-300 dark:border-gray-700/50 shadow-2xl transition-colors duration-300">
               {/* Public Timer Controls */}
               <PublicTimerControls showNotification={showNotification} />
 
               {/* Features Highlight */}
               <motion.div
-                className="mt-8 pt-6 border-t border-gray-700/50"
+                className="mt-8 pt-6 border-t border-gray-300 dark:border-gray-700/50"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 1.5 }}
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50">
+                  <div className="bg-white/60 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
                     <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-4">
                       <svg
                         className="w-6 h-6 text-blue-400"
@@ -263,16 +284,16 @@ export default function App() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2 text-white">
+                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
                       Project Management
                     </h3>
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-gray-700 dark:text-gray-400 text-sm">
                       Organize tasks by projects and milestones. Track what
                       you&apos;re working on across all your sessions.
                     </p>
                   </div>
 
-                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50">
+                  <div className="bg-white/60 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
                     <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-4">
                       <svg
                         className="w-6 h-6 text-purple-400"
@@ -288,16 +309,16 @@ export default function App() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2 text-white">
+                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
                       Productivity Analytics
                     </h3>
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-gray-700 dark:text-gray-400 text-sm">
                       Beautiful charts and insights showing your daily, weekly,
                       and monthly productivity patterns.
                     </p>
                   </div>
 
-                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50">
+                  <div className="bg-white/60 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
                     <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center mb-4">
                       <svg
                         className="w-6 h-6 text-green-400"
@@ -313,10 +334,10 @@ export default function App() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2 text-white">
+                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
                       Session History
                     </h3>
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-gray-700 dark:text-gray-400 text-sm">
                       Keep track of all your completed sessions, see your
                       streaks, and monitor your progress over time.
                     </p>
@@ -332,13 +353,13 @@ export default function App() {
 
   // Show main app when logged in
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 ">
+    <div className="min-h-screen bg-gradient-to-br from-[#f3f0f9] to-[#88b6ff] dark:from-gray-900 dark:to-blue-900 transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pt-24 pb-8">
         <PomodoroTimer showNotification={showNotification} />
       </main>
-      <footer className="flex justify-center items-center h-8 bg-gray-800 text-white">
-        <p>&copy; 2025 PomoDRIVE App</p>
+      <footer className="flex justify-center items-center h-8 bg-white/50 dark:bg-gray-800 text-gray-900 dark:text-white backdrop-blur-sm transition-colors duration-300">
+        <p>&copy; 2026 PomoDRIVE App</p>
       </footer>
     </div>
   );

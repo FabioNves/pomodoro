@@ -6,13 +6,14 @@ const sessionSchema = new mongoose.Schema({
   tasks: [
     {
       task: { type: String, required: false },
+      completed: { type: Boolean, default: false },
       brand: {
         title: { type: String, required: true },
         milestone: { type: String },
       },
     },
   ],
-   // Add current active project to session level
+  // Add current active project to session level
   currentProject: {
     title: { type: String, required: true },
     milestone: { type: String },
