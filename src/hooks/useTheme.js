@@ -5,10 +5,10 @@ import { createContext, useContext, useEffect, useState } from "react";
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState("light");
+  const [theme, setTheme] = useState("dark");
 
   useEffect(() => {
-    // Get theme from localStorage or system preference
+    // Get theme from localStorage or default to dark
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme) {
       setTheme(savedTheme);
@@ -18,16 +18,11 @@ export function ThemeProvider({ children }) {
         document.documentElement.classList.remove("dark");
       }
     } else {
-      const prefersDark = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      ).matches;
-      const initialTheme = prefersDark ? "dark" : "light";
+      // Default to dark mode for first-time users
+      const initialTheme = "dark";
       setTheme(initialTheme);
-      if (prefersDark) {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
+      localStorage.setItem("theme", initialTheme);
+      document.documentElement.classList.add("dark");
     }
   }, []);
 

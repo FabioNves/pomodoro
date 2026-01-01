@@ -69,6 +69,9 @@ const montserrat = localFont({
 });
 
 export const metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_BASE_URL || "https://pomodrive.vercel.app"
+  ),
   title: "PomoDRIVE",
   description: "A Pomodoro Timer with a Twist",
   icons: {
@@ -110,8 +113,8 @@ export default function RootLayout({ children }) {
               (function() {
                 try {
                   const theme = localStorage.getItem('theme');
-                  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  if (theme === 'dark' || (!theme && prefersDark)) {
+                  // Default to dark mode if no preference is set
+                  if (theme === 'dark' || !theme) {
                     document.documentElement.classList.add('dark');
                   } else {
                     document.documentElement.classList.remove('dark');
