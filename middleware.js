@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { NextResponse } from "next/server";
-
 export function middleware(request) {
   const response = NextResponse.next();
   // CSP is now handled in next.config.mjs
