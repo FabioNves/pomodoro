@@ -18,7 +18,10 @@ const generateTokens = (userId) => {
 export async function POST(req) {
   try {
     const { userId } = await req.json(); // Validate user credentials first
+    console.log("[auth/POST] Generating tokens for userId:", userId);
+    console.log("[auth/POST] JWT_SECRET exists:", !!process.env.JWT_SECRET);
     const tokens = generateTokens(userId);
+    console.log("[auth/POST] Generated accessToken:", tokens.accessToken ? `${tokens.accessToken.substring(0, 50)}...` : "null");
 
     const response = new Response(
       JSON.stringify({ accessToken: tokens.accessToken }),

@@ -116,11 +116,17 @@ export async function POST(req) {
     }
 
     // 3. Issue your own JWT
+    console.log("[auth/google] Signing JWT with JWT_SECRET for userId:", user._id.toString());
+    console.log("[auth/google] JWT_SECRET exists:", !!process.env.JWT_SECRET);
+    console.log("[auth/google] JWT_SECRET length:", process.env.JWT_SECRET?.length);
+    
     const token = jwt.sign(
       { userId: user._id, email: user.email, name: user.name },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
+    
+    console.log("[auth/google] Generated token:", token ? `${token.substring(0, 50)}...` : "null");
 
     return new Response(
       JSON.stringify({

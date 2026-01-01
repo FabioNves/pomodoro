@@ -6,10 +6,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
 import ThemeToggle from "./ThemeToggle";
+import { validateStoredToken } from "@/utils/tokenValidator";
 
 const Navbar = ({ user, onLogout }) => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const router = useRouter();
+
+  // Validate token on component mount
+  useEffect(() => {
+    validateStoredToken();
+  }, []);
 
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
@@ -40,6 +46,8 @@ const Navbar = ({ user, onLogout }) => {
       console.log("Setting userId to:", backendUser.userId || backendUser._id);
 
       // Store our backend JWT and user info
+      console.log("[Navbar] Storing token after Google auth:", token ? `${token.substring(0, 50)}...` : "null");
+      console.log("[Navbar] Storing userId:", backendUser.userId || backendUser._id);
       localStorage.setItem("accessToken", token);
       localStorage.setItem("userId", backendUser.userId || backendUser._id);
       localStorage.setItem("userName", backendUser.name);
