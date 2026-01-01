@@ -93,10 +93,6 @@ export const refreshAccessToken = async () => {
     });
     if (response.ok) {
       const { accessToken } = await response.json();
-      console.log(
-        "[refreshAccessToken] Storing new token:",
-        accessToken ? `${accessToken.substring(0, 50)}...` : "null"
-      );
       localStorage.setItem("accessToken", accessToken); // Store the new access token
       return accessToken;
     } else {
@@ -110,10 +106,6 @@ export const refreshAccessToken = async () => {
 
 export const getAccessToken = async () => {
   let token = localStorage.getItem("accessToken");
-  console.log(
-    "[getAccessToken] Retrieved token from localStorage:",
-    token ? `${token.substring(0, 50)}...` : "null"
-  );
   if (!token) {
     token = await refreshAccessToken();
   }

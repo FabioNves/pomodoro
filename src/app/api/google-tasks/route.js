@@ -38,7 +38,6 @@ export async function GET(req) {
 
     // Check if user has granted Google Tasks access
     if (!user.googleAccessToken) {
-      console.log("User has not granted Google Tasks access");
       return new Response(
         JSON.stringify({
           error: "Google Tasks access not granted",
@@ -54,32 +53,12 @@ export async function GET(req) {
       );
     }
 
-    console.log(
-      "[google-tasks] googleAccessToken exists:",
-      !!user.googleAccessToken
-    );
-    console.log(
-      "[google-tasks] Token preview:",
-      user.googleAccessToken
-        ? `${user.googleAccessToken.substring(0, 30)}...`
-        : "null"
-    );
-    console.log("[google-tasks] Token length:", user.googleAccessToken?.length);
-
     // Check if token is a JWT (starts with eyJ and has 3 parts) - these can't be used for API calls
     const tokenParts = user.googleAccessToken.split(".");
     const isJWT =
       tokenParts.length === 3 && user.googleAccessToken.startsWith("eyJ");
 
-    console.log("[google-tasks] Token parts:", tokenParts.length);
-    console.log(
-      "[google-tasks] Starts with eyJ:",
-      user.googleAccessToken.startsWith("eyJ")
-    );
-    console.log("[google-tasks] Is JWT:", isJWT);
-
     if (isJWT) {
-      console.log("Invalid token type detected (JWT credential)");
       // Clear the invalid token
       user.googleAccessToken = null;
       user.tokenExpiresAt = null;

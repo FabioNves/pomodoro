@@ -41,19 +41,7 @@ const Navbar = ({ user, onLogout }) => {
 
       const { token, user: backendUser } = await backendResponse.json();
 
-      console.log("=== Navbar: Setting localStorage ===");
-      console.log("Backend user:", backendUser);
-      console.log("Setting userId to:", backendUser.userId || backendUser._id);
-
       // Store our backend JWT and user info
-      console.log(
-        "[Navbar] Storing token after Google auth:",
-        token ? `${token.substring(0, 50)}...` : "null"
-      );
-      console.log(
-        "[Navbar] Storing userId:",
-        backendUser.userId || backendUser._id
-      );
       localStorage.setItem("accessToken", token);
       localStorage.setItem("userId", backendUser.userId || backendUser._id);
       localStorage.setItem("userName", backendUser.name);

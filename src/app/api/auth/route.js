@@ -18,13 +18,7 @@ const generateTokens = (userId) => {
 export async function POST(req) {
   try {
     const { userId } = await req.json(); // Validate user credentials first
-    console.log("[auth/POST] Generating tokens for userId:", userId);
-    console.log("[auth/POST] JWT_SECRET exists:", !!process.env.JWT_SECRET);
     const tokens = generateTokens(userId);
-    console.log(
-      "[auth/POST] Generated accessToken:",
-      tokens.accessToken ? `${tokens.accessToken.substring(0, 50)}...` : "null"
-    );
 
     const response = new Response(
       JSON.stringify({ accessToken: tokens.accessToken }),
@@ -48,35 +42,22 @@ export async function POST(req) {
 
 export async function PUT(req) {
   const refreshToken = cookies().get("refreshToken")?.value;
-  console.log("[auth/PUT] Refresh token exists:", !!refreshToken);
-  console.log(
-    "[auth/PUT] Refresh token preview:",
-    refreshToken ? `${refreshToken.substring(0, 50)}...` : "missing"
-  );
 
   try {
     const payload = jwt.verify(
       refreshToken,
       process.env.JWT_REFRESH_SECRET || "REFRESH_SECRET"
     );
-    console.log("[auth/PUT] Refresh token verified. UserId:", payload.userId);
-
     const newAccessToken = jwt.sign(
       { userId: payload.userId },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
-    );
-    console.log(
-      "[auth/PUT] New access token generated:",
-      `${newAccessToken.substring(0, 50)}...`
     );
 
     return new Response(JSON.stringify({ accessToken: newAccessToken }), {
       status: 200,
     });
   } catch (error) {
-    console.error("[auth/PUT] Error verifying refresh token:", error.message);
-    console.error("[auth/PUT] Error details:", error);
     return new Response(JSON.stringify({ error: "Invalid refresh token" }), {
       status: 401,
     });
