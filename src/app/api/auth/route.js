@@ -2,12 +2,16 @@ import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 
 const generateTokens = (userId) => {
-  const accessToken = jwt.sign({ userId }, "ACCESS_SECRET", {
+  const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, {
     expiresIn: "1h",
   });
-  const refreshToken = jwt.sign({ userId }, "REFRESH_SECRET", {
-    expiresIn: "3d",
-  });
+  const refreshToken = jwt.sign(
+    { userId },
+    process.env.JWT_REFRESH_SECRET || "REFRESH_SECRET",
+    {
+      expiresIn: "3d",
+    }
+  );
   return { accessToken, refreshToken };
 };
 
@@ -38,18 +42,35 @@ export async function POST(req) {
 
 export async function PUT(req) {
   const refreshToken = cookies().get("refreshToken")?.value;
+  console.log("[auth/PUT] Refresh token exists:", !!refreshToken);
+  console.log(
+    "[auth/PUT] Refresh token preview:",
+    refreshToken ? `${refreshToken.substring(0, 50)}...` : "missing"
+  );
 
   try {
-    const payload = jwt.verify(refreshToken, "REFRESH_SECRET");
+    const payload = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET || "REFRESH_SECRET"
+    );
+    console.log("[auth/PUT] Refresh token verified. UserId:", payload.userId);
+
     const newAccessToken = jwt.sign(
       { userId: payload.userId },
-      "ACCESS_SECRET",
+      process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
+    console.log(
+      "[auth/PUT] New access token generated:",
+      `${newAccessToken.substring(0, 50)}...`
+    );
+
     return new Response(JSON.stringify({ accessToken: newAccessToken }), {
       status: 200,
     });
   } catch (error) {
+    console.error("[auth/PUT] Error verifying refresh token:", error.message);
+    console.error("[auth/PUT] Error details:", error);
     return new Response(JSON.stringify({ error: "Invalid refresh token" }), {
       status: 401,
     });

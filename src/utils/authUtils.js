@@ -66,12 +66,22 @@ export const signOutFromGoogle = (setUser) => {
 const jwt = require("jsonwebtoken");
 
 const generateTokens = (userId) => {
-  const accessToken = jwt.sign({ userId }, "ACCESS_SECRET", {
-    expiresIn: "1h",
-  });
-  const refreshToken = jwt.sign({ userId }, "REFRESH_SECRET", {
-    expiresIn: "3d",
-  });
+  const accessToken = jwt.sign(
+    { userId },
+    process.env.JWT_SECRET || process.env.NEXT_PUBLIC_JWT_SECRET,
+    {
+      expiresIn: "1h",
+    }
+  );
+  const refreshToken = jwt.sign(
+    { userId },
+    process.env.JWT_REFRESH_SECRET ||
+      process.env.NEXT_PUBLIC_JWT_REFRESH_SECRET ||
+      "REFRESH_SECRET",
+    {
+      expiresIn: "3d",
+    }
+  );
   return { accessToken, refreshToken };
 };
 
