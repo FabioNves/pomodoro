@@ -108,8 +108,8 @@ export async function POST(req) {
 
       // If it's a JWT credential (from normal login)
       if (isJWT) {
-        console.log("JWT credential detected - clearing old/invalid tokens");
-        // Clear any expired or invalid tokens that might cause API errors
+        console.log("JWT credential detected - checking for invalid tokens");
+        // Only clear expired or JWT credentials that were incorrectly stored
         const now = new Date();
         if (user.tokenExpiresAt && user.tokenExpiresAt < now) {
           console.log("Clearing expired tokens");
@@ -118,12 +118,15 @@ export async function POST(req) {
           user.tokenExpiresAt = null;
         } else if (
           user.googleAccessToken &&
-          user.googleAccessToken.includes(".")
+          user.googleAccessToken.startsWith("eyJ") &&
+          user.googleAccessToken.split(".").length === 3
         ) {
           // Clear JWT credentials that were incorrectly stored as access tokens
           console.log("Clearing invalid JWT credential stored as access token");
           user.googleAccessToken = null;
           user.tokenExpiresAt = null;
+        } else {
+          console.log("Keeping existing valid OAuth tokens");
         }
       } else {
         // It's an OAuth access token (from Settings page)
