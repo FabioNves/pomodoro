@@ -70,15 +70,19 @@ export async function POST(req) {
       console.log("New user created with ID:", user._id.toString());
     } else {
       console.log("Updating existing user with ID:", user._id.toString());
-      // Update existing user with new tokens (only if we have them)
+      // Update existing user with new tokens
+      // Only store OAuth access tokens, not JWT credentials
       if (googleToken && !googleToken.includes(".")) {
-        // Only store OAuth access tokens, not JWT credentials
         user.googleAccessToken = googleToken;
+        user.tokenExpiresAt = tokenExpiresAt;
       }
-      if (refreshToken) user.googleRefreshToken = refreshToken;
-      if (tokenExpiresAt) user.tokenExpiresAt = tokenExpiresAt;
+      if (refreshToken) {
+        user.googleRefreshToken = refreshToken;
+      }
+      // If it's a JWT credential (from normal login), don't update tokens
+      // The user needs to use Settings to grant Tasks access
       await user.save();
-      console.log("User tokens updated");
+      console.log("User updated");
     }
 
     // 3. Issue your own JWT

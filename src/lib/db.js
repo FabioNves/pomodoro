@@ -11,8 +11,6 @@ export const connectToDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
       dbName: "pomodoro-app",
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
     });
     isConnected = true;
     console.log("MongoDB Connected");
