@@ -1,0 +1,51 @@
+{
+  "name": "PomoDRIVE",
+  "short_name": "PomoDRIVE",
+  "description": "A Pomodoro Timer with a Twist",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#014acd",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo/pomodrive-png/pomoDrive-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo/pomodrive-png/pomoDrive-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Start Timer",
+      "short_name": "Timer",
+      "description": "Start a Pomodoro session",
+      "url": "/?action=start",
+      "icons": [
+        {
+          "src": "/logo/pomodrive-png/pomoDrive-icon.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "short_name": "Stats",
+      "description": "View your productivity analytics",
+      "url": "/analytics",
+      "icons": [
+        {
+          "src": "/logo/pomodrive-png/pomoDrive-icon.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
