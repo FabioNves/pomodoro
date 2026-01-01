@@ -7,11 +7,35 @@ export async function POST(req) {
   try {
     const { googleToken, refreshToken, expiresIn } = await req.json();
 
+    console.log("[auth/google] POST request received");
+    console.log(
+      "[auth/google] googleToken preview:",
+      googleToken ? `${googleToken.substring(0, 50)}...` : "null"
+    );
+    console.log("[auth/google] googleToken length:", googleToken?.length);
+    console.log(
+      "[auth/google] Token contains dots:",
+      googleToken?.includes(".")
+    );
+    console.log("[auth/google] refreshToken exists:", !!refreshToken);
+    console.log("[auth/google] expiresIn:", expiresIn);
+
     let googleUser;
     let tokenExpiresAt;
 
     // Detect token type: JWT credential vs OAuth access token
-    if (googleToken.includes(".")) {
+    // JWT tokens have exactly 3 parts separated by dots AND start with "eyJ"
+    const tokenParts = googleToken.split(".");
+    const isJWT = tokenParts.length === 3 && googleToken.startsWith("eyJ");
+
+    console.log("[auth/google] Token parts:", tokenParts.length);
+    console.log(
+      "[auth/google] Starts with eyJ:",
+      googleToken.startsWith("eyJ")
+    );
+    console.log("[auth/google] Detected as JWT:", isJWT);
+
+    if (isJWT) {
       // It's a JWT credential from <GoogleLogin> component
       console.log("Handling JWT credential from GoogleLogin");
       try {
@@ -60,7 +84,7 @@ export async function POST(req) {
     if (!user) {
       console.log("Creating new user...");
       // For new users, only store OAuth tokens, not JWT credentials
-      const tokensToStore = googleToken.includes(".")
+      const tokensToStore = isJWT
         ? {
             googleAccessToken: null,
             googleRefreshToken: null,
@@ -83,7 +107,7 @@ export async function POST(req) {
       console.log("Updating existing user with ID:", user._id.toString());
 
       // If it's a JWT credential (from normal login)
-      if (googleToken.includes(".")) {
+      if (isJWT) {
         console.log("JWT credential detected - clearing old/invalid tokens");
         // Clear any expired or invalid tokens that might cause API errors
         const now = new Date();
@@ -116,17 +140,26 @@ export async function POST(req) {
     }
 
     // 3. Issue your own JWT
-    console.log("[auth/google] Signing JWT with JWT_SECRET for userId:", user._id.toString());
+    console.log(
+      "[auth/google] Signing JWT with JWT_SECRET for userId:",
+      user._id.toString()
+    );
     console.log("[auth/google] JWT_SECRET exists:", !!process.env.JWT_SECRET);
-    console.log("[auth/google] JWT_SECRET length:", process.env.JWT_SECRET?.length);
-    
+    console.log(
+      "[auth/google] JWT_SECRET length:",
+      process.env.JWT_SECRET?.length
+    );
+
     const token = jwt.sign(
       { userId: user._id, email: user.email, name: user.name },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
-    
-    console.log("[auth/google] Generated token:", token ? `${token.substring(0, 50)}...` : "null");
+
+    console.log(
+      "[auth/google] Generated token:",
+      token ? `${token.substring(0, 50)}...` : "null"
+    );
 
     return new Response(
       JSON.stringify({
