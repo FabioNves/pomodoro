@@ -10,7 +10,7 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [time, setTime] = useState(focusTime * 60);
   const [startBreak, setStartBreak] = useState(false);
-  const [breakTime, setBreakTime] = useState(0);
+  const [breakTime, setBreakTime] = useState(5);
   const [breakEnded, setBreakEnded] = useState(false);
   const [isBreakRunning, setIsBreakRunning] = useState(false);
   const [bTime, setBTime] = useState(breakTime * 60);
@@ -128,8 +128,11 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
   }, [focusTime, startFocus, focusEnded]);
 
   useEffect(() => {
-    setBTime(breakTime * 60);
-  }, [breakTime]);
+    // Only update bTime when not in an active break session AND break hasn't started
+    if (!startBreak && !breakEnded) {
+      setBTime(breakTime * 60);
+    }
+  }, [breakTime, startBreak, breakEnded]);
 
   // Helper function to reset all states to initial
   const resetToInitialState = () => {
@@ -142,6 +145,8 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
     setStartTimestamp(null);
     setBreakStartTimestamp(null);
     setFocusTime(25);
+    // Note: breakTime is NOT reset so it persists across sessions
+    // This allows users to keep their preferred break duration
     // Time will be updated by the useEffect when focusTime changes and startFocus is false
   };
 
