@@ -354,7 +354,7 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
         {/* Only show Start/Pause button when focus hasn't ended */}
         {!focusEnded && (
           <motion.button
-            className="bg-gradient-to-r from-[#88b6ff] to-[#014acd] hover:from-[#014acd] hover:to-[#88b6ff] text-white px-8 py-2 rounded-lg font-medium transition-all duration-200"
+            className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-8 py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300"
             onClick={isRunning ? handlePause : handleStart}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}

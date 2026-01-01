@@ -234,9 +234,9 @@ export default function SettingsPage() {
                   </button>
 
                   <p className="text-xs text-gray-600 dark:text-gray-500 mt-3 transition-colors duration-300">
-                    You'll be redirected to Google to authorize access to your
-                    tasks. This is required for existing users who signed in
-                    before this feature was added.
+                    You&apos;ll be redirected to Google to authorize access to
+                    your tasks. This is required for existing users who signed
+                    in before this feature was added.
                   </p>
                 </>
               )}

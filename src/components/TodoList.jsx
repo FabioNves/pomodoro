@@ -199,7 +199,11 @@ const TodoList = ({
               </option>
             ))}
           </select>
-          <Button variant="short" onClick={addBrand}>
+          <Button
+            variant="short"
+            onClick={addBrand}
+            className="bg-green-500 hover:bg-green-600"
+          >
             + Project
           </Button>
         </div>
@@ -222,6 +226,7 @@ const TodoList = ({
             variant="short"
             onClick={addMilestone}
             disabled={!selectedBrand}
+            className="bg-purple-500 hover:bg-purple-600"
           >
             + Milestone
           </Button>

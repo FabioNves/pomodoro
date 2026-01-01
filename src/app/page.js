@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
@@ -196,10 +197,13 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <img
+              <Image
                 src="/logo/pomodrive-svg/pomoDrive-logo.svg"
                 alt="PomoDRIVE Logo"
-                className="h-20 md:h-48"
+                width={192}
+                height={80}
+                className="h-20 md:h-48 w-auto"
+                priority
               />
             </motion.div>
 
