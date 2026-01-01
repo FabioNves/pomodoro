@@ -121,7 +121,7 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
   ]);
 
   useEffect(() => {
-    // Only update time when not in an active session AND focus hasn't ended
+    // Only update time when not in an active session AND focus hasn't endedd
     if (!startFocus && !focusEnded) {
       setTime(focusTime * 60);
     }
