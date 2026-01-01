@@ -63,8 +63,16 @@ const TodoList = ({
 
         if (!response.ok) {
           const errorData = await response.json();
+          console.log("Google Tasks API error:", errorData);
           // Store the full error data including instructions
-          setGoogleTasksError(errorData);
+          setGoogleTasksError({
+            error: errorData.error || "Failed to fetch Google Tasks",
+            message:
+              errorData.message ||
+              errorData.details ||
+              "An error occurred while fetching your Google Tasks.",
+            instructions: errorData.instructions || null,
+          });
           return;
         }
 
@@ -351,26 +359,47 @@ const TodoList = ({
               </svg>
               <div className="flex-1">
                 <p className="text-yellow-300 font-medium">
-                  {googleTasksError?.error || "Google Tasks Error"}
+                  {typeof googleTasksError === "string"
+                    ? googleTasksError
+                    : googleTasksError?.error || "Google Tasks Error"}
                 </p>
-                <p className="text-gray-300 text-sm mt-1">
-                  {googleTasksError?.message || googleTasksError?.error}
-                </p>
-                {googleTasksError?.instructions && (
-                  <div className="mt-3 text-xs text-gray-400 space-y-1">
-                    <p className="font-medium text-gray-300">To fix this:</p>
+                {typeof googleTasksError === "object" &&
+                  googleTasksError?.message && (
+                    <p className="text-gray-300 text-sm mt-1">
+                      {googleTasksError.message}
+                    </p>
+                  )}
+                {googleTasksError?.instructions &&
+                googleTasksError.instructions.length > 0 ? (
+                  <div className="mt-3 text-xs space-y-1">
+                    <p className="font-medium text-yellow-200">How to fix:</p>
                     {googleTasksError.instructions.map((instruction, idx) => (
-                      <p key={idx} className="ml-2">
+                      <p key={idx} className="text-gray-300 ml-2">
                         {instruction}
                       </p>
                     ))}
                   </div>
-                )}
-                {!googleTasksError?.instructions && (
-                  <p className="text-gray-400 text-xs mt-2">
-                    Please go to <strong>/settings</strong> and click "Grant
-                    Google Tasks Access"
-                  </p>
+                ) : (
+                  <div className="mt-3 bg-blue-500/10 border border-blue-500/30 rounded p-3">
+                    <p className="text-blue-200 text-sm font-medium mb-2">
+                      📋 To access Google Tasks:
+                    </p>
+                    <ol className="text-xs text-gray-300 space-y-1 ml-4 list-decimal">
+                      <li>
+                        Go to the{" "}
+                        <strong className="text-blue-300">Settings</strong> page
+                      </li>
+                      <li>
+                        Click the{" "}
+                        <strong className="text-blue-300">
+                          "Grant Google Tasks Access"
+                        </strong>{" "}
+                        button
+                      </li>
+                      <li>Sign in and grant the necessary permissions</li>
+                      <li>Return here to see your tasks</li>
+                    </ol>
+                  </div>
                 )}
               </div>
             </div>

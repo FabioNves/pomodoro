@@ -29,25 +29,69 @@ export async function GET(req) {
       console.log("Found user by email for google-tasks:", !!user);
     }
 
-    if (!user || !user.googleAccessToken) {
-      console.error(
-        "User not found or no token! userId:",
-        userId,
-        "hasToken:",
-        !!user?.googleAccessToken
-      );
+    if (!user) {
+      console.error("User not found! userId:", userId);
+      return new Response(JSON.stringify({ error: "User not found" }), {
+        status: 404,
+      });
+    }
+
+    // Check if user has granted Google Tasks access
+    if (!user.googleAccessToken) {
+      console.log("User has not granted Google Tasks access");
       return new Response(
-        JSON.stringify({ error: "User not authenticated with Google" }),
-        { status: 401 }
+        JSON.stringify({
+          error: "Google Tasks access not granted",
+          message: "You haven't granted access to your Google Tasks yet.",
+          instructions: [
+            "1. Go to Settings page",
+            "2. Click 'Grant Google Tasks Access' button",
+            "3. Sign in with your Google account and grant permissions",
+            "4. Return here to see your Google Tasks",
+          ],
+        }),
+        { status: 403 }
       );
     }
 
-    // Check if token is expired
-    if (user.tokenExpiresAt && new Date() > user.tokenExpiresAt) {
-      // Try to refresh the token automatically
-      console.log("Token expired, attempting refresh...");
+    // Check if token contains dots (JWT credential - invalid for API calls)
+    if (user.googleAccessToken.includes(".")) {
+      console.log("Invalid token type detected (JWT credential)");
+      // Clear the invalid token
+      user.googleAccessToken = null;
+      user.tokenExpiresAt = null;
+      await user.save();
 
+      return new Response(
+        JSON.stringify({
+          error: "Invalid token type",
+          message:
+            "Your authentication token is not valid for Google Tasks API.",
+          instructions: [
+            "1. Go to Settings page",
+            "2. Click 'Grant Google Tasks Access' button",
+            "3. Sign in with your Google account and grant permissions",
+            "4. Return here to see your Google Tasks",
+          ],
+        }),
+        { status: 403 }
+      );
+    }
+
+    // Validate token with Google before attempting to use it
+    let tokenValid = false;
+    try {
+      const tokenInfoResponse = await axios.get(
+        `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${user.googleAccessToken}`
+      );
+      console.log("Token is valid. Scopes:", tokenInfoResponse.data.scope);
+      tokenValid = true;
+    } catch (tokenError) {
+      console.log("Token validation failed:", tokenError.response?.status);
+
+      // Token is invalid or expired, try to refresh
       if (user.googleRefreshToken) {
+        console.log("Attempting to refresh token...");
         try {
           const refreshResponse = await fetch(
             `${
@@ -61,41 +105,72 @@ export async function GET(req) {
           );
 
           if (refreshResponse.ok) {
-            console.log("Token refreshed successfully, retrying...");
+            console.log("Token refreshed successfully");
             // Reload user to get fresh token
             user = await User.findById(user._id);
+            tokenValid = true;
           } else {
+            const errorData = await refreshResponse.json();
+            console.error("Token refresh failed:", errorData);
             throw new Error("Token refresh failed");
           }
         } catch (refreshError) {
-          console.error("Failed to refresh token:", refreshError);
+          console.error("Error during token refresh:", refreshError);
+
+          // Clear invalid tokens
+          user.googleAccessToken = null;
+          user.googleRefreshToken = null;
+          user.tokenExpiresAt = null;
+          await user.save();
+
           return new Response(
             JSON.stringify({
-              error:
-                "Google token expired. Please go to Settings and grant access again.",
+              error: "Token expired and refresh failed",
+              message:
+                "Your Google authentication has expired and could not be refreshed.",
+              instructions: [
+                "1. Go to Settings page",
+                "2. Click 'Grant Google Tasks Access' button",
+                "3. Sign in with your Google account and grant permissions",
+                "4. Return here to see your Google Tasks",
+              ],
             }),
             { status: 401 }
           );
         }
       } else {
+        console.log("No refresh token available");
+
+        // Clear invalid token
+        user.googleAccessToken = null;
+        user.tokenExpiresAt = null;
+        await user.save();
+
         return new Response(
           JSON.stringify({
-            error:
-              "Google token expired. Please go to Settings and grant access again.",
+            error: "Token expired without refresh capability",
+            message: "Your Google authentication has expired.",
+            instructions: [
+              "1. Go to Settings page",
+              "2. Click 'Grant Google Tasks Access' button",
+              "3. Sign in with your Google account and grant permissions",
+              "4. Return here to see your Google Tasks",
+            ],
           }),
           { status: 401 }
         );
       }
     }
 
-    // Verify token info first
-    try {
-      const tokenInfo = await axios.get(
-        `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${user.googleAccessToken}`
+    // At this point, token should be valid
+    if (!tokenValid) {
+      return new Response(
+        JSON.stringify({
+          error: "Unable to validate token",
+          message: "Could not establish valid authentication with Google.",
+        }),
+        { status: 401 }
       );
-      console.log("Token scopes:", tokenInfo.data.scope);
-    } catch (err) {
-      console.error("Error verifying token:", err);
     }
 
     // Fetch task lists from Google Tasks API

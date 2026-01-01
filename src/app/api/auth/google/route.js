@@ -59,28 +59,58 @@ export async function POST(req) {
 
     if (!user) {
       console.log("Creating new user...");
+      // For new users, only store OAuth tokens, not JWT credentials
+      const tokensToStore = googleToken.includes(".")
+        ? {
+            googleAccessToken: null,
+            googleRefreshToken: null,
+            tokenExpiresAt: null,
+          }
+        : {
+            googleAccessToken: googleToken,
+            googleRefreshToken: refreshToken,
+            tokenExpiresAt,
+          };
+
       user = await User.create({
         name: googleUser.name || googleUser.email,
         email: googleUser.email,
         imageUrl: googleUser.picture,
-        googleAccessToken: googleToken,
-        googleRefreshToken: refreshToken,
-        tokenExpiresAt,
+        ...tokensToStore,
       });
       console.log("New user created with ID:", user._id.toString());
     } else {
       console.log("Updating existing user with ID:", user._id.toString());
-      // Update existing user with new tokens
-      // Only store OAuth access tokens, not JWT credentials
-      if (googleToken && !googleToken.includes(".")) {
+
+      // If it's a JWT credential (from normal login)
+      if (googleToken.includes(".")) {
+        console.log("JWT credential detected - clearing old/invalid tokens");
+        // Clear any expired or invalid tokens that might cause API errors
+        const now = new Date();
+        if (user.tokenExpiresAt && user.tokenExpiresAt < now) {
+          console.log("Clearing expired tokens");
+          user.googleAccessToken = null;
+          user.googleRefreshToken = null;
+          user.tokenExpiresAt = null;
+        } else if (
+          user.googleAccessToken &&
+          user.googleAccessToken.includes(".")
+        ) {
+          // Clear JWT credentials that were incorrectly stored as access tokens
+          console.log("Clearing invalid JWT credential stored as access token");
+          user.googleAccessToken = null;
+          user.tokenExpiresAt = null;
+        }
+      } else {
+        // It's an OAuth access token (from Settings page)
+        console.log("OAuth access token detected - updating tokens");
         user.googleAccessToken = googleToken;
         user.tokenExpiresAt = tokenExpiresAt;
+        if (refreshToken) {
+          user.googleRefreshToken = refreshToken;
+        }
       }
-      if (refreshToken) {
-        user.googleRefreshToken = refreshToken;
-      }
-      // If it's a JWT credential (from normal login), don't update tokens
-      // The user needs to use Settings to grant Tasks access
+
       await user.save();
       console.log("User updated");
     }
