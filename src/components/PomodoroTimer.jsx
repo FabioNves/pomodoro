@@ -17,8 +17,6 @@ const PomodoroTimer = ({ showNotification }) => {
   const [todoTasks, setTodoTasks] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [selectedDay, setSelectedDay] = useState("today");
-  const [brands, setBrands] = useState([]);
-  const [milestones, setMilestones] = useState([]);
   const [error, setError] = useState(null);
   const [sessions, setSessions] = useState([]);
 
@@ -26,9 +24,19 @@ const PomodoroTimer = ({ showNotification }) => {
   const [activeProject, setActiveProject] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("activeProject");
-      return saved ? JSON.parse(saved) : { title: "", milestone: "" };
+      if (!saved) return { projectId: "", title: "" };
+      try {
+        const parsed = JSON.parse(saved);
+        // Migrate older shape { title, milestone }
+        return {
+          projectId: parsed?.projectId || "",
+          title: parsed?.title || "",
+        };
+      } catch {
+        return { projectId: "", title: "" };
+      }
     }
-    return { title: "", milestone: "" };
+    return { projectId: "", title: "" };
   });
 
   // Save active project to localStorage whenever it changes
@@ -72,24 +80,6 @@ const PomodoroTimer = ({ showNotification }) => {
           const sessionsData = await sessionsResponse.json();
           setSessions(sessionsData);
         }
-
-        // Fetch brands
-        const brandsResponse = await fetch("/api/brands", {
-          headers: { "user-id": userId },
-        });
-        if (brandsResponse.ok) {
-          const brandsData = await brandsResponse.json();
-          setBrands(brandsData);
-        }
-
-        // Fetch milestones
-        const milestonesResponse = await fetch("/api/milestones", {
-          headers: { "user-id": userId },
-        });
-        if (milestonesResponse.ok) {
-          const milestonesData = await milestonesResponse.json();
-          setMilestones(milestonesData);
-        }
       } catch (err) {
         console.error("Error fetching data:", err);
         setError("Could not load data");
@@ -116,22 +106,38 @@ const PomodoroTimer = ({ showNotification }) => {
   };
 
   const toggleTaskCompletion = (index) => {
-    setTasks(
-      tasks.map((task, i) =>
-        i === index ? { ...task, completed: !task.completed } : task
-      )
-    );
-  };
+    let taskIdToUpdate = null;
+    let completedToUpdate = null;
 
-  const addTodoTask = (task, brand, milestone) => {
-    setTodoTasks([
-      ...todoTasks,
-      {
-        task,
-        brand: { title: brand, milestone },
-        completed: false,
-      },
-    ]);
+    setTasks((prev) =>
+      prev.map((task, i) => {
+        if (i !== index) return task;
+        const nextCompleted = !task.completed;
+        taskIdToUpdate = task.taskId || null;
+        completedToUpdate = nextCompleted;
+        return { ...task, completed: nextCompleted };
+      })
+    );
+
+    // If the task originated from the Tasks model, persist completion immediately.
+    if (taskIdToUpdate && typeof completedToUpdate === "boolean") {
+      const userId = user?.userId || localStorage.getItem("userId");
+      if (!userId) return;
+
+      fetch("/api/tasks", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "user-id": userId,
+        },
+        body: JSON.stringify({
+          id: taskIdToUpdate,
+          completed: completedToUpdate,
+        }),
+      }).catch((e) => {
+        console.error("Error updating task completion:", e);
+      });
+    }
   };
 
   const handleSessionCompletion = useCallback(
@@ -140,12 +146,7 @@ const PomodoroTimer = ({ showNotification }) => {
 
       // If no active project is set, prompt user to select one
       if (!activeProject.title) {
-        const availableBrands = brands.map((b) => b.name).join(", ");
-        alert(
-          `Please select a project first from: ${
-            availableBrands || "Create a project first"
-          }`
-        );
+        alert("Please select a project first.");
         return;
       }
 
@@ -158,7 +159,6 @@ const PomodoroTimer = ({ showNotification }) => {
           completed: task.completed || false,
           brand: {
             title: activeProject.title, // Use active project
-            milestone: activeProject.milestone || "",
           },
         })),
       };
@@ -185,11 +185,7 @@ const PomodoroTimer = ({ showNotification }) => {
 
         if (showNotification) {
           showNotification("🎯 Session Completed!", {
-            body: `Great work! You completed a ${focus}-minute focus session on ${
-              activeProject.title
-            }${
-              activeProject.milestone ? ` - ${activeProject.milestone}` : ""
-            }.`,
+            body: `Great work! You completed a ${focus}-minute focus session on ${activeProject.title}.`,
             icon: "/favicon.ico",
           });
         }
@@ -206,7 +202,7 @@ const PomodoroTimer = ({ showNotification }) => {
         console.error("Error saving session", error);
       }
     },
-    [tasks, user, showNotification, activeProject, brands]
+    [tasks, user, showNotification, activeProject]
   );
 
   if (!hasMounted) return null;
@@ -307,13 +303,8 @@ const PomodoroTimer = ({ showNotification }) => {
                     todoInput={todoInput}
                     setTodoInput={setTodoInput}
                     todoTasks={todoTasks}
-                    addTodoTask={addTodoTask}
                     setTodoTasks={setTodoTasks}
                     transferTaskToSession={transferTaskToSession}
-                    brands={brands}
-                    setBrands={setBrands}
-                    milestones={milestones}
-                    setMilestones={setMilestones}
                     activeProject={activeProject}
                     setActiveProject={setActiveProject}
                   />

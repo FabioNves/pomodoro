@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
+import { z } from "zod";
+import { validateJsonBody } from "@/utils/apiValidation";
 
 const generateTokens = (userId) => {
   const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, {
@@ -17,7 +19,13 @@ const generateTokens = (userId) => {
 
 export async function POST(req) {
   try {
-    const { userId } = await req.json(); // Validate user credentials first
+    const body = await validateJsonBody(
+      req,
+      z.object({ userId: z.string().trim().min(1).max(256) })
+    );
+    if (!body.ok) return body.response;
+
+    const { userId } = body.data; // Validate user credentials first
     const tokens = generateTokens(userId);
 
     const response = new Response(
@@ -42,6 +50,12 @@ export async function POST(req) {
 
 export async function PUT(req) {
   const refreshToken = cookies().get("refreshToken")?.value;
+
+  if (!refreshToken) {
+    return new Response(JSON.stringify({ error: "Missing refresh token" }), {
+      status: 401,
+    });
+  }
 
   try {
     const payload = jwt.verify(

@@ -1,18 +1,26 @@
 import { connectToDB } from "@/lib/db";
 import Milestone from "@/models/Milestone";
+import { z } from "zod";
+import { validateJsonBody } from "@/utils/apiValidation";
+
+const milestoneSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+});
+
+const optionalUserIdSchema = z.string().trim().min(1).max(256).optional();
 
 // POST /api/milestones
 export async function POST(req) {
   try {
-    const { name } = await req.json();
-    const userId = req.headers.get("user-id");
+    const body = await validateJsonBody(req, milestoneSchema);
+    if (!body.ok) return body.response;
 
-    if (!name) {
-      return Response.json(
-        { error: "Milestone name is required" },
-        { status: 400 }
-      );
-    }
+    const userIdRaw = req.headers.get("user-id") ?? undefined;
+    const userId = optionalUserIdSchema.safeParse(userIdRaw).success
+      ? userIdRaw
+      : undefined;
+
+    const { name } = body.data;
 
     await connectToDB();
 
@@ -38,7 +46,10 @@ export async function POST(req) {
 // GET /api/milestones
 export async function GET(req) {
   try {
-    const userId = req.headers.get("user-id");
+    const userIdRaw = req.headers.get("user-id") ?? undefined;
+    const userId = optionalUserIdSchema.safeParse(userIdRaw).success
+      ? userIdRaw
+      : undefined;
 
     await connectToDB();
 

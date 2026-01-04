@@ -1,18 +1,26 @@
 import { connectToDB } from "@/lib/db";
 import Brand from "@/models/Brand";
+import { z } from "zod";
+import { validateJsonBody } from "@/utils/apiValidation";
+
+const brandSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+});
+
+const optionalUserIdSchema = z.string().trim().min(1).max(256).optional();
 
 // POST /api/brands
 export async function POST(req) {
   try {
-    const { name } = await req.json();
-    const userId = req.headers.get("user-id");
+    const body = await validateJsonBody(req, brandSchema);
+    if (!body.ok) return body.response;
 
-    if (!name) {
-      return Response.json(
-        { error: "Brand name is required" },
-        { status: 400 }
-      );
-    }
+    const userIdRaw = req.headers.get("user-id") ?? undefined;
+    const userId = optionalUserIdSchema.safeParse(userIdRaw).success
+      ? userIdRaw
+      : undefined;
+
+    const { name } = body.data;
 
     await connectToDB();
 
@@ -35,7 +43,10 @@ export async function POST(req) {
 // GET /api/brands
 export async function GET(request) {
   try {
-    const userId = request.headers.get("user-id");
+    const userIdRaw = request.headers.get("user-id") ?? undefined;
+    const userId = optionalUserIdSchema.safeParse(userIdRaw).success
+      ? userIdRaw
+      : undefined;
 
     await connectToDB();
 

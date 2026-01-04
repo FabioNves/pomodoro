@@ -120,7 +120,7 @@ const CompletedSessions = ({ sessions = [] }) => {
               // HAS TASKS - Show the tasks
               <div>
                 <p className="font-medium mb-2 text-gray-700 dark:text-gray-300 transition-colors duration-300">
-                  {session.tasks.some((task) => task.task && task.task.trim())
+                  {session.tasks.some((task) => task?.completed)
                     ? "Tasks Completed:"
                     : "Worked on:"}
                 </p>
@@ -132,8 +132,8 @@ const CompletedSessions = ({ sessions = [] }) => {
                     >
                       <span className="flex-1 text-gray-800 dark:text-gray-200 transition-colors duration-300">
                         {taskObj.task && taskObj.task.trim()
-                          ? taskObj.task
-                          : `General work on ${
+                          ? `${taskObj.completed ? "✅ " : ""}${taskObj.task}`
+                          : `${taskObj.completed ? "✅ " : ""}General work on ${
                               taskObj?.brand?.title || "project"
                             }`}
                       </span>
@@ -219,10 +219,12 @@ const CompletedSessions = ({ sessions = [] }) => {
           </div>
           <div>
             <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-              {todaysSessions.reduce(
-                (total, session) => total + (session.tasks?.length || 0),
-                0
-              )}
+              {todaysSessions.reduce((total, session) => {
+                const completedCount = (session.tasks || []).filter(
+                  (t) => t?.completed
+                ).length;
+                return total + completedCount;
+              }, 0)}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">
               Tasks Completed

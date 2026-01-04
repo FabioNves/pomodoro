@@ -158,7 +158,7 @@ export default function App() {
   // Show welcome page with public timer when logged out
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f3f0f9] via-[#88b6ff] to-[#014acd] dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 text-gray-900 dark:text-white overflow-hidden transition-colors duration-300">
+      <div className="min-h-screen overflow-hidden transition-colors duration-300">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden">
           <motion.div
@@ -357,9 +357,9 @@ export default function App() {
 
   // Show main app when logged in
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f3f0f9] to-[#88b6ff] dark:from-gray-900 dark:to-blue-900 transition-colors duration-300">
+    <div className="min-h-screen transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
-      <main className="pt-24 pb-8">
+      <main className="pb-8">
         <PomodoroTimer showNotification={showNotification} />
       </main>
       <footer className="flex justify-center items-center h-8 bg-white/50 dark:bg-gray-800 text-gray-900 dark:text-white backdrop-blur-sm transition-colors duration-300">

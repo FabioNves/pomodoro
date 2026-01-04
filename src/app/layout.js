@@ -133,7 +133,9 @@ export default function RootLayout({ children }) {
             clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
           >
             <ServiceWorkerRegistration />
-            {children}
+            <div className="w-screen min-h-screen bg-gradient-to-br from-[#f3f0f9] via-[#88b6ff] to-[#014acd] dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 text-gray-900 dark:text-white pt-24 transition-colors duration-300">
+              {children}
+            </div>
           </GoogleOAuthProvider>
           <Toaster
             position="top-right"

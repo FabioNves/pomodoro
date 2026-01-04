@@ -27,11 +27,6 @@ const SessionTasks = ({
           </h3>
           <p className="text-lg font-semibold text-green-700 dark:text-green-400">
             {activeProject.title}
-            {activeProject.milestone && (
-              <span className="text-purple-600 dark:text-purple-400 ml-2">
-                • {activeProject.milestone}
-              </span>
-            )}
           </p>
         </div>
       )}

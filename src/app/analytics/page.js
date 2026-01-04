@@ -291,7 +291,7 @@ const Analytics = () => {
   };
 
   return (
-    <div className="w-screen min-h-screen flex flex-col justify-start items-center gap-4 bg-[#f3f0f9] dark:bg-[#0a0a0a] text-gray-900 dark:text-white overflow-y-auto pt-24 transition-colors duration-300">
+    <div className="w-screen min-h-screen flex flex-col justify-start items-center gap-4 overflow-y-auto transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <h1 className="text-3xl font-bold py-4 bg-gradient-to-r from-[#88b6ff] to-[#014acd] bg-clip-text text-transparent">
         Analytics Dashboard

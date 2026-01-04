@@ -1,47 +1,47 @@
 import jwt from "jsonwebtoken";
-import axios from "axios";
 import User from "@/models/User";
 import { connectToDB } from "@/lib/db";
+import { z } from "zod";
+import { validateJsonBody } from "@/utils/apiValidation";
 
 export async function POST(req) {
   try {
-    const { googleToken, refreshToken, expiresIn } = await req.json();
+    const body = await validateJsonBody(
+      req,
+      z.object({ googleToken: z.string().trim().min(1).max(4096) })
+    );
+    if (!body.ok) return body.response;
 
-    let googleUser;
-    let tokenExpiresAt;
+    const { googleToken } = body.data;
 
-    // Detect token type: JWT credential vs OAuth access token
-    // JWT tokens have exactly 3 parts separated by dots AND start with "eyJ"
+    // Credential flow only: JWT tokens have 3 parts and start with "eyJ"
     const tokenParts = googleToken.split(".");
     const isJWT = tokenParts.length === 3 && googleToken.startsWith("eyJ");
-
-    if (isJWT) {
-      // It's a JWT credential from <GoogleLogin> component
-      try {
-        const { jwtDecode } = await import("jwt-decode");
-        const decoded = jwtDecode(googleToken);
-        googleUser = {
-          email: decoded.email,
-          name: decoded.name,
-          picture: decoded.picture,
-        };
-        // JWT credentials expire in 1 hour by default
-        tokenExpiresAt = new Date(decoded.exp * 1000);
-      } catch (decodeError) {
-        return new Response(
-          JSON.stringify({ error: "Invalid Google JWT token" }),
-          {
-            status: 401,
-          }
-        );
-      }
-    } else {
-      // It's an OAuth access token from useGoogleLogin
-      const googleUserRes = await axios.get(
-        `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${googleToken}`
+    if (!isJWT) {
+      return new Response(
+        JSON.stringify({
+          error: "Unsupported token type",
+          message:
+            "This app only supports Google credential (JWT) sign-in. OAuth access tokens are not accepted.",
+        }),
+        { status: 400 }
       );
-      googleUser = googleUserRes.data;
-      tokenExpiresAt = new Date(Date.now() + (expiresIn || 3600) * 1000);
+    }
+
+    let googleUser;
+    try {
+      const { jwtDecode } = await import("jwt-decode");
+      const decoded = jwtDecode(googleToken);
+      googleUser = {
+        sub: decoded.sub,
+        email: decoded.email,
+        name: decoded.name,
+        picture: decoded.picture,
+      };
+    } catch (decodeError) {
+      return new Response(JSON.stringify({ error: "Invalid Google token" }), {
+        status: 401,
+      });
     }
 
     if (!googleUser || !googleUser.email) {
@@ -56,52 +56,22 @@ export async function POST(req) {
     let user = await User.findOne({ email: googleUser.email });
 
     if (!user) {
-      // For new users, only store OAuth tokens, not JWT credentials
-      const tokensToStore = isJWT
-        ? {
-            googleAccessToken: null,
-            googleRefreshToken: null,
-            tokenExpiresAt: null,
-          }
-        : {
-            googleAccessToken: googleToken,
-            googleRefreshToken: refreshToken,
-            tokenExpiresAt,
-          };
-
       user = await User.create({
         name: googleUser.name || googleUser.email,
         email: googleUser.email,
         imageUrl: googleUser.picture,
-        ...tokensToStore,
+        googleSub: googleUser.sub,
       });
     } else {
-      // If it's a JWT credential (from normal login)
-      if (isJWT) {
-        // Only clear expired or JWT credentials that were incorrectly stored
-        const now = new Date();
-        if (user.tokenExpiresAt && user.tokenExpiresAt < now) {
-          user.googleAccessToken = null;
-          user.googleRefreshToken = null;
-          user.tokenExpiresAt = null;
-        } else if (
-          user.googleAccessToken &&
-          user.googleAccessToken.startsWith("eyJ") &&
-          user.googleAccessToken.split(".").length === 3
-        ) {
-          // Clear JWT credentials that were incorrectly stored as access tokens
-          user.googleAccessToken = null;
-          user.tokenExpiresAt = null;
-        }
-      } else {
-        // It's an OAuth access token (from Settings page)
-        user.googleAccessToken = googleToken;
-        user.tokenExpiresAt = tokenExpiresAt;
-        if (refreshToken) {
-          user.googleRefreshToken = refreshToken;
-        }
+      // Keep user info fresh
+      if (googleUser.name && user.name !== googleUser.name)
+        user.name = googleUser.name;
+      if (googleUser.picture && user.imageUrl !== googleUser.picture) {
+        user.imageUrl = googleUser.picture;
       }
-
+      if (googleUser.sub && user.googleSub !== googleUser.sub) {
+        user.googleSub = googleUser.sub;
+      }
       await user.save();
     }
 
@@ -118,6 +88,7 @@ export async function POST(req) {
         user: {
           _id: user._id.toString(),
           userId: user._id.toString(),
+          googleSub: user.googleSub || null,
           email: user.email,
           name: user.name,
           imageUrl: user.imageUrl,

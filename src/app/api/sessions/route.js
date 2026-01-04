@@ -2,6 +2,29 @@ import { connectToDB } from "@/lib/db";
 import Session from "@/models/Session";
 import { jwtDecode } from "jwt-decode";
 import { getUserFromRequest } from "@/utils/getUserFromRequest";
+import { z } from "zod";
+import { validateJsonBody } from "@/utils/apiValidation";
+
+const userIdHeaderSchema = z.string().trim().min(1).max(256);
+
+const sessionTaskSchema = z.object({
+  task: z.string().trim().min(1).max(200).optional(),
+  completed: z.boolean().optional(),
+  brand: z.object({
+    title: z.string().trim().min(1).max(80),
+    milestone: z.string().trim().min(1).max(80).optional(),
+  }),
+});
+
+const sessionBodySchema = z.object({
+  focusTime: z.number().int().min(0).max(86_400),
+  breakTime: z.number().int().min(0).max(86_400),
+  tasks: z.array(sessionTaskSchema).max(200).optional().default([]),
+  currentProject: z.object({
+    title: z.string().trim().min(1).max(80),
+    milestone: z.string().trim().min(1).max(80).optional(),
+  }),
+});
 
 export async function POST(req) {
   try {
@@ -12,7 +35,17 @@ export async function POST(req) {
       });
     }
 
-    const { focusTime, breakTime, tasks, currentProject } = await req.json();
+    const userIdValidation = userIdHeaderSchema.safeParse(userId);
+    if (!userIdValidation.success) {
+      return new Response(JSON.stringify({ error: "Invalid user-id header" }), {
+        status: 401,
+      });
+    }
+
+    const body = await validateJsonBody(req, sessionBodySchema);
+    if (!body.ok) return body.response;
+
+    const { focusTime, breakTime, tasks, currentProject } = body.data;
 
     await connectToDB();
 
@@ -42,6 +75,13 @@ export async function GET(req) {
     const userId = req.headers.get("user-id");
     if (!userId) {
       return new Response(JSON.stringify({ error: "User ID required" }), {
+        status: 401,
+      });
+    }
+
+    const userIdValidation = userIdHeaderSchema.safeParse(userId);
+    if (!userIdValidation.success) {
+      return new Response(JSON.stringify({ error: "Invalid user-id header" }), {
         status: 401,
       });
     }
