@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
@@ -10,12 +10,30 @@ import { validateStoredToken } from "@/utils/tokenValidator";
 
 const Navbar = ({ user, onLogout }) => {
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const router = useRouter();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   // Validate token on component mount
   useEffect(() => {
     validateStoredToken();
   }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
+  // Close mobile menu on Escape
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setIsMobileMenuOpen(false);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isMobileMenuOpen]);
 
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
@@ -63,10 +81,12 @@ const Navbar = ({ user, onLogout }) => {
   };
 
   const handleLogout = () => {
+    setIsMobileMenuOpen(false);
     onLogout(); // Call the parent's logout handler
   };
 
   const handleLogin = () => {
+    setIsMobileMenuOpen(false);
     setShowLoginModal(true);
   };
 
@@ -129,9 +149,10 @@ const Navbar = ({ user, onLogout }) => {
                       {user.name}
                     </span>
                   </motion.div>
+                  {/* Desktop logout (mobile logout lives in burger menu) */}
                   <motion.button
                     onClick={handleLogout}
-                    className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg shadow-red-500/25 transition-all duration-200"
+                    className="hidden md:inline-flex px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg shadow-red-500/25 transition-all duration-200"
                     whileHover={{ scale: 1.05, y: -2 }}
                     whileTap={{ scale: 0.95 }}
                   >
@@ -155,25 +176,111 @@ const Navbar = ({ user, onLogout }) => {
 
             {/* Mobile Menu Button */}
             <div className="md:hidden">
-              <button className="text-gray-300 hover:text-white transition-colors">
+              <button
+                type="button"
+                aria-label="Open menu"
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="mobile-nav"
+                onClick={() => setIsMobileMenuOpen((v) => !v)}
+                className="text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors"
+              >
                 <svg
                   className="w-6 h-6"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
+                  {isMobileMenuOpen ? (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  ) : (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  )}
                 </svg>
               </button>
             </div>
           </div>
         </motion.nav>
       </div>
+
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            id="mobile-nav"
+            className="fixed inset-0 z-40 md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div
+              className="absolute inset-0 bg-black/30"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            <motion.div
+              className="relative px-4 pt-24"
+              initial={{ y: -10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -10, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+            >
+              <div className="max-w-7xl mx-auto">
+                <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-xl transition-colors duration-300 p-4">
+                  <div className="flex flex-col gap-1">
+                    <MobileNavLink
+                      href="/"
+                      label="Timer"
+                      onNavigate={() => setIsMobileMenuOpen(false)}
+                    />
+                    <MobileNavLink
+                      href="/tasks"
+                      label="Tasks"
+                      onNavigate={() => setIsMobileMenuOpen(false)}
+                    />
+                    <MobileNavLink
+                      href="/analytics"
+                      label="Analytics"
+                      onNavigate={() => setIsMobileMenuOpen(false)}
+                    />
+                    <MobileNavLink
+                      href="/settings"
+                      label="Settings"
+                      onNavigate={() => setIsMobileMenuOpen(false)}
+                    />
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-gray-200/60 dark:border-gray-700/60">
+                    {user ? (
+                      <button
+                        onClick={handleLogout}
+                        className="w-full px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg shadow-red-500/25 transition-all duration-200"
+                      >
+                        Logout
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleLogin}
+                        className="w-full px-6 py-2.5 bg-gradient-to-r from-[#88b6ff] to-[#014acd] hover:from-[#014acd] hover:to-[#88b6ff] text-white font-semibold rounded-xl shadow-lg shadow-[#88b6ff]/30 transition-all duration-200"
+                      >
+                        Login
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Login Modal */}
       <AnimatePresence>
@@ -258,6 +365,29 @@ const NavLink = ({ href, label }) => {
           }`}
         ></motion.span>
       </motion.span>
+    </Link>
+  );
+};
+
+const MobileNavLink = ({ href, label, onNavigate }) => {
+  const pathname = usePathname();
+  const isActive =
+    href === "/"
+      ? pathname === "/"
+      : pathname === href || pathname?.startsWith(`${href}/`);
+
+  return (
+    <Link
+      href={href}
+      aria-current={isActive ? "page" : undefined}
+      onClick={onNavigate}
+      className={`px-4 py-3 rounded-xl transition-colors duration-200 ${
+        isActive
+          ? "bg-gray-50/80 dark:bg-gray-800/50 text-gray-900 dark:text-white font-semibold"
+          : "text-gray-700 dark:text-gray-300 hover:bg-gray-50/80 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white font-medium"
+      }`}
+    >
+      {label}
     </Link>
   );
 };
