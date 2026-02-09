@@ -13,7 +13,11 @@ const optionalUserIdSchema = z.string().trim().min(1).max(256).optional();
 
 export async function GET(request, { params }) {
   try {
-    const paramsValidation = validateRouteParams(params, weekParamsSchema);
+    const resolvedParams = await params;
+    const paramsValidation = validateRouteParams(
+      resolvedParams,
+      weekParamsSchema,
+    );
     if (!paramsValidation.ok) return paramsValidation.response;
 
     const weekNumber = paramsValidation.data.week;
@@ -35,7 +39,7 @@ export async function GET(request, { params }) {
         : new Date(
             year,
             0,
-            1 + (firstDayOfWeek === 0 ? 1 : 8 - firstDayOfWeek)
+            1 + (firstDayOfWeek === 0 ? 1 : 8 - firstDayOfWeek),
           );
 
     const startOfWeek = new Date(firstMonday);
@@ -74,7 +78,7 @@ export async function GET(request, { params }) {
     const sessions = await Session.find(query);
 
     console.log(
-      `Found ${sessions.length} sessions for week ${weekNumber} for user ${userId}`
+      `Found ${sessions.length} sessions for week ${weekNumber} for user ${userId}`,
     );
 
     return Response.json({ sessions, startOfWeek });

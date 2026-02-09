@@ -14,7 +14,11 @@ const optionalUserIdSchema = z.string().trim().min(1).max(256).optional();
 
 export async function GET(request, { params }) {
   try {
-    const paramsValidation = validateRouteParams(params, monthParamsSchema);
+    const resolvedParams = await params;
+    const paramsValidation = validateRouteParams(
+      resolvedParams,
+      monthParamsSchema,
+    );
     if (!paramsValidation.ok) return paramsValidation.response;
 
     const yearNumber = paramsValidation.data.year;
@@ -63,7 +67,7 @@ export async function GET(request, { params }) {
     const sessions = await Session.find(query);
 
     console.log(
-      `Found ${sessions.length} sessions for ${yearNumber}/${monthNumber} for user ${userId}`
+      `Found ${sessions.length} sessions for ${yearNumber}/${monthNumber} for user ${userId}`,
     );
 
     return Response.json(sessions);

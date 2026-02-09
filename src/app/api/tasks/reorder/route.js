@@ -26,7 +26,8 @@ const reorderSchema = z.object({
           .trim()
           .regex(/^[0-9a-fA-F]{24}$/, "Invalid projectId")
           .optional(),
-      })
+        scheduledForLater: z.boolean().optional(),
+      }),
     )
     .min(1)
     .max(200),
@@ -54,6 +55,9 @@ export async function PATCH(req) {
           $set: {
             order: u.order,
             ...(u.projectId ? { project: u.projectId } : {}),
+            ...(typeof u.scheduledForLater === "boolean"
+              ? { scheduledForLater: u.scheduledForLater }
+              : {}),
           },
         },
       },

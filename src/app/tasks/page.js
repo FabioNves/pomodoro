@@ -227,6 +227,7 @@ function TaskRow({
   onMoveTask,
   projectId,
   depth = 0,
+  scheduledForLater = false,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSubtaskInput, setShowSubtaskInput] = useState(false);
@@ -270,6 +271,7 @@ function TaskRow({
             taskId: draggedId,
             toProjectId: projectId,
             beforeTaskId: task._id,
+            scheduledForLater,
           });
         }}
       >
@@ -429,7 +431,7 @@ function ProjectColumn({
     }
   }, [projectMenuOpen]);
 
-  const { activeTopLevel, completedTopLevel, subtasksByParent } =
+  const { thisWeekTasks, laterTasks, completedTopLevel, subtasksByParent } =
     useMemo(() => {
       const topLevel = [...tasks]
         .filter((t) => !t.parentTask)
@@ -450,12 +452,15 @@ function ProjectColumn({
       const activeTop = topLevel
         .filter((t) => !t.completed)
         .sort(compareTasksByOrder);
+      const thisWeek = activeTop.filter((t) => !t.scheduledForLater);
+      const later = activeTop.filter((t) => !!t.scheduledForLater);
       const completedTop = topLevel
         .filter((t) => t.completed)
         .sort(compareTasksByOrder);
 
       return {
-        activeTopLevel: activeTop,
+        thisWeekTasks: thisWeek,
+        laterTasks: later,
         completedTopLevel: completedTop,
         subtasksByParent: childrenByParent,
       };
@@ -464,7 +469,7 @@ function ProjectColumn({
   const colorMeta = getProjectColorMeta(project.headerColor);
 
   return (
-    <div className="w-[340px] shrink-0">
+    <div className="w-full md:w-[340px] shrink-0">
       <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-visible">
         <div
           className={`flex items-center justify-between px-4 py-3 border-b border-gray-200/70 dark:border-gray-700/70 ${colorMeta.headerClass}`}
@@ -560,8 +565,17 @@ function ProjectColumn({
             ) : null}
           </AnimatePresence>
 
+          {/* This Week section */}
+          <div className="px-2 mt-1">
+            <div className="flex items-center gap-2 py-1 px-1">
+              <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                This Week
+              </span>
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700/60" />
+            </div>
+          </div>
           <div
-            className="space-y-0.5"
+            className="space-y-0.5 min-h-[28px]"
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
@@ -574,11 +588,12 @@ function ProjectColumn({
                 taskId: draggedId,
                 toProjectId: project._id,
                 beforeTaskId: null,
+                scheduledForLater: false,
               });
             }}
           >
-            {activeTopLevel.length ? (
-              activeTopLevel.map((t) => (
+            {thisWeekTasks.length ? (
+              thisWeekTasks.map((t) => (
                 <TaskRow
                   key={t._id}
                   task={t}
@@ -590,11 +605,62 @@ function ProjectColumn({
                   onDeleteTask={onDeleteTask}
                   onMoveTask={onMoveTask}
                   projectId={project._id}
+                  scheduledForLater={false}
                 />
               ))
             ) : (
-              <div className="px-2 py-3 text-sm text-gray-500 dark:text-gray-400">
-                No tasks yet
+              <div className="px-4 py-2 text-xs text-gray-400 dark:text-gray-500 italic">
+                No tasks this week
+              </div>
+            )}
+          </div>
+
+          {/* Later section */}
+          <div className="px-2 mt-3">
+            <div className="flex items-center gap-2 py-1 px-1">
+              <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                Later
+              </span>
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700/60" />
+            </div>
+          </div>
+          <div
+            className="space-y-0.5 min-h-[28px]"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const draggedId = e.dataTransfer.getData("text/plain");
+              if (!draggedId) return;
+              onMoveTask?.({
+                taskId: draggedId,
+                toProjectId: project._id,
+                beforeTaskId: null,
+                scheduledForLater: true,
+              });
+            }}
+          >
+            {laterTasks.length ? (
+              laterTasks.map((t) => (
+                <TaskRow
+                  key={t._id}
+                  task={t}
+                  subtasks={subtasksByParent.get(String(t._id)) || []}
+                  onToggle={onToggleTask}
+                  onCreateSubtask={(parent, title) =>
+                    onCreateSubtask(project, parent, title)
+                  }
+                  onDeleteTask={onDeleteTask}
+                  onMoveTask={onMoveTask}
+                  projectId={project._id}
+                  scheduledForLater={true}
+                />
+              ))
+            ) : (
+              <div className="px-4 py-2 text-xs text-gray-400 dark:text-gray-500 italic">
+                No tasks scheduled for later
               </div>
             )}
           </div>
@@ -655,6 +721,7 @@ export default function TasksPage() {
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
   const [projectName, setProjectName] = useState("");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const tasksByProject = useMemo(() => {
     const map = new Map();
@@ -775,7 +842,7 @@ export default function TasksPage() {
       });
       if (mountedRef.current) {
         setTasks((prev) =>
-          prev.map((t) => (t._id === updated._id ? updated : t))
+          prev.map((t) => (t._id === updated._id ? updated : t)),
         );
       }
     } catch (e) {
@@ -796,7 +863,7 @@ export default function TasksPage() {
       if (mountedRef.current) {
         setProjects((prev) => prev.filter((p) => p._id !== project._id));
         setTasks((prev) =>
-          prev.filter((t) => String(t.project) !== String(project._id))
+          prev.filter((t) => String(t.project) !== String(project._id)),
         );
       }
     } catch (e) {
@@ -850,15 +917,15 @@ export default function TasksPage() {
         refresh();
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const setProjectColor = useCallback(async (project, headerColor) => {
     if (mountedRef.current) {
       setProjects((prev) =>
         prev.map((p) =>
-          String(p._id) === String(project._id) ? { ...p, headerColor } : p
-        )
+          String(p._id) === String(project._id) ? { ...p, headerColor } : p,
+        ),
       );
     }
 
@@ -870,7 +937,9 @@ export default function TasksPage() {
 
       if (mountedRef.current) {
         setProjects((prev) =>
-          prev.map((p) => (String(p._id) === String(updated._id) ? updated : p))
+          prev.map((p) =>
+            String(p._id) === String(updated._id) ? updated : p,
+          ),
         );
       }
     } catch (e) {
@@ -888,7 +957,7 @@ export default function TasksPage() {
   }, [sidebarMenuProjectId]);
 
   const moveTask = useCallback(
-    async ({ taskId, toProjectId, beforeTaskId }) => {
+    async ({ taskId, toProjectId, beforeTaskId, scheduledForLater }) => {
       const current = tasksRef.current;
       const dragged = current.find((t) => String(t._id) === String(taskId));
       if (!dragged) return;
@@ -897,31 +966,38 @@ export default function TasksPage() {
 
       const fromProjectId = String(dragged.project);
       const targetProjectId = String(toProjectId);
+      const sourceIsLater = !!dragged.scheduledForLater;
+      const targetIsLater = !!scheduledForLater;
 
-      const isActiveTopInProject = (pid) => (t) =>
-        !t.completed && !t.parentTask && String(t.project) === String(pid);
+      const isInSection = (pid, later) => (t) =>
+        !t.completed &&
+        !t.parentTask &&
+        String(t.project) === String(pid) &&
+        !!t.scheduledForLater === later;
 
       const sortList = (list) => [...list].sort(compareTasksByOrder);
 
+      const sameList =
+        fromProjectId === targetProjectId && sourceIsLater === targetIsLater;
+
       const baseFrom = sortList(
         current
-          .filter(isActiveTopInProject(fromProjectId))
-          .filter((t) => String(t._id) !== String(taskId))
+          .filter(isInSection(fromProjectId, sourceIsLater))
+          .filter((t) => String(t._id) !== String(taskId)),
       );
 
-      const baseTo =
-        fromProjectId === targetProjectId
-          ? baseFrom
-          : sortList(
-              current
-                .filter(isActiveTopInProject(targetProjectId))
-                .filter((t) => String(t._id) !== String(taskId))
-            );
+      const baseTo = sameList
+        ? baseFrom
+        : sortList(
+            current
+              .filter(isInSection(targetProjectId, targetIsLater))
+              .filter((t) => String(t._id) !== String(taskId)),
+          );
 
       let insertIndex = baseTo.length;
       if (beforeTaskId) {
         const idx = baseTo.findIndex(
-          (t) => String(t._id) === String(beforeTaskId)
+          (t) => String(t._id) === String(beforeTaskId),
         );
         if (idx >= 0) insertIndex = idx;
       }
@@ -929,6 +1005,7 @@ export default function TasksPage() {
       const moved = {
         ...dragged,
         project: targetProjectId,
+        scheduledForLater: targetIsLater,
       };
 
       const nextTo = [...baseTo];
@@ -947,13 +1024,14 @@ export default function TasksPage() {
             ...(isMoved || String(t.project) !== String(pid)
               ? { projectId: String(pid) }
               : {}),
+            ...(isMoved ? { scheduledForLater: targetIsLater } : {}),
           };
           updates.push(update);
           nextById.set(id, update);
         });
       };
 
-      if (fromProjectId === targetProjectId) {
+      if (sameList) {
         applyOrders(nextTo, targetProjectId);
       } else {
         applyOrders(baseFrom, fromProjectId);
@@ -965,6 +1043,8 @@ export default function TasksPage() {
         if (!u) return t;
         const updated = { ...t, order: u.order };
         if (u.projectId) updated.project = u.projectId;
+        if (typeof u.scheduledForLater === "boolean")
+          updated.scheduledForLater = u.scheduledForLater;
         return updated;
       });
 
@@ -980,16 +1060,59 @@ export default function TasksPage() {
         refresh();
       }
     },
-    [refresh]
+    [refresh],
   );
 
   return (
     <div className="w-screen min-h-screen transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
 
-      <div className="w-full h-[calc(100vh-6rem)] flex">
+      {/* Mobile sidebar toggle */}
+      <div className="md:hidden fixed bottom-4 right-4 z-40">
+        <button
+          type="button"
+          className="w-12 h-12 rounded-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-lg flex items-center justify-center"
+          onClick={() => setMobileSidebarOpen((v) => !v)}
+          aria-label="Toggle projects sidebar"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="w-5 h-5"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 7h18M3 12h18M3 17h18"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile sidebar overlay */}
+      <AnimatePresence>
+        {mobileSidebarOpen ? (
+          <motion.div
+            className="md:hidden fixed inset-0 bg-black/40 z-30"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+        ) : null}
+      </AnimatePresence>
+
+      <div className="w-full h-[calc(100vh-6rem)] flex flex-col md:flex-row">
         {/* Sidebar */}
-        <div className="w-[280px] h-full px-4 pb-6 overflow-y-auto">
+        <div
+          className={`${
+            mobileSidebarOpen
+              ? "fixed inset-y-0 left-0 z-30 w-[280px] pt-24 bg-gray-50 dark:bg-gray-950 shadow-2xl"
+              : "hidden"
+          } md:block md:static md:w-[280px] md:pt-0 md:bg-transparent md:shadow-none h-full px-4 pb-6 overflow-y-auto`}
+        >
           <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm p-3">
             <button
               type="button"
@@ -1024,7 +1147,7 @@ export default function TasksPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setSidebarMenuProjectId((cur) =>
-                                cur === p._id ? null : p._id
+                                cur === p._id ? null : p._id,
                               );
                             }}
                           >
@@ -1085,7 +1208,7 @@ export default function TasksPage() {
                               const name = projectName.trim();
                               if (!name) return;
                               createProject(name).catch((err) =>
-                                console.error(err)
+                                console.error(err),
                               );
                               setProjectName("");
                               setCreatingProject(false);
@@ -1101,7 +1224,7 @@ export default function TasksPage() {
                             const name = projectName.trim();
                             if (!name) return;
                             createProject(name).catch((err) =>
-                              console.error(err)
+                              console.error(err),
                             );
                             setProjectName("");
                             setCreatingProject(false);
@@ -1119,10 +1242,10 @@ export default function TasksPage() {
         </div>
 
         {/* Main */}
-        <div className="flex-1 h-full pr-4 pb-6 overflow-hidden">
+        <div className="flex-1 h-full px-2 md:px-0 md:pr-4 pb-6 overflow-hidden min-w-0">
           <div className="h-full bg-white/40 dark:bg-gray-950/10 border border-gray-200/50 dark:border-gray-800/40 rounded-2xl overflow-hidden">
-            <div className="h-full overflow-x-auto overflow-y-hidden">
-              <div className="h-full flex items-start gap-4 p-4 min-w-max">
+            <div className="h-full overflow-x-auto overflow-y-auto">
+              <div className="h-full flex flex-col md:flex-row items-stretch md:items-start gap-4 p-4 md:min-w-max">
                 {projects.map((p) => (
                   <ProjectColumn
                     key={p._id}

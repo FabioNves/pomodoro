@@ -125,6 +125,7 @@ const Navbar = ({ user, onLogout }) => {
             <div className="hidden md:flex items-center gap-2 bg-gray-50/80 dark:bg-gray-800/50 px-4 py-2 rounded-xl border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm">
               <NavLink href="/" label="Timer" />
               <NavLink href="/tasks" label="Tasks" />
+              <NavLink href="/habits" label="Habits" />
               <NavLink href="/analytics" label="Analytics" />
               <NavLink href="/settings" label="Settings" />
             </div>
@@ -244,6 +245,11 @@ const Navbar = ({ user, onLogout }) => {
                     <MobileNavLink
                       href="/tasks"
                       label="Tasks"
+                      onNavigate={() => setIsMobileMenuOpen(false)}
+                    />
+                    <MobileNavLink
+                      href="/habits"
+                      label="Habits"
                       onNavigate={() => setIsMobileMenuOpen(false)}
                     />
                     <MobileNavLink
