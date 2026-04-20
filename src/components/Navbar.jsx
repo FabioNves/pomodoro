@@ -8,32 +8,112 @@ import { jwtDecode } from "jwt-decode";
 import ThemeToggle from "./ThemeToggle";
 import { validateStoredToken } from "@/utils/tokenValidator";
 
+/* ── Nav icon components ───────────────────────────────── */
+
+function IconTimer({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <circle cx="12" cy="13" r="8" />
+      <path strokeLinecap="round" d="M12 9v4l2.5 2.5M12 5V3M10 3h4" />
+    </svg>
+  );
+}
+
+function IconTasks({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+      />
+    </svg>
+  );
+}
+
+function IconHabits({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 5h2M4 9h2M4 13h2M4 17h2M8 5h12M8 9h12M8 13h8M8 17h10"
+      />
+    </svg>
+  );
+}
+
+function IconAnalytics({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+      />
+    </svg>
+  );
+}
+
+function IconSettings({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+      />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+const NAV_ITEMS = [
+  { href: "/", label: "Timer", Icon: IconTimer },
+  { href: "/tasks", label: "Tasks", Icon: IconTasks },
+  { href: "/habits", label: "Habits", Icon: IconHabits },
+  { href: "/analytics", label: "Analytics", Icon: IconAnalytics },
+  { href: "/settings", label: "Settings", Icon: IconSettings },
+];
+
 const Navbar = ({ user, onLogout }) => {
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
   // Validate token on component mount
   useEffect(() => {
     validateStoredToken();
   }, []);
-
-  // Close mobile menu on route change
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [pathname]);
-
-  // Close mobile menu on Escape
-  useEffect(() => {
-    if (!isMobileMenuOpen) return;
-
-    const onKeyDown = (e) => {
-      if (e.key === "Escape") setIsMobileMenuOpen(false);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isMobileMenuOpen]);
 
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
@@ -81,12 +161,10 @@ const Navbar = ({ user, onLogout }) => {
   };
 
   const handleLogout = () => {
-    setIsMobileMenuOpen(false);
-    onLogout(); // Call the parent's logout handler
+    onLogout();
   };
 
   const handleLogin = () => {
-    setIsMobileMenuOpen(false);
     setShowLoginModal(true);
   };
 
@@ -123,11 +201,14 @@ const Navbar = ({ user, onLogout }) => {
 
             {/* Navigation Items - Center */}
             <div className="hidden md:flex items-center gap-2 bg-gray-50/80 dark:bg-gray-800/50 px-4 py-2 rounded-xl border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm">
-              <NavLink href="/" label="Timer" />
-              <NavLink href="/tasks" label="Tasks" />
-              <NavLink href="/habits" label="Habits" />
-              <NavLink href="/analytics" label="Analytics" />
-              <NavLink href="/settings" label="Settings" />
+              {NAV_ITEMS.map((item) => (
+                <NavLink
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  Icon={item.Icon}
+                />
+              ))}
             </div>
 
             {/* Auth Section - Right */}
@@ -175,118 +256,64 @@ const Navbar = ({ user, onLogout }) => {
               )}
             </div>
 
-            {/* Mobile Menu Button */}
+            {/* Mobile Auth Button */}
             <div className="md:hidden">
               <button
                 type="button"
-                aria-label="Open menu"
-                aria-expanded={isMobileMenuOpen}
-                aria-controls="mobile-nav"
-                onClick={() => setIsMobileMenuOpen((v) => !v)}
+                aria-label={user ? "Logout" : "Login"}
+                onClick={user ? handleLogout : handleLogin}
                 className="text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors"
               >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  {isMobileMenuOpen ? (
+                {user ? (
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                     />
-                  ) : (
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M4 6h16M4 12h16M4 18h16"
+                      d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
                     />
-                  )}
-                </svg>
+                  </svg>
+                )}
               </button>
             </div>
           </div>
         </motion.nav>
       </div>
 
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <motion.div
-            id="mobile-nav"
-            className="fixed inset-0 z-40 md:hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <div
-              className="absolute inset-0 bg-black/30"
-              onClick={() => setIsMobileMenuOpen(false)}
-            />
-            <motion.div
-              className="relative px-4 pt-24"
-              initial={{ y: -10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -10, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 380, damping: 30 }}
-            >
-              <div className="max-w-7xl mx-auto">
-                <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-xl transition-colors duration-300 p-4">
-                  <div className="flex flex-col gap-1">
-                    <MobileNavLink
-                      href="/"
-                      label="Timer"
-                      onNavigate={() => setIsMobileMenuOpen(false)}
-                    />
-                    <MobileNavLink
-                      href="/tasks"
-                      label="Tasks"
-                      onNavigate={() => setIsMobileMenuOpen(false)}
-                    />
-                    <MobileNavLink
-                      href="/habits"
-                      label="Habits"
-                      onNavigate={() => setIsMobileMenuOpen(false)}
-                    />
-                    <MobileNavLink
-                      href="/analytics"
-                      label="Analytics"
-                      onNavigate={() => setIsMobileMenuOpen(false)}
-                    />
-                    <MobileNavLink
-                      href="/settings"
-                      label="Settings"
-                      onNavigate={() => setIsMobileMenuOpen(false)}
-                    />
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-gray-200/60 dark:border-gray-700/60">
-                    {user ? (
-                      <button
-                        onClick={handleLogout}
-                        className="w-full px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg shadow-red-500/25 transition-all duration-200"
-                      >
-                        Logout
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleLogin}
-                        className="w-full px-6 py-2.5 bg-gradient-to-r from-[#88b6ff] to-[#014acd] hover:from-[#014acd] hover:to-[#88b6ff] text-white font-semibold rounded-xl shadow-lg shadow-[#88b6ff]/30 transition-all duration-200"
-                      >
-                        Login
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Mobile Sub-navbar with icons */}
+      <div className="fixed top-[76px] left-0 right-0 z-50 md:hidden px-4 pt-1">
+        <div className="max-w-7xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-xl border border-gray-200/60 dark:border-gray-700/60 shadow-lg">
+          <div className="flex items-center justify-around px-2 py-1.5">
+            {NAV_ITEMS.map((item) => (
+              <MobileNavIcon
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                Icon={item.Icon}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Login Modal */}
       <AnimatePresence>
@@ -344,8 +371,8 @@ const Navbar = ({ user, onLogout }) => {
   );
 };
 
-// NavLink Component for navigation items
-const NavLink = ({ href, label }) => {
+// NavLink Component for desktop navigation items
+const NavLink = ({ href, label, Icon }) => {
   const pathname = usePathname();
   const isActive =
     href === "/"
@@ -355,7 +382,7 @@ const NavLink = ({ href, label }) => {
   return (
     <Link href={href} aria-current={isActive ? "page" : undefined}>
       <motion.span
-        className={`relative px-4 py-2 transition-colors duration-200 cursor-pointer group rounded-lg ${
+        className={`relative flex items-center gap-1.5 px-4 py-2 transition-colors duration-200 cursor-pointer group rounded-lg ${
           isActive
             ? "text-gray-900 dark:text-white font-semibold"
             : "text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
@@ -364,6 +391,7 @@ const NavLink = ({ href, label }) => {
         whileTap={{ scale: 0.95 }}
         transition={{ type: "spring", stiffness: 400, damping: 17 }}
       >
+        <Icon className="w-4 h-4" />
         {label}
         <motion.span
           className={`absolute inset-0 bg-gradient-to-r from-[#88b6ff]/10 to-[#014acd]/10 rounded-lg -z-10 transition-opacity ${
@@ -375,7 +403,8 @@ const NavLink = ({ href, label }) => {
   );
 };
 
-const MobileNavLink = ({ href, label, onNavigate }) => {
+// Mobile icon nav link for sub-navbar
+const MobileNavIcon = ({ href, label, Icon }) => {
   const pathname = usePathname();
   const isActive =
     href === "/"
@@ -386,14 +415,14 @@ const MobileNavLink = ({ href, label, onNavigate }) => {
     <Link
       href={href}
       aria-current={isActive ? "page" : undefined}
-      onClick={onNavigate}
-      className={`px-4 py-3 rounded-xl transition-colors duration-200 ${
+      className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors duration-200 ${
         isActive
-          ? "bg-gray-50/80 dark:bg-gray-800/50 text-gray-900 dark:text-white font-semibold"
-          : "text-gray-700 dark:text-gray-300 hover:bg-gray-50/80 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white font-medium"
+          ? "text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/80 dark:bg-blue-900/30"
+          : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
       }`}
     >
-      {label}
+      <Icon className="w-5 h-5" />
+      <span className="text-[10px] leading-none">{label}</span>
     </Link>
   );
 };

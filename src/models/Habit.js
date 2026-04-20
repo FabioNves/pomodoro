@@ -16,6 +16,7 @@ const habitSchema = new mongoose.Schema({
   sessionId: { type: String },
   isTemporary: { type: Boolean, default: false },
   order: { type: Number, default: 0 },
+  inverted: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 });
 

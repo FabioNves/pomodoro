@@ -31,12 +31,14 @@ const createHabitSchema = z.object({
     )
     .min(1)
     .max(10),
+  inverted: z.boolean().optional(),
 });
 
 const patchHabitSchema = z.object({
   id: objectIdSchema,
   name: z.string().trim().min(1).max(100).optional(),
   color: z.string().trim().min(1).max(20).optional(),
+  inverted: z.boolean().optional(),
   levels: z
     .array(
       z.object({
@@ -127,6 +129,8 @@ export async function PATCH(req) {
     if (updates.name) setObj.name = updates.name;
     if (updates.color) setObj.color = updates.color;
     if (updates.levels) setObj.levels = updates.levels;
+    if (typeof updates.inverted === "boolean")
+      setObj.inverted = updates.inverted;
 
     if (!Object.keys(setObj).length) {
       return Response.json({ error: "Nothing to update" }, { status: 400 });

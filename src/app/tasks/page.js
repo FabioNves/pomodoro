@@ -8,6 +8,7 @@ import React, {
   useRef,
 } from "react";
 import Navbar from "@/components/Navbar";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { jwtDecode } from "jwt-decode";
 import { generateSessionId } from "@/utils/sessionUtils";
@@ -422,6 +423,7 @@ function ProjectColumn({
   const [showInput, setShowInput] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     if (projectMenuOpen) {
@@ -472,9 +474,18 @@ function ProjectColumn({
     <div className="w-full md:w-[340px] shrink-0">
       <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-visible">
         <div
-          className={`flex items-center justify-between px-4 py-3 border-b border-gray-200/70 dark:border-gray-700/70 ${colorMeta.headerClass}`}
+          className={`flex items-center justify-between px-4 py-3 border-b border-gray-200/70 dark:border-gray-700/70 rounded-t-2xl ${collapsed ? 'rounded-b-2xl md:rounded-b-none' : ''} ${colorMeta.headerClass}`}
         >
-          <div className="font-semibold text-gray-900 dark:text-white truncate">
+          {/* Mobile: tap header to collapse/expand */}
+          <button
+            type="button"
+            className="md:hidden font-semibold text-gray-900 dark:text-white truncate flex items-center gap-2"
+            onClick={() => setCollapsed((v) => !v)}
+          >
+            <svg className={`w-4 h-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            {project.name}
+          </button>
+          <div className="hidden md:block font-semibold text-gray-900 dark:text-white truncate">
             {project.name}
           </div>
           <div className="relative">
@@ -510,6 +521,8 @@ function ProjectColumn({
           </div>
         </div>
 
+        {/* Content — collapsed on mobile by default */}
+        <div className={`${collapsed ? 'hidden md:block' : 'block'}`}>
         <div className="px-2 py-2">
           <div className="px-2 pb-2">
             {!showInput ? (
@@ -707,6 +720,30 @@ function ProjectColumn({
               ) : null}
             </AnimatePresence>
           </div>
+
+          {/* Routine Tasks link */}
+          <div className="px-2 pb-3">
+            <Link
+              href={`/tasks/routine/${project._id}`}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-4 h-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 6h16M4 12h16M4 18h7"
+                />
+              </svg>
+              Routine Tasks
+            </Link>
+          </div>
+        </div>
         </div>
       </div>
     </div>
@@ -721,7 +758,6 @@ export default function TasksPage() {
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [creatingProject, setCreatingProject] = useState(false);
   const [projectName, setProjectName] = useState("");
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const tasksByProject = useMemo(() => {
     const map = new Map();
@@ -1067,52 +1103,9 @@ export default function TasksPage() {
     <div className="w-screen min-h-screen transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
 
-      {/* Mobile sidebar toggle */}
-      <div className="md:hidden fixed bottom-4 right-4 z-40">
-        <button
-          type="button"
-          className="w-12 h-12 rounded-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-lg flex items-center justify-center"
-          onClick={() => setMobileSidebarOpen((v) => !v)}
-          aria-label="Toggle projects sidebar"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="w-5 h-5"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 7h18M3 12h18M3 17h18"
-            />
-          </svg>
-        </button>
-      </div>
-
-      {/* Mobile sidebar overlay */}
-      <AnimatePresence>
-        {mobileSidebarOpen ? (
-          <motion.div
-            className="md:hidden fixed inset-0 bg-black/40 z-30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setMobileSidebarOpen(false)}
-          />
-        ) : null}
-      </AnimatePresence>
-
       <div className="w-full h-[calc(100vh-6rem)] flex flex-col md:flex-row">
-        {/* Sidebar */}
-        <div
-          className={`${
-            mobileSidebarOpen
-              ? "fixed inset-y-0 left-0 z-30 w-[280px] pt-24 bg-gray-50 dark:bg-gray-950 shadow-2xl"
-              : "hidden"
-          } md:block md:static md:w-[280px] md:pt-0 md:bg-transparent md:shadow-none h-full px-4 pb-6 overflow-y-auto`}
-        >
+        {/* Sidebar (desktop only) */}
+        <div className="hidden md:block md:static md:w-[280px] md:pt-0 md:bg-transparent md:shadow-none h-full px-4 pb-6 overflow-y-auto">
           <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm p-3">
             <button
               type="button"
