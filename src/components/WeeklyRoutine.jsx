@@ -20,6 +20,7 @@ const DAY_NAMES = [
   "Sunday",
 ];
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 function formatMinutes(m) {
   if (!m) return "0m";
@@ -80,9 +81,15 @@ function IconCheck({ className = "" }) {
 
 /* ── Add Task Popover ──────────────────────────────────── */
 
-function AddTaskPopover({ routineTasks, onAdd, onClose, anchorRef }) {
+function AddTaskPopover({
+  routineTasks,
+  todoTasks = [],
+  onAdd,
+  onClose,
+  anchorRef,
+}) {
   const ref = useRef(null);
-  const [mode, setMode] = useState("routine"); // routine | adhoc
+  const [mode, setMode] = useState("routine"); // routine | todo | adhoc
   const [adHocName, setAdHocName] = useState("");
   const [adHocTime, setAdHocTime] = useState("");
   const [pos] = useState(() => {
@@ -105,7 +112,7 @@ function AddTaskPopover({ routineTasks, onAdd, onClose, anchorRef }) {
     <div
       ref={ref}
       style={{ position: "fixed", top: pos.top, left: pos.left }}
-      className="z-[9999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 min-w-[220px] max-h-[300px] overflow-y-auto"
+      className="z-[9999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-[220px] max-h-[300px] overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600"
     >
       <div className="flex gap-1 mb-2">
         <button
@@ -117,7 +124,18 @@ function AddTaskPopover({ routineTasks, onAdd, onClose, anchorRef }) {
           }`}
           onClick={() => setMode("routine")}
         >
-          From Routine
+          Routine
+        </button>
+        <button
+          type="button"
+          className={`flex-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+            mode === "todo"
+              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+              : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+          }`}
+          onClick={() => setMode("todo")}
+        >
+          Todo
         </button>
         <button
           type="button"
@@ -128,7 +146,7 @@ function AddTaskPopover({ routineTasks, onAdd, onClose, anchorRef }) {
           }`}
           onClick={() => setMode("adhoc")}
         >
-          Ad-hoc
+          Add
         </button>
       </div>
 
@@ -160,6 +178,29 @@ function AddTaskPopover({ routineTasks, onAdd, onClose, anchorRef }) {
           ) : (
             <div className="px-2 py-2 text-xs text-gray-400">
               No routine tasks found
+            </div>
+          )}
+        </div>
+      ) : mode === "todo" ? (
+        <div className="space-y-0.5">
+          {todoTasks.length ? (
+            todoTasks.map((t) => (
+              <button
+                key={t._id}
+                type="button"
+                title={t.title}
+                className="w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
+                onClick={() => {
+                  onAdd({ taskName: t.title, estimatedTime: 0 });
+                  onClose();
+                }}
+              >
+                <div className="font-medium truncate">{t.title}</div>
+              </button>
+            ))
+          ) : (
+            <div className="px-2 py-2 text-xs text-gray-400">
+              No pending tasks
             </div>
           )}
         </div>
@@ -239,6 +280,7 @@ export default function WeeklyRoutine({
   routineTasks,
   columns = [],
   projects = [],
+  tasks = [],
   onAddTask,
   onToggleTask,
   onDeleteTask,
@@ -291,6 +333,12 @@ export default function WeeklyRoutine({
     for (const p of projects) map[p._id] = p.name;
     return map;
   }, [projects]);
+
+  // Pending (incomplete) todo tasks, optionally scoped to a project
+  const todoTasks = useMemo(
+    () => (tasks || []).filter((t) => !t.completed),
+    [tasks],
+  );
 
   // Get the project id for a week-plan task
   const getTaskProjectId = useCallback(
@@ -363,8 +411,55 @@ export default function WeeklyRoutine({
         map[key][day.dayOfWeek].push(task);
       }
     }
+    // Inject virtual auto-scheduled routine tasks (display-only).
+    // Skip days where a real task already references the same routine task.
+    for (const rt of routineTasks) {
+      if (!rt.autoSchedule) continue;
+      const freqs =
+        Array.isArray(rt.frequencies) && rt.frequencies.length
+          ? rt.frequencies
+          : rt.frequency
+            ? [rt.frequency]
+            : [];
+      if (!freqs.length) continue;
+      const dayIdxs = freqs.includes("daily")
+        ? [0, 1, 2, 3, 4, 5, 6]
+        : freqs
+            .map((f) => DAY_KEYS.indexOf(f))
+            .filter((i) => i >= 0);
+      if (!dayIdxs.length) continue;
+      const pid =
+        typeof rt.project === "object"
+          ? String(rt.project._id || rt.project)
+          : String(rt.project);
+      const sectionKey = pid;
+      if (!map[sectionKey]) {
+        map[sectionKey] = {};
+        for (let d = 0; d < 7; d++) map[sectionKey][d] = [];
+      }
+      for (const dayIdx of dayIdxs) {
+        const arr = map[sectionKey][dayIdx];
+        const already = arr.some((t) => {
+          if (!t.routineTask) return false;
+          const id =
+            typeof t.routineTask === "object"
+              ? String(t.routineTask._id || t.routineTask)
+              : String(t.routineTask);
+          return id === String(rt._id);
+        });
+        if (already) continue;
+        arr.unshift({
+          _id: `__auto_${rt._id}_${dayIdx}`,
+          _virtual: true,
+          routineTask: rt._id,
+          taskName: rt.title,
+          estimatedTime: rt.estimatedTime || 0,
+          completed: false,
+        });
+      }
+    }
     return map;
-  }, [days, projectSections, getTaskProjectId]);
+  }, [days, projectSections, getTaskProjectId, routineTasks]);
 
   // Max tasks per project section
   const maxTasksPerSection = useMemo(() => {
@@ -449,11 +544,21 @@ export default function WeeklyRoutine({
           />
         ) : null}
         <div className="flex-1 min-w-0 flex items-center gap-1.5">
+          {task._virtual ? (
+            <span
+              title="Auto-scheduled from routine"
+              className="text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 shrink-0"
+            >
+              ⚡
+            </span>
+          ) : null}
           <span
             className={`text-xs truncate ${
               task.completed
                 ? "line-through text-gray-400 dark:text-gray-500"
-                : "text-gray-700 dark:text-gray-200"
+                : task._virtual
+                  ? "text-gray-600 dark:text-gray-300 italic"
+                  : "text-gray-700 dark:text-gray-200"
             }`}
             title={task.taskName}
           >
@@ -465,26 +570,30 @@ export default function WeeklyRoutine({
             {task.estimatedTime}
           </span>
         ) : null}
-        <button
-          type="button"
-          className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors ${
-            task.completed
-              ? "bg-green-500 border-green-500 text-white"
-              : "border-gray-300 dark:border-gray-600 hover:border-green-400"
-          }`}
-          onClick={() => onToggleTask(dayIdx, task._id, !task.completed)}
-          aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
-        >
-          {task.completed ? <IconCheck className="w-3 h-3" /> : null}
-        </button>
-        <button
-          type="button"
-          className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-red-500 transition-all shrink-0"
-          onClick={() => onDeleteTask(dayIdx, task._id)}
-          aria-label="Remove task"
-        >
-          <IconTrash className="w-3 h-3" />
-        </button>
+        {task._virtual ? null : (
+          <>
+            <button
+              type="button"
+              className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors ${
+                task.completed
+                  ? "bg-green-500 border-green-500 text-white"
+                  : "border-gray-300 dark:border-gray-600 hover:border-green-400"
+              }`}
+              onClick={() => onToggleTask(dayIdx, task._id, !task.completed)}
+              aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
+            >
+              {task.completed ? <IconCheck className="w-3 h-3" /> : null}
+            </button>
+            <button
+              type="button"
+              className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-red-500 transition-all shrink-0"
+              onClick={() => onDeleteTask(dayIdx, task._id)}
+              aria-label="Remove task"
+            >
+              <IconTrash className="w-3 h-3" />
+            </button>
+          </>
+        )}
       </div>
     );
   };
@@ -588,6 +697,15 @@ export default function WeeklyRoutine({
                   sectionKey === "other"
                     ? routineTasks
                     : routineTasksByProject[sectionKey] || [];
+                // Incomplete todo tasks scoped to this project
+                const sectionTodoTasks = todoTasks.filter((t) => {
+                  const pid = t.project
+                    ? typeof t.project === "object"
+                      ? String(t.project._id || t.project)
+                      : String(t.project)
+                    : "other";
+                  return sectionKey === "other" ? true : pid === sectionKey;
+                });
 
                 return (
                   <React.Fragment key={sectionKey}>
@@ -642,6 +760,7 @@ export default function WeeklyRoutine({
                                       {addingDay === addKey ? (
                                         <AddTaskPopover
                                           routineTasks={sectionRoutineTasks}
+                                          todoTasks={sectionTodoTasks}
                                           onAdd={(data) =>
                                             onAddTask(dayIdx, data)
                                           }
@@ -712,6 +831,7 @@ export default function WeeklyRoutine({
                           {addingDay === addKey ? (
                             <AddTaskPopover
                               routineTasks={routineTasks}
+                              todoTasks={todoTasks}
                               onAdd={(data) => onAddTask(dayIdx, data)}
                               onClose={() => setAddingDay(null)}
                               anchorRef={{
@@ -840,6 +960,14 @@ export default function WeeklyRoutine({
                     sectionKey === "other"
                       ? routineTasks
                       : routineTasksByProject[sectionKey] || [];
+                  const sectionTodoTasks = todoTasks.filter((t) => {
+                    const pid = t.project
+                      ? typeof t.project === "object"
+                        ? String(t.project._id || t.project)
+                        : String(t.project)
+                      : "other";
+                    return sectionKey === "other" ? true : pid === sectionKey;
+                  });
                   const addKey = `mobile-${sectionKey}-${dayIdx}`;
 
                   return (
@@ -932,6 +1060,7 @@ export default function WeeklyRoutine({
                             {addingDay === addKey ? (
                               <AddTaskPopover
                                 routineTasks={sectionRoutineTasks}
+                                todoTasks={sectionTodoTasks}
                                 onAdd={(data) => onAddTask(dayIdx, data)}
                                 onClose={() => setAddingDay(null)}
                                 anchorRef={{
@@ -966,6 +1095,7 @@ export default function WeeklyRoutine({
                       {addingDay === dayIdx ? (
                         <AddTaskPopover
                           routineTasks={routineTasks}
+                          todoTasks={todoTasks}
                           onAdd={(data) => onAddTask(dayIdx, data)}
                           onClose={() => setAddingDay(null)}
                           anchorRef={{

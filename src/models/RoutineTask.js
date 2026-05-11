@@ -23,6 +23,8 @@ const routineTaskSchema = new mongoose.Schema({
     ],
     default: "daily",
   },
+  frequencies: { type: [String], default: [] },
+  autoSchedule: { type: Boolean, default: false },
   frequencyCustom: { type: String, default: "" },
   estimatedTime: { type: Number, default: 0 },
   notes: { type: String, default: "" },

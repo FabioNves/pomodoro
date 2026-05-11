@@ -100,8 +100,7 @@ function IconSettings({ className = "" }) {
 
 const NAV_ITEMS = [
   { href: "/", label: "Timer", Icon: IconTimer },
-  { href: "/tasks", label: "Tasks", Icon: IconTasks },
-  { href: "/habits", label: "Habits", Icon: IconHabits },
+  { href: "/planner", label: "Planner", Icon: IconTasks },
   { href: "/analytics", label: "Analytics", Icon: IconAnalytics },
   { href: "/settings", label: "Settings", Icon: IconSettings },
 ];

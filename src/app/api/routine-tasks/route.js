@@ -41,6 +41,23 @@ const createSchema = z.object({
       "custom",
     ])
     .optional(),
+  frequencies: z
+    .array(
+      z.enum([
+        "daily",
+        "weekly",
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun",
+        "custom",
+      ]),
+    )
+    .optional(),
+  autoSchedule: z.boolean().optional(),
   frequencyCustom: z.string().max(200).optional(),
   estimatedTime: z.number().min(0).max(9999).optional(),
   notes: z.string().max(2000).optional(),
@@ -72,6 +89,23 @@ const patchSchema = z.object({
       "custom",
     ])
     .optional(),
+  frequencies: z
+    .array(
+      z.enum([
+        "daily",
+        "weekly",
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun",
+        "custom",
+      ]),
+    )
+    .optional(),
+  autoSchedule: z.boolean().optional(),
   frequencyCustom: z.string().max(200).optional(),
   estimatedTime: z.number().min(0).max(9999).optional(),
   notes: z.string().max(2000).optional(),
@@ -139,6 +173,8 @@ export async function POST(req) {
       title: body.data.title,
       project: body.data.projectId,
       frequency: body.data.frequency || "daily",
+      frequencies: body.data.frequencies || [],
+      autoSchedule: body.data.autoSchedule || false,
       frequencyCustom: body.data.frequencyCustom || "",
       estimatedTime: body.data.estimatedTime || 0,
       notes: body.data.notes || "",
