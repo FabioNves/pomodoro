@@ -6,9 +6,34 @@ import React, {
   useMemo,
   useRef,
   useEffect,
+  useLayoutEffect,
 } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+
+// Compute a viewport-aware popover position anchored under an element.
+// Flips above if not enough room below; right-aligns if not enough room right.
+function computePopoverPosition(anchorEl, popW, popH) {
+  if (!anchorEl) return { top: 0, left: 0 };
+  const margin = 8;
+  const rect = anchorEl.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let top = rect.bottom + 4;
+  if (top + popH > vh - margin) {
+    const above = rect.top - popH - 4;
+    top = above >= margin ? above : Math.max(margin, vh - popH - margin);
+  }
+
+  let left = rect.left;
+  if (left + popW > vw - margin) {
+    left = rect.right - popW;
+  }
+  left = Math.max(margin, Math.min(left, vw - popW - margin));
+
+  return { top, left };
+}
 
 const DAY_NAMES = [
   "Monday",
@@ -79,6 +104,40 @@ function IconCheck({ className = "" }) {
   );
 }
 
+function IconDotsVertical({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="5" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="12" cy="19" r="1.8" />
+    </svg>
+  );
+}
+
+function IconNote({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 4h4"
+      />
+    </svg>
+  );
+}
+
 /* ── Add Task Popover ──────────────────────────────────── */
 
 function AddTaskPopover({
@@ -87,18 +146,24 @@ function AddTaskPopover({
   onAdd,
   onClose,
   anchorRef,
+  projectId = null,
 }) {
   const ref = useRef(null);
   const [mode, setMode] = useState("routine"); // routine | todo | adhoc
   const [adHocName, setAdHocName] = useState("");
   const [adHocTime, setAdHocTime] = useState("");
-  const [pos] = useState(() => {
-    if (anchorRef?.current) {
-      const rect = anchorRef.current.getBoundingClientRect();
-      return { top: rect.bottom + 4, left: rect.left };
-    }
-    return { top: 0, left: 0 };
-  });
+  const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
+
+  useLayoutEffect(() => {
+    if (!ref.current || !anchorRef?.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const { top, left } = computePopoverPosition(
+      anchorRef.current,
+      rect.width,
+      rect.height,
+    );
+    setPos({ top, left, ready: true });
+  }, [anchorRef, mode]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -108,10 +173,23 @@ function AddTaskPopover({
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
+  // Resolve the project id of a todo task (preserves source project when picked).
+  const todoProjectId = (t) => {
+    if (!t?.project) return projectId;
+    return typeof t.project === "object"
+      ? String(t.project._id || t.project)
+      : String(t.project);
+  };
+
   return createPortal(
     <div
       ref={ref}
-      style={{ position: "fixed", top: pos.top, left: pos.left }}
+      style={{
+        position: "fixed",
+        top: pos.top,
+        left: pos.left,
+        visibility: pos.ready ? "visible" : "hidden",
+      }}
       className="z-[9999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-[220px] max-h-[300px] overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600"
     >
       <div className="flex gap-1 mb-2">
@@ -159,8 +237,15 @@ function AddTaskPopover({
                 type="button"
                 className="w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
                 onClick={() => {
+                  const rtPid =
+                    typeof rt.project === "object"
+                      ? String(rt.project?._id || rt.project)
+                      : rt.project
+                        ? String(rt.project)
+                        : projectId;
                   onAdd({
                     routineTaskId: rt._id,
+                    projectId: rtPid || null,
                     taskName: rt.title,
                     estimatedTime: rt.estimatedTime || 0,
                   });
@@ -191,7 +276,11 @@ function AddTaskPopover({
                 title={t.title}
                 className="w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
                 onClick={() => {
-                  onAdd({ taskName: t.title, estimatedTime: 0 });
+                  onAdd({
+                    taskName: t.title,
+                    estimatedTime: 0,
+                    projectId: todoProjectId(t),
+                  });
                   onClose();
                 }}
               >
@@ -217,6 +306,7 @@ function AddTaskPopover({
                 onAdd({
                   taskName: adHocName.trim(),
                   estimatedTime: adHocTime ? Number(adHocTime) : 0,
+                  projectId: projectId || null,
                 });
                 onClose();
               }
@@ -238,6 +328,7 @@ function AddTaskPopover({
               onAdd({
                 taskName: adHocName.trim(),
                 estimatedTime: adHocTime ? Number(adHocTime) : 0,
+                projectId: projectId || null,
               });
               onClose();
             }}
@@ -246,6 +337,112 @@ function AddTaskPopover({
           </button>
         </div>
       )}
+    </div>,
+    document.body,
+  );
+}
+
+/* ── Task Edit Popover ─────────────────────────────────── */
+
+function TaskEditPopover({ task, onSave, onDelete, onClose, anchorRef }) {
+  const ref = useRef(null);
+  const [name, setName] = useState(task?.taskName || "");
+  const [time, setTime] = useState(
+    task?.estimatedTime ? String(task.estimatedTime) : "",
+  );
+  const [notes, setNotes] = useState(task?.notes || "");
+  const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
+
+  useLayoutEffect(() => {
+    if (!ref.current || !anchorRef?.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const { top, left } = computePopoverPosition(
+      anchorRef.current,
+      rect.width,
+      rect.height,
+    );
+    setPos({ top, left, ready: true });
+  }, [anchorRef]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  const handleSave = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    onSave({
+      taskName: trimmed,
+      estimatedTime: time ? Number(time) || 0 : 0,
+      notes,
+    });
+    onClose();
+  };
+
+  return createPortal(
+    <div
+      ref={ref}
+      style={{
+        position: "fixed",
+        top: pos.top,
+        left: pos.left,
+        visibility: pos.ready ? "visible" : "hidden",
+      }}
+      className="z-[9999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-[260px]"
+    >
+      <div className="space-y-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Task name"
+          className="w-full px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) handleSave();
+            if (e.key === "Escape") onClose();
+          }}
+        />
+        <input
+          type="number"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          placeholder="Time (min)"
+          min="0"
+          className="w-full px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+        />
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Notes (shown on hover)"
+          rows={3}
+          className="w-full px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none resize-none"
+        />
+        <div className="flex gap-2 pt-0.5">
+          <button
+            type="button"
+            className="flex-1 px-2 py-1.5 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-medium"
+            onClick={handleSave}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            className="px-2 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/20"
+            onClick={() => {
+              onDelete();
+              onClose();
+            }}
+            aria-label="Delete task"
+            title="Delete task"
+          >
+            <IconTrash className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
     </div>,
     document.body,
   );
@@ -285,10 +482,14 @@ export default function WeeklyRoutine({
   onToggleTask,
   onDeleteTask,
   onUpdateTask,
+  onMoveTask,
   onEditWeek,
 }) {
   const [addingDay, setAddingDay] = useState(null);
+  const [editingTaskKey, setEditingTaskKey] = useState(null);
+  const [dragOverCell, setDragOverCell] = useState(null);
   const addBtnRefs = useRef({});
+  const editBtnRefs = useRef({});
 
   const days = weekPlan?.days || [];
 
@@ -343,6 +544,11 @@ export default function WeeklyRoutine({
   // Get the project id for a week-plan task
   const getTaskProjectId = useCallback(
     (task) => {
+      if (task.project) {
+        return typeof task.project === "object"
+          ? String(task.project._id || task.project)
+          : String(task.project);
+      }
       if (!task.routineTask) return null;
       const rtId =
         typeof task.routineTask === "object"
@@ -534,9 +740,24 @@ export default function WeeklyRoutine({
         : task.routineTask
       : null;
     const colors = rtId ? taskColorMap[rtId] : null;
+    const editKey = `edit-${dayIdx}-${task._id}`;
+    const canDrag = !task._virtual && !task.completed;
 
     return (
-      <div className="flex items-center gap-1.5 group">
+      <div
+        className={`flex items-center gap-1.5 group ${canDrag ? "cursor-grab active:cursor-grabbing" : ""}`}
+        draggable={canDrag}
+        onDragStart={(e) => {
+          if (!canDrag) return;
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData(
+            "application/json",
+            JSON.stringify({ taskId: String(task._id), fromDayOfWeek: dayIdx }),
+          );
+          // text/plain fallback to keep some browsers happy
+          e.dataTransfer.setData("text/plain", String(task._id));
+        }}
+      >
         {colors ? (
           <TaskColorLines
             manualColor={colors.manualColor}
@@ -560,10 +781,19 @@ export default function WeeklyRoutine({
                   ? "text-gray-600 dark:text-gray-300 italic"
                   : "text-gray-700 dark:text-gray-200"
             }`}
-            title={task.taskName}
+            title={task.notes || task.taskName}
           >
             {task.taskName}
           </span>
+          {task.notes ? (
+            <span
+              className="shrink-0 text-amber-500 dark:text-amber-400"
+              title={task.notes}
+              aria-label="Has notes"
+            >
+              <IconNote className="w-3 h-3" />
+            </span>
+          ) : null}
         </div>
         {task.estimatedTime ? (
           <span className="text-[10px] text-gray-400 shrink-0">
@@ -584,19 +814,76 @@ export default function WeeklyRoutine({
             >
               {task.completed ? <IconCheck className="w-3 h-3" /> : null}
             </button>
-            <button
-              type="button"
-              className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-red-500 transition-all shrink-0"
-              onClick={() => onDeleteTask(dayIdx, task._id)}
-              aria-label="Remove task"
-            >
-              <IconTrash className="w-3 h-3" />
-            </button>
+            <div className="relative shrink-0">
+              <button
+                ref={(el) => {
+                  editBtnRefs.current[editKey] = el;
+                }}
+                type="button"
+                className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-blue-500 transition-all"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingTaskKey((cur) =>
+                    cur === editKey ? null : editKey,
+                  );
+                }}
+                aria-label="Task options"
+              >
+                <IconDotsVertical className="w-3.5 h-3.5" />
+              </button>
+              {editingTaskKey === editKey ? (
+                <TaskEditPopover
+                  task={task}
+                  onSave={(updates) =>
+                    onUpdateTask?.(dayIdx, task._id, updates)
+                  }
+                  onDelete={() => onDeleteTask(dayIdx, task._id)}
+                  onClose={() => setEditingTaskKey(null)}
+                  anchorRef={{
+                    current: editBtnRefs.current[editKey],
+                  }}
+                />
+              ) : null}
+            </div>
           </>
         )}
       </div>
     );
   };
+
+  // Drop handler for a cell that targets a specific day + section
+  const makeCellDropHandlers = (cellKey, dayIdx, sectionKey) => ({
+    onDragOver: (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    },
+    onDragEnter: () => setDragOverCell(cellKey),
+    onDragLeave: (e) => {
+      // Only clear if the cursor actually left the cell
+      if (e.currentTarget && !e.currentTarget.contains(e.relatedTarget)) {
+        setDragOverCell((cur) => (cur === cellKey ? null : cur));
+      }
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      setDragOverCell(null);
+      const raw = e.dataTransfer.getData("application/json");
+      if (!raw) return;
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return;
+      }
+      if (!parsed?.taskId) return;
+      onMoveTask?.({
+        taskId: parsed.taskId,
+        fromDayOfWeek: parsed.fromDayOfWeek,
+        toDayOfWeek: dayIdx,
+        toProjectId: sectionKey === "other" ? null : sectionKey,
+      });
+    },
+  });
 
   return (
     <div className="mt-8">
@@ -733,6 +1020,17 @@ export default function WeeklyRoutine({
                             const dayTasks = byDay[dayIdx] || [];
                             const task = dayTasks[rowIdx];
 
+                            const cellKey = `cell-${sectionKey}-${dayIdx}-${rowIdx}`;
+                            const dropHandlers = makeCellDropHandlers(
+                              cellKey,
+                              dayIdx,
+                              sectionKey,
+                            );
+                            const dropHighlight =
+                              dragOverCell === cellKey
+                                ? "bg-blue-50/60 dark:bg-blue-900/20"
+                                : "";
+
                             if (!task) {
                               // Show add button only in the first empty row for this section
                               if (rowIdx === dayTasks.length) {
@@ -740,7 +1038,8 @@ export default function WeeklyRoutine({
                                 return (
                                   <td
                                     key={dayIdx}
-                                    className="px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800 relative"
+                                    className={`px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800 relative ${dropHighlight}`}
+                                    {...dropHandlers}
                                   >
                                     <button
                                       ref={(el) => {
@@ -761,6 +1060,11 @@ export default function WeeklyRoutine({
                                         <AddTaskPopover
                                           routineTasks={sectionRoutineTasks}
                                           todoTasks={sectionTodoTasks}
+                                          projectId={
+                                            sectionKey === "other"
+                                              ? null
+                                              : sectionKey
+                                          }
                                           onAdd={(data) =>
                                             onAddTask(dayIdx, data)
                                           }
@@ -777,7 +1081,8 @@ export default function WeeklyRoutine({
                               return (
                                 <td
                                   key={dayIdx}
-                                  className="px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800"
+                                  className={`px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800 ${dropHighlight}`}
+                                  {...dropHandlers}
                                 />
                               );
                             }
@@ -789,7 +1094,8 @@ export default function WeeklyRoutine({
                                   task.completed
                                     ? "bg-green-50/50 dark:bg-green-900/10"
                                     : ""
-                                }`}
+                                } ${dropHighlight}`}
+                                {...dropHandlers}
                               >
                                 {renderTaskCell(task, dayIdx)}
                               </td>
@@ -810,10 +1116,21 @@ export default function WeeklyRoutine({
                   </td>
                   {DAY_NAMES.map((_, dayIdx) => {
                     const addKey = `desktop-empty-${dayIdx}`;
+                    const cellKey = `cell-empty-${dayIdx}`;
+                    const dropHandlers = makeCellDropHandlers(
+                      cellKey,
+                      dayIdx,
+                      "other",
+                    );
+                    const dropHighlight =
+                      dragOverCell === cellKey
+                        ? "bg-blue-50/60 dark:bg-blue-900/20"
+                        : "";
                     return (
                       <td
                         key={dayIdx}
-                        className="px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800 relative"
+                        className={`px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800 relative ${dropHighlight}`}
+                        {...dropHandlers}
                       >
                         <button
                           ref={(el) => {
@@ -832,6 +1149,7 @@ export default function WeeklyRoutine({
                             <AddTaskPopover
                               routineTasks={routineTasks}
                               todoTasks={todoTasks}
+                              projectId={null}
                               onAdd={(data) => onAddTask(dayIdx, data)}
                               onClose={() => setAddingDay(null)}
                               anchorRef={{
@@ -970,8 +1288,22 @@ export default function WeeklyRoutine({
                   });
                   const addKey = `mobile-${sectionKey}-${dayIdx}`;
 
+                  const mobileSectionDropKey = `mobile-cell-${sectionKey}-${dayIdx}`;
+                  const mobileDropHandlers = makeCellDropHandlers(
+                    mobileSectionDropKey,
+                    dayIdx,
+                    sectionKey,
+                  );
+                  const mobileDropHighlight =
+                    dragOverCell === mobileSectionDropKey
+                      ? "ring-1 ring-blue-300 dark:ring-blue-700"
+                      : "";
                   return (
-                    <div key={sectionKey}>
+                    <div
+                      key={sectionKey}
+                      className={`rounded-md ${mobileDropHighlight}`}
+                      {...mobileDropHandlers}
+                    >
                       <div className="text-[10px] font-bold text-blue-100 bg-blue-900/80 dark:bg-blue-900/60 px-2 py-0.5 rounded-md mb-1.5 inline-block">
                         {sectionName}
                       </div>
@@ -983,6 +1315,8 @@ export default function WeeklyRoutine({
                               : task.routineTask
                             : null;
                           const colors = rtId ? taskColorMap[rtId] : null;
+                          const editKey = `mobile-edit-${dayIdx}-${task._id}`;
+                          const canDrag = !task._virtual && !task.completed;
                           return (
                             <div
                               key={task._id}
@@ -990,7 +1324,23 @@ export default function WeeklyRoutine({
                                 task.completed
                                   ? "bg-green-50 dark:bg-green-900/10"
                                   : "bg-gray-50 dark:bg-gray-800/30"
-                              }`}
+                              } ${canDrag ? "cursor-grab active:cursor-grabbing" : ""}`}
+                              draggable={canDrag}
+                              onDragStart={(e) => {
+                                if (!canDrag) return;
+                                e.dataTransfer.effectAllowed = "move";
+                                e.dataTransfer.setData(
+                                  "application/json",
+                                  JSON.stringify({
+                                    taskId: String(task._id),
+                                    fromDayOfWeek: dayIdx,
+                                  }),
+                                );
+                                e.dataTransfer.setData(
+                                  "text/plain",
+                                  String(task._id),
+                                );
+                              }}
                             >
                               {colors ? (
                                 <TaskColorLines
@@ -1023,21 +1373,57 @@ export default function WeeklyRoutine({
                                     ? "line-through text-gray-400"
                                     : "text-gray-700 dark:text-gray-200"
                                 }`}
+                                title={task.notes || task.taskName}
                               >
                                 {task.taskName}
                               </span>
+                              {task.notes ? (
+                                <span
+                                  className="shrink-0 text-amber-500 dark:text-amber-400"
+                                  title={task.notes}
+                                  aria-label="Has notes"
+                                >
+                                  <IconNote className="w-3.5 h-3.5" />
+                                </span>
+                              ) : null}
                               {task.estimatedTime ? (
                                 <span className="text-xs text-gray-400 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
                                   {task.estimatedTime}m
                                 </span>
                               ) : null}
-                              <button
-                                type="button"
-                                className="p-1 text-gray-400 hover:text-red-500"
-                                onClick={() => onDeleteTask(dayIdx, task._id)}
-                              >
-                                <IconTrash className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="relative shrink-0">
+                                <button
+                                  ref={(el) => {
+                                    editBtnRefs.current[editKey] = el;
+                                  }}
+                                  type="button"
+                                  className="p-1 text-gray-400 hover:text-blue-500"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingTaskKey((cur) =>
+                                      cur === editKey ? null : editKey,
+                                    );
+                                  }}
+                                  aria-label="Task options"
+                                >
+                                  <IconDotsVertical className="w-3.5 h-3.5" />
+                                </button>
+                                {editingTaskKey === editKey ? (
+                                  <TaskEditPopover
+                                    task={task}
+                                    onSave={(updates) =>
+                                      onUpdateTask?.(dayIdx, task._id, updates)
+                                    }
+                                    onDelete={() =>
+                                      onDeleteTask(dayIdx, task._id)
+                                    }
+                                    onClose={() => setEditingTaskKey(null)}
+                                    anchorRef={{
+                                      current: editBtnRefs.current[editKey],
+                                    }}
+                                  />
+                                ) : null}
+                              </div>
                             </div>
                           );
                         })}
@@ -1061,6 +1447,9 @@ export default function WeeklyRoutine({
                               <AddTaskPopover
                                 routineTasks={sectionRoutineTasks}
                                 todoTasks={sectionTodoTasks}
+                                projectId={
+                                  sectionKey === "other" ? null : sectionKey
+                                }
                                 onAdd={(data) => onAddTask(dayIdx, data)}
                                 onClose={() => setAddingDay(null)}
                                 anchorRef={{
@@ -1096,6 +1485,7 @@ export default function WeeklyRoutine({
                         <AddTaskPopover
                           routineTasks={routineTasks}
                           todoTasks={todoTasks}
+                          projectId={null}
                           onAdd={(data) => onAddTask(dayIdx, data)}
                           onClose={() => setAddingDay(null)}
                           anchorRef={{

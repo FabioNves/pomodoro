@@ -2367,9 +2367,11 @@ function PlannerPageInner() {
                   _id: "temp_" + Date.now(),
                   taskName: data.taskName,
                   estimatedTime: data.estimatedTime || 0,
+                  notes: data.notes || "",
                   completed: false,
                   order: d.tasks.length,
                   routineTask: data.routineTaskId || null,
+                  project: data.projectId || null,
                 },
               ],
             };
@@ -2384,6 +2386,111 @@ function PlannerPageInner() {
             weekPlanId: selectedWeekPlanId,
             dayOfWeek,
             ...data,
+          }),
+        });
+        if (mountedRef.current)
+          setWeekPlans((prev) =>
+            prev.map((wp) => (wp._id === updated._id ? updated : wp)),
+          );
+      } catch (e) {
+        console.error(e);
+        refreshWeekPlans();
+      }
+    },
+    [selectedWeekPlanId, refreshWeekPlans],
+  );
+
+  const updateWeekTask = useCallback(
+    async (dayOfWeek, taskId, updates) => {
+      if (!selectedWeekPlanId) return;
+      setWeekPlans((prev) =>
+        prev.map((wp) => {
+          if (wp._id !== selectedWeekPlanId) return wp;
+          const days = wp.days.map((d) => {
+            if (d.dayOfWeek !== dayOfWeek) return d;
+            return {
+              ...d,
+              tasks: d.tasks.map((t) =>
+                String(t._id) === String(taskId) ? { ...t, ...updates } : t,
+              ),
+            };
+          });
+          return { ...wp, days };
+        }),
+      );
+      try {
+        const updated = await apiJson("/api/week-plans/tasks", {
+          method: "PATCH",
+          body: JSON.stringify({
+            weekPlanId: selectedWeekPlanId,
+            dayOfWeek,
+            taskId,
+            ...updates,
+          }),
+        });
+        if (mountedRef.current)
+          setWeekPlans((prev) =>
+            prev.map((wp) => (wp._id === updated._id ? updated : wp)),
+          );
+      } catch (e) {
+        console.error(e);
+        refreshWeekPlans();
+      }
+    },
+    [selectedWeekPlanId, refreshWeekPlans],
+  );
+
+  const moveWeekTask = useCallback(
+    async ({ taskId, fromDayOfWeek, toDayOfWeek, toProjectId }) => {
+      if (!selectedWeekPlanId) return;
+      if (typeof taskId !== "string" || taskId.startsWith("temp_")) return;
+      // Optimistic update: pull from `fromDay`, push to `toDay` with new project
+      setWeekPlans((prev) =>
+        prev.map((wp) => {
+          if (wp._id !== selectedWeekPlanId) return wp;
+          let movedTask = null;
+          const days = wp.days.map((d) => {
+            if (d.dayOfWeek !== fromDayOfWeek) return d;
+            const remaining = [];
+            for (const t of d.tasks) {
+              if (String(t._id) === String(taskId)) {
+                movedTask = t;
+              } else {
+                remaining.push(t);
+              }
+            }
+            return { ...d, tasks: remaining };
+          });
+          if (!movedTask) return wp;
+          const nextDays = days.map((d) => {
+            if (d.dayOfWeek !== toDayOfWeek) return d;
+            return {
+              ...d,
+              tasks: [
+                ...d.tasks,
+                {
+                  ...movedTask,
+                  project:
+                    toProjectId !== undefined
+                      ? toProjectId
+                      : movedTask.project || null,
+                  order: d.tasks.length,
+                },
+              ],
+            };
+          });
+          return { ...wp, days: nextDays };
+        }),
+      );
+      try {
+        const updated = await apiJson("/api/week-plans/tasks/move", {
+          method: "POST",
+          body: JSON.stringify({
+            weekPlanId: selectedWeekPlanId,
+            fromDayOfWeek,
+            toDayOfWeek,
+            taskId,
+            toProjectId: toProjectId ?? null,
           }),
         });
         if (mountedRef.current)
@@ -3249,6 +3356,8 @@ function PlannerPageInner() {
             onAddTask={addWeekTask}
             onToggleTask={toggleWeekTask}
             onDeleteTask={deleteWeekTask}
+            onUpdateTask={updateWeekTask}
+            onMoveTask={moveWeekTask}
             onEditWeek={(wp) => setEditingWeekPlan(wp)}
           />
         </div>

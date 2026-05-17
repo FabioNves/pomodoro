@@ -22,8 +22,10 @@ const addTaskSchema = z.object({
   weekPlanId: objectIdSchema,
   dayOfWeek: z.number().min(0).max(6),
   routineTaskId: objectIdSchema.optional(),
+  projectId: objectIdSchema.nullable().optional(),
   taskName: z.string().trim().min(1).max(200),
   estimatedTime: z.number().min(0).max(9999).optional(),
+  notes: z.string().max(2000).optional(),
 });
 
 const patchTaskSchema = z.object({
@@ -33,6 +35,8 @@ const patchTaskSchema = z.object({
   completed: z.boolean().optional(),
   taskName: z.string().trim().min(1).max(200).optional(),
   estimatedTime: z.number().min(0).max(9999).optional(),
+  notes: z.string().max(2000).optional(),
+  projectId: objectIdSchema.nullable().optional(),
 });
 
 const deleteTaskSchema = z.object({
@@ -67,8 +71,10 @@ export async function POST(req) {
 
     day.tasks.push({
       routineTask: body.data.routineTaskId || null,
+      project: body.data.projectId || null,
       taskName: body.data.taskName,
       estimatedTime: body.data.estimatedTime || 0,
+      notes: body.data.notes || "",
       completed: false,
       order: maxOrder + 1,
     });
@@ -110,6 +116,9 @@ export async function PATCH(req) {
     if (body.data.taskName) task.taskName = body.data.taskName;
     if (typeof body.data.estimatedTime === "number")
       task.estimatedTime = body.data.estimatedTime;
+    if (typeof body.data.notes === "string") task.notes = body.data.notes;
+    if (body.data.projectId !== undefined)
+      task.project = body.data.projectId || null;
 
     await plan.save();
 
