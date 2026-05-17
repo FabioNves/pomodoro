@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import { createPortal } from "react-dom";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -123,6 +124,62 @@ function IconDotsVertical({ className = "" }) {
       <circle cx="12" cy="19" r="1.8" />
     </svg>
   );
+}
+
+function IconCalendar({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path strokeLinecap="round" d="M3 9h18M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+
+/* Format/parse helpers for Task.scheduledDate (stored as ISO Date) */
+function formatDateInput(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function formatDateDisplay(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/* Monday-based start of the week containing the given date (local time) */
+function startOfWeek(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const jsDay = d.getDay(); // 0=Sun..6=Sat
+  const offset = jsDay === 0 ? 6 : jsDay - 1; // days since Monday
+  d.setDate(d.getDate() - offset);
+  return d;
+}
+
+function isInCurrentWeek(dateValue) {
+  if (!dateValue) return true; // no date = treat as "this week / unscheduled"
+  const d = new Date(dateValue);
+  if (Number.isNaN(d.getTime())) return true;
+  const start = startOfWeek(new Date());
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return d >= start && d < end;
 }
 
 /* ╔══════════════════════════════════════════════════════╗
@@ -270,6 +327,7 @@ function TaskRow({
   onCreateSubtask,
   onDeleteTask,
   onMoveTask,
+  onSetScheduledDate,
   projectId,
   depth = 0,
   scheduledForLater = false,
@@ -277,8 +335,12 @@ function TaskRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSubtaskInput, setShowSubtaskInput] = useState(false);
   const [subtaskTitle, setSubtaskTitle] = useState("");
+  const [showDateInput, setShowDateInput] = useState(false);
+  const [dateDraft, setDateDraft] = useState("");
 
   const canDrag = depth === 0 && !task.completed && !task.parentTask;
+  const scheduledDateValue = formatDateInput(task.scheduledDate);
+  const scheduledDateDisplay = formatDateDisplay(task.scheduledDate);
 
   useEffect(() => {
     if (menuOpen) {
@@ -339,6 +401,16 @@ function TaskRow({
           </div>
         </div>
 
+        {task.scheduledDate ? (
+          <span
+            className="shrink-0 text-[#2563eb] dark:text-blue-400 self-center"
+            title={`Scheduled for ${scheduledDateDisplay}`}
+            aria-label={`Scheduled for ${scheduledDateDisplay}`}
+          >
+            <IconCalendar className="w-3.5 h-3.5" />
+          </span>
+        ) : null}
+
         <div className="relative">
           <button
             type="button"
@@ -370,6 +442,29 @@ function TaskRow({
                 >
                   Create subtask
                 </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setDateDraft(scheduledDateValue);
+                    setShowDateInput(true);
+                  }}
+                >
+                  {task.scheduledDate ? "Change date\u2026" : "Set date\u2026"}
+                </button>
+                {task.scheduledDate ? (
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onSetScheduledDate?.(task, null);
+                    }}
+                  >
+                    Clear date
+                  </button>
+                ) : null}
                 <div className="border-t border-gray-200 dark:border-gray-700" />
                 <button
                   type="button"
@@ -429,6 +524,49 @@ function TaskRow({
         ) : null}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showDateInput ? (
+          <motion.div
+            className="ml-8 mt-1 flex gap-2 items-center"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <input
+              type="date"
+              value={dateDraft}
+              onChange={(e) => setDateDraft(e.target.value)}
+              className="flex-1 px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  onSetScheduledDate?.(task, dateDraft || null);
+                  setShowDateInput(false);
+                }
+                if (e.key === "Escape") setShowDateInput(false);
+              }}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm"
+              onClick={() => {
+                onSetScheduledDate?.(task, dateDraft || null);
+                setShowDateInput(false);
+              }}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm"
+              onClick={() => setShowDateInput(false)}
+            >
+              Cancel
+            </button>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
       {subtasks?.length ? (
         <div className="mt-0.5">
           {subtasks.map((st) => (
@@ -440,6 +578,7 @@ function TaskRow({
               onCreateSubtask={onCreateSubtask}
               onDeleteTask={onDeleteTask}
               onMoveTask={onMoveTask}
+              onSetScheduledDate={onSetScheduledDate}
               projectId={projectId}
               depth={depth + 1}
             />
@@ -447,6 +586,111 @@ function TaskRow({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function AddTaskModal({
+  open,
+  projectName,
+  title,
+  setTitle,
+  date,
+  setDate,
+  onCancel,
+  onSubmit,
+}) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") onCancel?.();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
+
+  if (typeof window === "undefined") return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          key="add-task-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onCancel?.();
+          }}
+        >
+          <motion.div
+            className="w-full max-w-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl overflow-hidden"
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+          >
+                <div className="px-5 pt-4 pb-2">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                    New task
+                  </h3>
+                  {projectName ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                      in {projectName}
+                    </p>
+                  ) : null}
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    onSubmit?.();
+                  }}
+                  className="px-5 pb-5 space-y-3"
+                >
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                      Title
+                    </label>
+                    <input
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Task title"
+                      className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none focus:ring-2 focus:ring-[#2563eb]/40"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                      Date <span className="text-gray-400">(optional)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none focus:ring-2 focus:ring-[#2563eb]/40"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={onCancel}
+                      className="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm hover:bg-gray-300 dark:hover:bg-gray-600"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!title.trim()}
+                      className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Add task
+                    </button>
+                  </div>
+                </form>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>,
+    document.body,
   );
 }
 
@@ -460,8 +704,10 @@ function ProjectColumn({
   onDeleteProject,
   onSetProjectColor,
   onMoveTask,
+  onSetScheduledDate,
 }) {
   const [newTitle, setNewTitle] = useState("");
+  const [newDate, setNewDate] = useState("");
   const [showInput, setShowInput] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
@@ -573,58 +819,36 @@ function ProjectColumn({
         <div className={`${collapsed ? "hidden md:block" : "block"}`}>
           <div className="px-2 py-2">
             <div className="px-2 pb-2">
-              {!showInput ? (
-                <button
-                  type="button"
-                  className="w-full text-left text-sm text-[#2563eb] hover:text-[#1d4ed8] font-medium"
-                  onClick={() => setShowInput(true)}
-                >
-                  + Add a task
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="w-full text-left text-sm text-[#2563eb] hover:text-[#1d4ed8] font-medium"
+                onClick={() => {
+                  setNewTitle("");
+                  setNewDate("");
+                  setShowInput(true);
+                }}
+              >
+                + Add a task
+              </button>
             </div>
 
-            <AnimatePresence>
-              {showInput ? (
-                <motion.div
-                  className="px-2 pb-2 flex gap-2"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                >
-                  <input
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="Task title"
-                    className="flex-1 px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const title = newTitle.trim();
-                        if (!title) return;
-                        onAddTask(project, title);
-                        setNewTitle("");
-                        setShowInput(false);
-                      }
-                      if (e.key === "Escape") setShowInput(false);
-                    }}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm"
-                    onClick={() => {
-                      const title = newTitle.trim();
-                      if (!title) return;
-                      onAddTask(project, title);
-                      setNewTitle("");
-                      setShowInput(false);
-                    }}
-                  >
-                    Add
-                  </button>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
+            <AddTaskModal
+              open={showInput}
+              projectName={project.name}
+              title={newTitle}
+              setTitle={setNewTitle}
+              date={newDate}
+              setDate={setNewDate}
+              onCancel={() => setShowInput(false)}
+              onSubmit={() => {
+                const title = newTitle.trim();
+                if (!title) return;
+                onAddTask(project, title, newDate || null);
+                setNewTitle("");
+                setNewDate("");
+                setShowInput(false);
+              }}
+            />
 
             <div className="px-2 mt-1">
               <div className="flex items-center gap-2 py-1 px-1">
@@ -664,6 +888,7 @@ function ProjectColumn({
                     }
                     onDeleteTask={onDeleteTask}
                     onMoveTask={onMoveTask}
+                    onSetScheduledDate={onSetScheduledDate}
                     projectId={project._id}
                     scheduledForLater={false}
                   />
@@ -713,6 +938,7 @@ function ProjectColumn({
                     }
                     onDeleteTask={onDeleteTask}
                     onMoveTask={onMoveTask}
+                    onSetScheduledDate={onSetScheduledDate}
                     projectId={project._id}
                     scheduledForLater={true}
                   />
@@ -1984,11 +2210,20 @@ function PlannerPageInner() {
     }
   }, []);
 
-  const addTask = useCallback(async (project, title) => {
+  const addTask = useCallback(async (project, title, scheduledDate) => {
+    const normalized =
+      scheduledDate && scheduledDate.length ? scheduledDate : null;
+    const scheduledForLater =
+      normalized && !isInCurrentWeek(normalized) ? true : undefined;
     try {
       const created = await apiJson("/api/tasks", {
         method: "POST",
-        body: JSON.stringify({ projectId: project._id, title }),
+        body: JSON.stringify({
+          projectId: project._id,
+          title,
+          ...(normalized ? { scheduledDate: normalized } : {}),
+          ...(scheduledForLater ? { scheduledForLater: true } : {}),
+        }),
       });
       if (mountedRef.current) setTasks((prev) => [...prev, created]);
     } catch (e) {
@@ -2022,6 +2257,56 @@ function PlannerPageInner() {
         setTasks((prev) =>
           prev.map((t) => (t._id === updated._id ? updated : t)),
         );
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const setTaskScheduledDate = useCallback(async (task, dateString) => {
+    // dateString: "YYYY-MM-DD" or null/"" to clear
+    const normalized = dateString && dateString.length ? dateString : null;
+    try {
+      const updated = await apiJson("/api/tasks", {
+        method: "PATCH",
+        body: JSON.stringify({ id: task._id, scheduledDate: normalized }),
+      });
+      if (mountedRef.current) {
+        setTasks((prev) =>
+          prev.map((t) => (t._id === updated._id ? updated : t)),
+        );
+      }
+      // Auto-bucket: if a date was set and it falls OUTSIDE the current week,
+      // promote the task to "Later". Dates inside the current week (or clearing
+      // the date) never touch scheduledForLater — manual placement is preserved.
+      if (
+        normalized &&
+        !isInCurrentWeek(normalized) &&
+        !task.scheduledForLater
+      ) {
+        try {
+          await apiJson("/api/tasks/reorder", {
+            method: "PATCH",
+            body: JSON.stringify({
+              updates: [
+                {
+                  id: task._id,
+                  order: Number.isFinite(task.order) ? task.order : 0,
+                  scheduledForLater: true,
+                },
+              ],
+            }),
+          });
+          if (mountedRef.current) {
+            setTasks((prev) =>
+              prev.map((t) =>
+                t._id === task._id ? { ...t, scheduledForLater: true } : t,
+              ),
+            );
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
     } catch (e) {
       console.error(e);
     }
@@ -2995,6 +3280,7 @@ function PlannerPageInner() {
             onDeleteProject={deleteProject}
             onSetProjectColor={setProjectColor}
             onMoveTask={moveTask}
+            onSetScheduledDate={setTaskScheduledDate}
           />
         ))}
 

@@ -541,6 +541,37 @@ export default function WeeklyRoutine({
     [tasks],
   );
 
+  // Tasks with an explicit scheduledDate that falls inside this week's grid.
+  // Each entry is enriched with the matching dayOfWeek (0=Mon..6=Sun).
+  const datedTasksInWeek = useMemo(() => {
+    if (!weekPlan?.weekStart) return [];
+    const weekStart = new Date(weekPlan.weekStart + "T00:00:00");
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const out = [];
+    for (const t of tasks || []) {
+      if (!t.scheduledDate || t.completed) continue;
+      const d = new Date(t.scheduledDate);
+      if (Number.isNaN(d.getTime())) continue;
+      const local = new Date(
+        d.getFullYear(),
+        d.getMonth(),
+        d.getDate(),
+        0,
+        0,
+        0,
+        0,
+      );
+      if (local < weekStart || local >= weekEnd) continue;
+      const dayOfWeek = Math.floor(
+        (local.getTime() - weekStart.getTime()) / 86400000,
+      );
+      if (dayOfWeek < 0 || dayOfWeek > 6) continue;
+      out.push({ task: t, dayOfWeek });
+    }
+    return out;
+  }, [tasks, weekPlan?.weekStart]);
+
   // Get the project id for a week-plan task
   const getTaskProjectId = useCallback(
     (task) => {
@@ -581,6 +612,18 @@ export default function WeeklyRoutine({
         }
       }
     }
+    // Include projects that contribute dated Tasks for this week
+    for (const { task } of datedTasksInWeek) {
+      const pid = task.project
+        ? typeof task.project === "object"
+          ? String(task.project._id || task.project)
+          : String(task.project)
+        : null;
+      if (pid && !seen.has(pid)) {
+        seen.add(pid);
+        order.push(pid);
+      }
+    }
     // Check if there are any ad-hoc (no project) tasks
     let hasOther = false;
     for (const day of days) {
@@ -593,7 +636,7 @@ export default function WeeklyRoutine({
       if (hasOther) break;
     }
     return { projectIds: order, hasOther };
-  }, [weekPlan?.projects, days, getTaskProjectId]);
+  }, [weekPlan?.projects, days, getTaskProjectId, datedTasksInWeek]);
 
   // For each project section + day: list of tasks
   const tasksByProjectAndDay = useMemo(() => {
@@ -664,8 +707,28 @@ export default function WeeklyRoutine({
         });
       }
     }
+    // Inject dated Task entries (display-only; cannot be edited or dragged here).
+    for (const { task, dayOfWeek } of datedTasksInWeek) {
+      const pid = task.project
+        ? typeof task.project === "object"
+          ? String(task.project._id || task.project)
+          : String(task.project)
+        : null;
+      const key = pid || "other";
+      if (!map[key]) {
+        map[key] = {};
+        for (let d = 0; d < 7; d++) map[key][d] = [];
+      }
+      map[key][dayOfWeek].push({
+        _id: `__dated_${task._id}`,
+        _virtual: true,
+        _dated: true,
+        taskName: task.title,
+        completed: false,
+      });
+    }
     return map;
-  }, [days, projectSections, getTaskProjectId, routineTasks]);
+  }, [days, projectSections, getTaskProjectId, routineTasks, datedTasksInWeek]);
 
   // Max tasks per project section
   const maxTasksPerSection = useMemo(() => {
@@ -765,7 +828,7 @@ export default function WeeklyRoutine({
           />
         ) : null}
         <div className="flex-1 min-w-0 flex items-center gap-1.5">
-          {task._virtual ? (
+          {task._virtual && !task._dated ? (
             <span
               title="Auto-scheduled from routine"
               className="text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 shrink-0"
@@ -773,13 +836,34 @@ export default function WeeklyRoutine({
               ⚡
             </span>
           ) : null}
+          {task._dated ? (
+            <span
+              title="Scheduled from Tasks"
+              className="shrink-0 text-[#2563eb] dark:text-blue-400"
+              aria-label="Scheduled from Tasks"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-3 h-3"
+                aria-hidden="true"
+              >
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path strokeLinecap="round" d="M3 9h18M8 3v4M16 3v4" />
+              </svg>
+            </span>
+          ) : null}
           <span
             className={`text-xs truncate ${
               task.completed
                 ? "line-through text-gray-400 dark:text-gray-500"
-                : task._virtual
-                  ? "text-gray-600 dark:text-gray-300 italic"
-                  : "text-gray-700 dark:text-gray-200"
+                : task._dated
+                  ? "text-gray-700 dark:text-gray-200"
+                  : task._virtual
+                    ? "text-gray-600 dark:text-gray-300 italic"
+                    : "text-gray-700 dark:text-gray-200"
             }`}
             title={task.notes || task.taskName}
           >

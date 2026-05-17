@@ -27,6 +27,13 @@ const reorderSchema = z.object({
           .regex(/^[0-9a-fA-F]{24}$/, "Invalid projectId")
           .optional(),
         scheduledForLater: z.boolean().optional(),
+        scheduledDate: z
+          .union([
+            z.string().datetime({ offset: true }),
+            z.string().date(),
+            z.null(),
+          ])
+          .optional(),
       }),
     )
     .min(1)
@@ -57,6 +64,13 @@ export async function PATCH(req) {
             ...(u.projectId ? { project: u.projectId } : {}),
             ...(typeof u.scheduledForLater === "boolean"
               ? { scheduledForLater: u.scheduledForLater }
+              : {}),
+            ...(Object.prototype.hasOwnProperty.call(u, "scheduledDate")
+              ? {
+                  scheduledDate: u.scheduledDate
+                    ? new Date(u.scheduledDate)
+                    : null,
+                }
               : {}),
           },
         },

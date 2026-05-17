@@ -27,11 +27,18 @@ const createTaskSchema = z.object({
   title: z.string().trim().min(1).max(200),
   projectId: objectIdSchema,
   parentTaskId: objectIdSchema.optional(),
+  scheduledDate: z
+    .union([z.string().datetime({ offset: true }), z.string().date(), z.null()])
+    .optional(),
+  scheduledForLater: z.boolean().optional(),
 });
 
 const patchTaskSchema = z.object({
   id: objectIdSchema,
   completed: z.boolean().optional(),
+  scheduledDate: z
+    .union([z.string().datetime({ offset: true }), z.string().date(), z.null()])
+    .optional(),
 });
 
 const deleteTaskSchema = z.object({
@@ -73,7 +80,8 @@ export async function POST(req) {
     const identityValidation = validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
-    const { title, projectId, parentTaskId } = body.data;
+    const { title, projectId, parentTaskId, scheduledDate, scheduledForLater } =
+      body.data;
     const identity = getIdentityHeaders(req);
     const identQuery = identityQuery(identityValidation.data);
 
@@ -98,6 +106,8 @@ export async function POST(req) {
       project: projectId,
       parentTask: parentTaskId || null,
       order: nextOrder,
+      ...(scheduledDate ? { scheduledDate: new Date(scheduledDate) } : {}),
+      ...(typeof scheduledForLater === "boolean" ? { scheduledForLater } : {}),
       ...(identity.userId
         ? { user: identity.userId, isTemporary: false }
         : { sessionId: identity.sessionId, isTemporary: true }),
@@ -119,9 +129,16 @@ export async function PATCH(req) {
     const identityValidation = validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
-    const { id, completed } = body.data;
+    const { id, completed, scheduledDate } = body.data;
     const identity = getIdentityHeaders(req);
     const identQuery = identityQuery(identityValidation.data);
+    const hasScheduledDate = Object.prototype.hasOwnProperty.call(
+      body.data,
+      "scheduledDate"
+    );
+    const scheduledDateSet = hasScheduledDate
+      ? { scheduledDate: scheduledDate ? new Date(scheduledDate) : null }
+      : {};
 
     await connectToDB();
 
@@ -149,7 +166,7 @@ export async function PATCH(req) {
 
         const updated = await Task.findOneAndUpdate(
           { _id: id, ...identQuery },
-          { $set: { completed, order: nextOrder } },
+          { $set: { completed, order: nextOrder, ...scheduledDateSet } },
           { new: true }
         );
 
@@ -159,7 +176,12 @@ export async function PATCH(req) {
 
     const updated = await Task.findOneAndUpdate(
       { _id: id, ...identQuery },
-      { $set: { ...(typeof completed === "boolean" ? { completed } : {}) } },
+      {
+        $set: {
+          ...(typeof completed === "boolean" ? { completed } : {}),
+          ...scheduledDateSet,
+        },
+      },
       { new: true }
     );
 

@@ -9,6 +9,7 @@ const taskSchema = new mongoose.Schema({
   },
   order: { type: Number, default: 0 },
   scheduledForLater: { type: Boolean, default: false },
+  scheduledDate: { type: Date, default: null },
   user: { type: String },
   sessionId: { type: String },
   isTemporary: { type: Boolean, default: false },
