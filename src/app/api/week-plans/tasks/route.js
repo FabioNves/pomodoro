@@ -26,6 +26,7 @@ const addTaskSchema = z.object({
   taskName: z.string().trim().min(1).max(200),
   estimatedTime: z.number().min(0).max(9999).optional(),
   notes: z.string().max(2000).optional(),
+  completed: z.boolean().optional(),
 });
 
 const patchTaskSchema = z.object({
@@ -75,7 +76,7 @@ export async function POST(req) {
       taskName: body.data.taskName,
       estimatedTime: body.data.estimatedTime || 0,
       notes: body.data.notes || "",
-      completed: false,
+      completed: !!body.data.completed,
       order: maxOrder + 1,
     });
 

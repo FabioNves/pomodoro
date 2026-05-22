@@ -2653,7 +2653,7 @@ function PlannerPageInner() {
                   taskName: data.taskName,
                   estimatedTime: data.estimatedTime || 0,
                   notes: data.notes || "",
-                  completed: false,
+                  completed: !!data.completed,
                   order: d.tasks.length,
                   routineTask: data.routineTaskId || null,
                   project: data.projectId || null,

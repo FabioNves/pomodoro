@@ -730,6 +730,17 @@ export default function WeeklyRoutine({
     return map;
   }, [days, projectSections, getTaskProjectId, routineTasks, datedTasksInWeek]);
 
+  // Flat list of displayed tasks per day (includes virtuals) — for totals/mobile.
+  const dayDisplayTasks = useMemo(() => {
+    const out = Array.from({ length: 7 }, () => []);
+    for (const byDay of Object.values(tasksByProjectAndDay)) {
+      for (let d = 0; d < 7; d++) {
+        if (byDay[d]?.length) out[d].push(...byDay[d]);
+      }
+    }
+    return out;
+  }, [tasksByProjectAndDay]);
+
   // Max tasks per project section
   const maxTasksPerSection = useMemo(() => {
     const map = {};
@@ -884,7 +895,31 @@ export default function WeeklyRoutine({
             {task.estimatedTime}
           </span>
         ) : null}
-        {task._virtual ? null : (
+        {task._virtual ? (
+          task._dated ? null : (
+            <button
+              type="button"
+              className="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors border-dashed border-amber-400/70 dark:border-amber-500/70 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+              onClick={() => {
+                const rtId = task.routineTask
+                  ? typeof task.routineTask === "object"
+                    ? task.routineTask._id || task.routineTask
+                    : task.routineTask
+                  : null;
+                const pid = getTaskProjectId(task);
+                onAddTask?.(dayIdx, {
+                  routineTaskId: rtId,
+                  projectId: pid,
+                  taskName: task.taskName,
+                  estimatedTime: task.estimatedTime || 0,
+                  completed: true,
+                });
+              }}
+              aria-label="Mark complete"
+              title="Mark complete"
+            />
+          )
+        ) : (
           <>
             <button
               type="button"
@@ -1025,11 +1060,9 @@ export default function WeeklyRoutine({
                 </th>
                 {DAY_NAMES.map((name, i) => {
                   const isToday = i === todayDow;
-                  const dayData = days.find((d) => d.dayOfWeek === i);
-                  const completedCount = dayData
-                    ? dayData.tasks.filter((t) => t.completed).length
-                    : 0;
-                  const totalCount = dayData ? dayData.tasks.length : 0;
+                  const dTasks = dayDisplayTasks[i] || [];
+                  const completedCount = dTasks.filter((t) => t.completed).length;
+                  const totalCount = dTasks.length;
                   const allDone =
                     totalCount > 0 && completedCount === totalCount;
 
@@ -1254,18 +1287,14 @@ export default function WeeklyRoutine({
                   Total
                 </td>
                 {DAY_NAMES.map((_, dayIdx) => {
-                  const dayData = days.find((d) => d.dayOfWeek === dayIdx);
-                  const totalMin = dayData
-                    ? dayData.tasks.reduce(
-                        (s, t) => s + (t.estimatedTime || 0),
-                        0,
-                      )
-                    : 0;
-                  const completedMin = dayData
-                    ? dayData.tasks
-                        .filter((t) => t.completed)
-                        .reduce((s, t) => s + (t.estimatedTime || 0), 0)
-                    : 0;
+                  const dTasks = dayDisplayTasks[dayIdx] || [];
+                  const totalMin = dTasks.reduce(
+                    (s, t) => s + (t.estimatedTime || 0),
+                    0,
+                  );
+                  const completedMin = dTasks
+                    .filter((t) => t.completed)
+                    .reduce((s, t) => s + (t.estimatedTime || 0), 0);
                   const pct =
                     totalMin > 0
                       ? Math.round((completedMin / totalMin) * 100)
@@ -1307,8 +1336,7 @@ export default function WeeklyRoutine({
       {/* Mobile: stacked day cards */}
       <div className="md:hidden space-y-3">
         {DAY_NAMES.map((name, dayIdx) => {
-          const dayData = days.find((d) => d.dayOfWeek === dayIdx);
-          const tasks = dayData?.tasks || [];
+          const tasks = dayDisplayTasks[dayIdx] || [];
           const totalMin = tasks.reduce(
             (s, t) => s + (t.estimatedTime || 0),
             0,
@@ -1320,13 +1348,10 @@ export default function WeeklyRoutine({
             totalMin > 0 ? Math.round((completedMin / totalMin) * 100) : 0;
           const isToday = dayIdx === todayDow;
 
-          // Group this day's tasks by project
+          // Group this day's tasks by project (via tasksByProjectAndDay so virtuals appear)
           const dayTasksByProject = {};
-          for (const task of tasks) {
-            const pid = getTaskProjectId(task);
-            const key = pid ? String(pid) : "other";
-            if (!dayTasksByProject[key]) dayTasksByProject[key] = [];
-            dayTasksByProject[key].push(task);
+          for (const sk of sectionKeys) {
+            dayTasksByProject[sk] = tasksByProjectAndDay[sk]?.[dayIdx] || [];
           }
 
           return (
@@ -1432,25 +1457,57 @@ export default function WeeklyRoutine({
                                   conditionalColor={colors.conditionalColor}
                                 />
                               ) : null}
-                              <button
-                                type="button"
-                                className={`w-5 h-5 rounded border shrink-0 flex items-center justify-center transition-colors ${
-                                  task.completed
-                                    ? "bg-green-500 border-green-500 text-white"
-                                    : "border-gray-300 dark:border-gray-600 hover:border-green-400"
-                                }`}
-                                onClick={() =>
-                                  onToggleTask(
-                                    dayIdx,
-                                    task._id,
-                                    !task.completed,
-                                  )
-                                }
-                              >
-                                {task.completed ? (
-                                  <IconCheck className="w-3.5 h-3.5" />
-                                ) : null}
-                              </button>
+                              {task._virtual ? (
+                                task._dated ? (
+                                  <span
+                                    className="w-5 h-5 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="w-5 h-5 rounded border shrink-0 flex items-center justify-center transition-colors border-dashed border-amber-400/70 dark:border-amber-500/70 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                    onClick={() => {
+                                      const rtId = task.routineTask
+                                        ? typeof task.routineTask === "object"
+                                          ? task.routineTask._id ||
+                                            task.routineTask
+                                          : task.routineTask
+                                        : null;
+                                      const pid = getTaskProjectId(task);
+                                      onAddTask?.(dayIdx, {
+                                        routineTaskId: rtId,
+                                        projectId: pid,
+                                        taskName: task.taskName,
+                                        estimatedTime: task.estimatedTime || 0,
+                                        completed: true,
+                                      });
+                                    }}
+                                    aria-label="Mark complete"
+                                    title="Mark complete"
+                                  />
+                                )
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={`w-5 h-5 rounded border shrink-0 flex items-center justify-center transition-colors ${
+                                    task.completed
+                                      ? "bg-green-500 border-green-500 text-white"
+                                      : "border-gray-300 dark:border-gray-600 hover:border-green-400"
+                                  }`}
+                                  onClick={() =>
+                                    onToggleTask(
+                                      dayIdx,
+                                      task._id,
+                                      !task.completed,
+                                    )
+                                  }
+                                >
+                                  {task.completed ? (
+                                    <IconCheck className="w-3.5 h-3.5" />
+                                  ) : null}
+                                </button>
+                              )}
                               <span
                                 className={`flex-1 text-sm ${
                                   task.completed
@@ -1475,39 +1532,41 @@ export default function WeeklyRoutine({
                                   {task.estimatedTime}m
                                 </span>
                               ) : null}
-                              <div className="relative shrink-0">
-                                <button
-                                  ref={(el) => {
-                                    editBtnRefs.current[editKey] = el;
-                                  }}
-                                  type="button"
-                                  className="p-1 text-gray-400 hover:text-blue-500"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingTaskKey((cur) =>
-                                      cur === editKey ? null : editKey,
-                                    );
-                                  }}
-                                  aria-label="Task options"
-                                >
-                                  <IconDotsVertical className="w-3.5 h-3.5" />
-                                </button>
-                                {editingTaskKey === editKey ? (
-                                  <TaskEditPopover
-                                    task={task}
-                                    onSave={(updates) =>
-                                      onUpdateTask?.(dayIdx, task._id, updates)
-                                    }
-                                    onDelete={() =>
-                                      onDeleteTask(dayIdx, task._id)
-                                    }
-                                    onClose={() => setEditingTaskKey(null)}
-                                    anchorRef={{
-                                      current: editBtnRefs.current[editKey],
+                              {task._virtual ? null : (
+                                <div className="relative shrink-0">
+                                  <button
+                                    ref={(el) => {
+                                      editBtnRefs.current[editKey] = el;
                                     }}
-                                  />
-                                ) : null}
-                              </div>
+                                    type="button"
+                                    className="p-1 text-gray-400 hover:text-blue-500"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingTaskKey((cur) =>
+                                        cur === editKey ? null : editKey,
+                                      );
+                                    }}
+                                    aria-label="Task options"
+                                  >
+                                    <IconDotsVertical className="w-3.5 h-3.5" />
+                                  </button>
+                                  {editingTaskKey === editKey ? (
+                                    <TaskEditPopover
+                                      task={task}
+                                      onSave={(updates) =>
+                                        onUpdateTask?.(dayIdx, task._id, updates)
+                                      }
+                                      onDelete={() =>
+                                        onDeleteTask(dayIdx, task._id)
+                                      }
+                                      onClose={() => setEditingTaskKey(null)}
+                                      anchorRef={{
+                                        current: editBtnRefs.current[editKey],
+                                      }}
+                                    />
+                                  ) : null}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
