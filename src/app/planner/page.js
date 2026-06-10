@@ -15,6 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { jwtDecode } from "jwt-decode";
 import { generateSessionId } from "@/utils/sessionUtils";
+import { getMondayOf, weekLabel } from "@/utils/timeUtils";
 import WeeklyRoutine from "@/components/WeeklyRoutine";
 import RoutineTasksView from "@/components/RoutineTasksView";
 
@@ -1669,132 +1670,10 @@ function EditHabitModal({ habit, onSave, onCancel }) {
    ║  SCHEDULE TAB — week plan forms                      ║
    ╚══════════════════════════════════════════════════════╝ */
 
-function getNextMonday() {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = day === 0 ? 1 : 8 - day;
-  d.setDate(d.getDate() + diff);
-  return formatDate(d);
-}
-
-function CreateWeekForm({ projects, onSubmit, onCancel }) {
-  const [name, setName] = useState("");
-  const [weekStart, setWeekStart] = useState(getNextMonday());
-  const [selectedProjects, setSelectedProjects] = useState([]);
-  const [estimatedTime, setEstimatedTime] = useState(60);
-
-  const toggleProject = (pid) =>
-    setSelectedProjects((prev) =>
-      prev.includes(pid) ? prev.filter((p) => p !== pid) : [...prev, pid],
-    );
-
-  const handleSubmit = () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    onSubmit({
-      name: trimmed,
-      weekStart,
-      projects: selectedProjects,
-      estimatedDailyTime: estimatedTime,
-    });
-  };
-
-  return (
-    <motion.div
-      className="mt-3 bg-white/90 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-xl p-4"
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: "auto" }}
-      exit={{ opacity: 0, height: 0 }}
-    >
-      <div className="space-y-3">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Week name (e.g. Week 3)"
-          className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleSubmit();
-            if (e.key === "Escape") onCancel();
-          }}
-          autoFocus
-        />
-        <div>
-          <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
-            Week start (Monday)
-          </label>
-          <input
-            type="date"
-            value={weekStart}
-            onChange={(e) => setWeekStart(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
-            Projects
-          </label>
-          <div className="space-y-1 max-h-[120px] overflow-y-auto">
-            {projects.map((p) => (
-              <label
-                key={p._id}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedProjects.includes(p._id)}
-                  onChange={() => toggleProject(p._id)}
-                  className="rounded"
-                />
-                <span>{p.name}</span>
-              </label>
-            ))}
-            {!projects.length ? (
-              <div className="text-xs text-gray-400 px-2">No projects</div>
-            ) : null}
-          </div>
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
-            Estimated daily time (minutes)
-          </label>
-          <input
-            type="number"
-            value={estimatedTime}
-            onChange={(e) => setEstimatedTime(Number(e.target.value) || 0)}
-            className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-            min="0"
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="flex-1 px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium"
-            onClick={handleSubmit}
-          >
-            Create
-          </button>
-          <button
-            type="button"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 function EditWeekModal({ weekPlan, projects, onSave, onCancel }) {
-  const [name, setName] = useState(weekPlan.name || "");
-  const [weekStart, setWeekStart] = useState(weekPlan.weekStart || "");
   const [selectedProjects, setSelectedProjects] = useState(
     (weekPlan.projects || []).map(String),
   );
-  const [estimatedTime, setEstimatedTime] = useState(
-    weekPlan.estimatedDailyTime || 60,
-  );
 
   const toggleProject = (pid) =>
     setSelectedProjects((prev) =>
@@ -1802,14 +1681,7 @@ function EditWeekModal({ weekPlan, projects, onSave, onCancel }) {
     );
 
   const handleSubmit = () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    onSave({
-      name: trimmed,
-      weekStart,
-      projects: selectedProjects,
-      estimatedDailyTime: estimatedTime,
-    });
+    onSave({ projects: selectedProjects });
   };
 
   return (
@@ -1827,38 +1699,18 @@ function EditWeekModal({ weekPlan, projects, onSave, onCancel }) {
         exit={{ scale: 0.95 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Edit Week
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+          {weekLabel(weekPlan.weekStart)}
         </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          Choose which projects appear in this week.
+        </p>
         <div className="space-y-3">
-          <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
-              Name
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Week name"
-              className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
-              Week start (Monday)
-            </label>
-            <input
-              type="date"
-              value={weekStart}
-              onChange={(e) => setWeekStart(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-            />
-          </div>
           <div>
             <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
               Projects
             </label>
-            <div className="space-y-1 max-h-[120px] overflow-y-auto">
+            <div className="space-y-1 max-h-[220px] overflow-y-auto">
               {projects.map((p) => (
                 <label
                   key={p._id}
@@ -1877,18 +1729,6 @@ function EditWeekModal({ weekPlan, projects, onSave, onCancel }) {
                 <div className="text-xs text-gray-400 px-2">No projects</div>
               ) : null}
             </div>
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
-              Estimated daily time (minutes)
-            </label>
-            <input
-              type="number"
-              value={estimatedTime}
-              onChange={(e) => setEstimatedTime(Number(e.target.value) || 0)}
-              className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-              min="0"
-            />
           </div>
           <div className="flex gap-2 pt-1">
             <button
@@ -1970,6 +1810,10 @@ function PlannerPageInner() {
 
   const [user, setUser] = useState(null);
   const mountedRef = useRef(true);
+  // Track first successful fetch so we can distinguish "not loaded" from "empty".
+  const projectsLoadedRef = useRef(false);
+  const weekPlansLoadedRef = useRef(false);
+  const autoWeekCreatedRef = useRef(false);
 
   // ── shared: projects (used by tasks + schedule) ──────
   const [projects, setProjects] = useState([]);
@@ -1995,7 +1839,6 @@ function PlannerPageInner() {
   const [selectedWeekPlanId, setSelectedWeekPlanId] = useState(null);
   const [routineTasksByProject, setRoutineTasksByProject] = useState({});
   const [columnsByProject, setColumnsByProject] = useState({});
-  const [creatingWeek, setCreatingWeek] = useState(false);
   const [editingWeekPlan, setEditingWeekPlan] = useState(null);
 
   // ── routines tab state ────────────────────────────────
@@ -2033,7 +1876,10 @@ function PlannerPageInner() {
   const refreshProjects = useCallback(async () => {
     try {
       const data = await apiJson("/api/projects");
-      if (mountedRef.current) setProjects(data);
+      if (mountedRef.current) {
+        setProjects(data);
+        projectsLoadedRef.current = true;
+      }
     } catch (e) {
       console.error(e);
     }
@@ -2075,7 +1921,10 @@ function PlannerPageInner() {
   const refreshWeekPlans = useCallback(async () => {
     try {
       const data = await apiJson("/api/week-plans");
-      if (mountedRef.current) setWeekPlans(data);
+      if (mountedRef.current) {
+        setWeekPlans(data);
+        weekPlansLoadedRef.current = true;
+      }
     } catch (e) {
       console.error(e);
     }
@@ -2587,16 +2436,59 @@ function PlannerPageInner() {
       if (mountedRef.current) {
         setWeekPlans((prev) => [created, ...prev]);
         setSelectedWeekPlanId(created._id);
-        setCreatingWeek(false);
       }
+      return created;
     } catch (e) {
       console.error(e);
+      return null;
     }
   }, []);
 
+  // Create the next not-yet-added week: the Monday after the latest existing
+  // week (or the current week's Monday if none), named by its ISO week number,
+  // pre-filled with all projects.
+  const addWeek = useCallback(() => {
+    const latest = weekPlans[0]?.weekStart; // API sorts weekStart desc
+    let monday;
+    if (latest) {
+      const d = new Date(`${latest}T00:00:00`);
+      d.setDate(d.getDate() + 7);
+      monday = getMondayOf(d);
+    } else {
+      monday = getMondayOf(new Date());
+    }
+    if (weekPlans.some((wp) => wp.weekStart === monday)) {
+      const existing = weekPlans.find((wp) => wp.weekStart === monday);
+      setSelectedWeekPlanId(existing._id);
+      return;
+    }
+    createWeekPlan({
+      name: weekLabel(monday),
+      weekStart: monday,
+      projects: projects.map((p) => p._id),
+    });
+  }, [weekPlans, projects, createWeekPlan]);
+
+  // Auto-create the current week on load if it doesn't exist yet.
+  useEffect(() => {
+    if (autoWeekCreatedRef.current) return;
+    if (!weekPlansLoadedRef.current || !projectsLoadedRef.current) return;
+    const monday = getMondayOf(new Date());
+    if (weekPlans.some((wp) => wp.weekStart === monday)) {
+      autoWeekCreatedRef.current = true;
+      return;
+    }
+    autoWeekCreatedRef.current = true;
+    createWeekPlan({
+      name: weekLabel(monday),
+      weekStart: monday,
+      projects: projects.map((p) => p._id),
+    });
+  }, [weekPlans, projects, createWeekPlan]);
+
   const deleteWeekPlan = useCallback(
     async (plan) => {
-      const ok = window.confirm(`Delete week "${plan.name}"?`);
+      const ok = window.confirm(`Delete "${weekLabel(plan.weekStart)}"?`);
       if (!ok) return;
       try {
         await apiJson("/api/week-plans", {
@@ -3212,7 +3104,7 @@ function PlannerPageInner() {
             >
               <div className="w-3 h-3 rounded-full shrink-0 bg-blue-500" />
               <div className="flex-1 min-w-0">
-                <div className="truncate">{wp.name}</div>
+                <div className="truncate">{weekLabel(wp.weekStart)}</div>
                 <div className="text-[10px] text-gray-400 dark:text-gray-500">
                   {fmt(start)} – {fmt(end)}
                 </div>
@@ -3231,33 +3123,21 @@ function PlannerPageInner() {
             </div>
           );
         })}
-        {!weekPlans.length && !creatingWeek ? (
+        {!weekPlans.length ? (
           <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
             No weekly routines yet
           </div>
         ) : null}
       </div>
 
-      <AnimatePresence>
-        {creatingWeek ? (
-          <CreateWeekForm
-            projects={projects}
-            onSubmit={createWeekPlan}
-            onCancel={() => setCreatingWeek(false)}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      {!creatingWeek ? (
-        <button
-          type="button"
-          className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-white dark:hover:bg-gray-800/50 transition-colors"
-          onClick={() => setCreatingWeek(true)}
-        >
-          <IconPlus className="w-4 h-4" />
-          Add Week
-        </button>
-      ) : null}
+      <button
+        type="button"
+        className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-white dark:hover:bg-gray-800/50 transition-colors"
+        onClick={addWeek}
+      >
+        <IconPlus className="w-4 h-4" />
+        Add Week
+      </button>
     </div>
   );
 
@@ -3560,7 +3440,7 @@ function PlannerPageInner() {
                   >
                     <div className="w-3 h-3 rounded-full shrink-0 bg-blue-500" />
                     <div className="flex-1 min-w-0">
-                      <div className="truncate">{wp.name}</div>
+                      <div className="truncate">{weekLabel(wp.weekStart)}</div>
                       <div className="text-[10px] text-gray-400 dark:text-gray-500">
                         {fmt(start)} – {fmt(end)}
                       </div>
@@ -3581,31 +3461,20 @@ function PlannerPageInner() {
                   </div>
                 );
               })}
-              {!weekPlans.length && !creatingWeek ? (
+              {!weekPlans.length ? (
                 <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
                   No weekly routines yet
                 </div>
               ) : null}
             </div>
-            {!creatingWeek ? (
-              <button
-                type="button"
-                className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-white dark:hover:bg-gray-800/50 transition-colors"
-                onClick={() => setCreatingWeek(true)}
-              >
-                <IconPlus className="w-4 h-4" />
-                Add Week
-              </button>
-            ) : null}
-            <AnimatePresence>
-              {creatingWeek ? (
-                <CreateWeekForm
-                  projects={projects}
-                  onSubmit={createWeekPlan}
-                  onCancel={() => setCreatingWeek(false)}
-                />
-              ) : null}
-            </AnimatePresence>
+            <button
+              type="button"
+              className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-white dark:hover:bg-gray-800/50 transition-colors"
+              onClick={addWeek}
+            >
+              <IconPlus className="w-4 h-4" />
+              Add Week
+            </button>
           </div>
         </div>
       ) : null}

@@ -30,7 +30,6 @@ const createSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format"),
   projects: z.array(objectIdSchema).optional(),
-  estimatedDailyTime: z.number().min(0).max(1440).optional(),
 });
 
 const patchSchema = z.object({
@@ -41,7 +40,6 @@ const patchSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format")
     .optional(),
   projects: z.array(objectIdSchema).optional(),
-  estimatedDailyTime: z.number().min(0).max(1440).optional(),
 });
 
 const deleteSchema = z.object({
@@ -93,7 +91,6 @@ export async function POST(req) {
       name: body.data.name,
       weekStart: body.data.weekStart,
       projects: body.data.projects || [],
-      estimatedDailyTime: body.data.estimatedDailyTime || 60,
       ...(identity.userId
         ? { user: identity.userId, isTemporary: false }
         : { sessionId: identity.sessionId, isTemporary: true }),

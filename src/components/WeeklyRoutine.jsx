@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { weekLabel } from "@/utils/timeUtils";
 
 // Compute a viewport-aware popover position anchored under an element.
 // Flips above if not enough room below; right-aligns if not enough room right.
@@ -1010,19 +1011,13 @@ export default function WeeklyRoutine({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            {weekPlan.name}
+            {weekLabel(weekPlan.weekStart)}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {dateRange}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            Daily Study Time:
-          </span>
-          <span className="text-sm font-semibold px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-            {formatMinutes(weekPlan.estimatedDailyTime)}
-          </span>
           {onEditWeek ? (
             <button
               type="button"
@@ -1056,7 +1051,7 @@ export default function WeeklyRoutine({
             <thead>
               <tr>
                 <th className="px-2 py-2 text-left text-xs font-semibold text-white bg-red-600 border-r border-red-700 w-[60px] rounded-tl-2xl">
-                  {weekPlan.name}
+                  {weekLabel(weekPlan.weekStart)}
                 </th>
                 {DAY_NAMES.map((name, i) => {
                   const isToday = i === todayDow;
