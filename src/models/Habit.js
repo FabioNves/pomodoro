@@ -8,6 +8,11 @@ const habitSchema = new mongoose.Schema({
       {
         label: { type: String, required: true },
         value: { type: Number, required: true },
+        // Optional per-level color. When set, the level renders with this
+        // palette color + shade instead of the auto-derived shade of the
+        // habit color. Legacy levels omit these and keep auto-shading.
+        color: { type: String },
+        shade: { type: Number },
       },
     ],
     default: [],

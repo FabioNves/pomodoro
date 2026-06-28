@@ -1109,14 +1109,109 @@ function getPalette(color) {
   return COLOR_PALETTES[color] || COLOR_PALETTES.blue;
 }
 
+// Index into a palette's shades for an auto-derived (non-manual) level color.
+function autoShadeIndex(value, maxLevel, shadeCount = 5) {
+  if (!value) return 0;
+  return Math.min(
+    Math.round((value / maxLevel) * (shadeCount - 1)),
+    shadeCount - 1,
+  );
+}
+
 function getShadeClass(color, level, maxLevel) {
   if (!level) return "bg-gray-100 dark:bg-gray-800/60";
   const palette = getPalette(color);
-  const idx = Math.min(
-    Math.round((level / maxLevel) * (palette.shades.length - 1)),
-    palette.shades.length - 1,
+  return palette.shades[autoShadeIndex(level, maxLevel, palette.shades.length)];
+}
+
+// Pin every still-auto-shaded level to an explicit color + shade matching its
+// CURRENT appearance. Used before adding/removing a level so that the resulting
+// change in maxLevel no longer shifts the other levels' colors.
+function freezeLevelColors(levels, baseColor) {
+  const maxLevel = Math.max(...levels.map((l) => l.value), 1);
+  const shadeCount = getPalette(baseColor).shades.length;
+  return levels.map((l) =>
+    l.color && typeof l.shade === "number"
+      ? l
+      : {
+          ...l,
+          color: baseColor,
+          shade: autoShadeIndex(l.value, maxLevel, shadeCount),
+        },
   );
-  return palette.shades[idx];
+}
+
+// Resolve the swatch class for a single level. When the level has an explicit
+// color + shade (manually chosen by the user) it uses that; otherwise it falls
+// back to the auto-derived shade of the habit color (legacy behaviour).
+function levelShadeClass(level, fallbackColor, maxLevel) {
+  if (
+    level &&
+    level.color &&
+    COLOR_PALETTES[level.color] &&
+    typeof level.shade === "number"
+  ) {
+    const palette = COLOR_PALETTES[level.color];
+    const idx = Math.min(Math.max(level.shade, 0), palette.shades.length - 1);
+    return palette.shades[idx];
+  }
+  return getShadeClass(fallbackColor, level?.value, maxLevel);
+}
+
+// Popover swatch that lets the user manually pick a color + shade for a level.
+function LevelColorPicker({ level, fallbackColor, maxLevel, onPick }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`w-4 h-4 rounded-sm ring-1 ring-black/10 dark:ring-white/15 ${levelShadeClass(level, fallbackColor, maxLevel)}`}
+        aria-label="Choose level color"
+        title="Choose color"
+      />
+      {open ? (
+        <div className="absolute z-50 top-6 left-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-2">
+          <div className="flex flex-col gap-1">
+            {Object.entries(COLOR_PALETTES).map(([key, pal]) => (
+              <div key={key} className="flex gap-1">
+                {pal.shades.map((sc, si) => {
+                  const selected = level.color === key && level.shade === si;
+                  return (
+                    <button
+                      key={si}
+                      type="button"
+                      className={`w-5 h-5 rounded-sm ${sc} transition-transform ${
+                        selected
+                          ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-900"
+                          : "hover:scale-110"
+                      }`}
+                      onClick={() => {
+                        onPick(key, si);
+                        setOpen(false);
+                      }}
+                      aria-label={`${pal.label} shade ${si + 1}`}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function formatDate(d) {
@@ -1235,9 +1330,12 @@ function YearHeatmap({ year, habit, entriesByDate, onDayClick, selectedDate }) {
                     return <div key={di} className="w-[11px] h-[11px]" />;
                   const entry = entriesByDate[dateStr];
                   const level = entry?.level || 0;
-                  const shadeClass = getShadeClass(
+                  const levelObj = (habit.levels || []).find(
+                    (l) => l.value === level,
+                  ) || { value: level };
+                  const shadeClass = levelShadeClass(
+                    levelObj,
                     habit.color,
-                    level,
                     maxLevel,
                   );
                   const isSelected = selectedDate === dateStr;
@@ -1272,7 +1370,7 @@ function YearHeatmap({ year, habit, entriesByDate, onDayClick, selectedDate }) {
             .map((l, i) => (
               <div
                 key={i}
-                className={`w-[11px] h-[11px] rounded-[2px] ${getShadeClass(habit.color, l.value, maxLevel)}`}
+                className={`w-[11px] h-[11px] rounded-[2px] ${levelShadeClass(l, habit.color, maxLevel)}`}
                 title={l.label}
               />
             ))}
@@ -1342,7 +1440,7 @@ function LevelPicker({ habit, date, currentLevel, onSetLevel, onClose }) {
               }}
             >
               <div
-                className={`w-3 h-3 rounded-sm ${getShadeClass(habit.color, l.value, maxLevel)}`}
+                className={`w-3 h-3 rounded-sm ${levelShadeClass(l, habit.color, maxLevel)}`}
               />
               {l.label}
             </button>
@@ -1366,19 +1464,31 @@ function CreateHabitForm({ onSubmit, onCancel }) {
 
   const addLevel = () => {
     if (levels.length >= 10) return;
-    setLevels((prev) => [
-      ...prev,
-      {
-        label: "",
-        value: prev.length ? Math.max(...prev.map((l) => l.value)) + 1 : 1,
-      },
-    ]);
+    setLevels((prev) => {
+      const frozen = freezeLevelColors(prev, color);
+      const nextValue = prev.length
+        ? Math.max(...prev.map((l) => l.value)) + 1
+        : 1;
+      const shades = getPalette(color).shades;
+      return [
+        ...frozen,
+        { label: "", value: nextValue, color, shade: shades.length - 1 },
+      ];
+    });
   };
   const removeLevel = (idx) =>
-    setLevels((prev) => prev.filter((_, i) => i !== idx));
+    setLevels((prev) =>
+      freezeLevelColors(prev, color).filter((_, i) => i !== idx),
+    );
   const updateLevel = (idx, field, val) =>
     setLevels((prev) =>
       prev.map((l, i) => (i === idx ? { ...l, [field]: val } : l)),
+    );
+  const setLevelColor = (idx, colorKey, shade) =>
+    setLevels((prev) =>
+      prev.map((l, i) =>
+        i === idx ? { ...l, color: colorKey, shade } : l,
+      ),
     );
 
   const handleSubmit = () => {
@@ -1392,6 +1502,9 @@ function CreateHabitForm({ onSubmit, onCancel }) {
       levels: validLevels.map((l, i) => ({
         label: l.label.trim(),
         value: l.value || i + 1,
+        ...(l.color && typeof l.shade === "number"
+          ? { color: l.color, shade: l.shade }
+          : {}),
       })),
     });
   };
@@ -1442,8 +1555,11 @@ function CreateHabitForm({ onSubmit, onCancel }) {
           <div className="space-y-1.5">
             {levels.map((l, i) => (
               <div key={i} className="flex items-center gap-2">
-                <div
-                  className={`w-4 h-4 rounded-sm shrink-0 ${getShadeClass(color, l.value, Math.max(...levels.map((x) => x.value), 1))}`}
+                <LevelColorPicker
+                  level={l}
+                  fallbackColor={color}
+                  maxLevel={Math.max(...levels.map((x) => x.value), 1)}
+                  onPick={(c, s) => setLevelColor(i, c, s)}
                 />
                 <input
                   value={l.label}
@@ -1499,24 +1615,41 @@ function EditHabitModal({ habit, onSave, onCancel }) {
   const [color, setColor] = useState(habit.color || "blue");
   const [inverted, setInverted] = useState(habit.inverted || false);
   const [levels, setLevels] = useState(
-    (habit.levels || []).map((l) => ({ label: l.label, value: l.value })),
+    (habit.levels || []).map((l) => ({
+      label: l.label,
+      value: l.value,
+      color: l.color,
+      shade: l.shade,
+    })),
   );
 
   const addLevel = () => {
     if (levels.length >= 10) return;
-    setLevels((prev) => [
-      ...prev,
-      {
-        label: "",
-        value: prev.length ? Math.max(...prev.map((l) => l.value)) + 1 : 1,
-      },
-    ]);
+    setLevels((prev) => {
+      const frozen = freezeLevelColors(prev, color);
+      const nextValue = prev.length
+        ? Math.max(...prev.map((l) => l.value)) + 1
+        : 1;
+      const shades = getPalette(color).shades;
+      return [
+        ...frozen,
+        { label: "", value: nextValue, color, shade: shades.length - 1 },
+      ];
+    });
   };
   const removeLevel = (idx) =>
-    setLevels((prev) => prev.filter((_, i) => i !== idx));
+    setLevels((prev) =>
+      freezeLevelColors(prev, color).filter((_, i) => i !== idx),
+    );
   const updateLevel = (idx, field, val) =>
     setLevels((prev) =>
       prev.map((l, i) => (i === idx ? { ...l, [field]: val } : l)),
+    );
+  const setLevelColor = (idx, colorKey, shade) =>
+    setLevels((prev) =>
+      prev.map((l, i) =>
+        i === idx ? { ...l, color: colorKey, shade } : l,
+      ),
     );
 
   const handleSave = () => {
@@ -1531,6 +1664,9 @@ function EditHabitModal({ habit, onSave, onCancel }) {
       levels: validLevels.map((l, i) => ({
         label: l.label.trim(),
         value: l.value || i + 1,
+        ...(l.color && typeof l.shade === "number"
+          ? { color: l.color, shade: l.shade }
+          : {}),
       })),
     });
   };
@@ -1613,8 +1749,11 @@ function EditHabitModal({ habit, onSave, onCancel }) {
             <div className="space-y-1.5">
               {levels.map((l, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <div
-                    className={`w-4 h-4 rounded-sm shrink-0 ${getShadeClass(color, l.value, Math.max(...levels.map((x) => x.value), 1))}`}
+                  <LevelColorPicker
+                    level={l}
+                    fallbackColor={color}
+                    maxLevel={Math.max(...levels.map((x) => x.value), 1)}
+                    onPick={(c, s) => setLevelColor(i, c, s)}
                   />
                   <input
                     value={l.label}
@@ -3393,7 +3532,7 @@ function PlannerPageInner() {
                   return (
                     <div key={l.value} className="flex items-center gap-1.5">
                       <div
-                        className={`w-4 h-4 rounded-sm ${getShadeClass(selectedHabit.color, l.value, maxLvl)}`}
+                        className={`w-4 h-4 rounded-sm ${levelShadeClass(l, selectedHabit.color, maxLvl)}`}
                       />
                       <span className="text-xs text-gray-600 dark:text-gray-400">
                         {l.label}

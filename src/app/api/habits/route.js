@@ -27,6 +27,8 @@ const createHabitSchema = z.object({
       z.object({
         label: z.string().trim().min(1).max(50),
         value: z.number().int().min(1),
+        color: z.string().trim().min(1).max(20).optional(),
+        shade: z.number().int().min(0).max(10).optional(),
       }),
     )
     .min(1)
@@ -44,6 +46,8 @@ const patchHabitSchema = z.object({
       z.object({
         label: z.string().trim().min(1).max(50),
         value: z.number().int().min(1),
+        color: z.string().trim().min(1).max(20).optional(),
+        shade: z.number().int().min(0).max(10).optional(),
       }),
     )
     .min(1)

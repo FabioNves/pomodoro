@@ -42,6 +42,12 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
           setShowBreakOptions(true); // Show break options when focus ends
           clearInterval(timer);
 
+          // Play the alarm first so a notification problem can't prevent it
+          if (alarmSoundRef.current) {
+            alarmSoundRef.current.currentTime = 0;
+            alarmSoundRef.current.play().catch(() => {});
+          }
+
           // Enhanced notification with action buttons
           if (showNotification) {
             showNotification("🎉 Focus Session Complete!", {
@@ -70,8 +76,6 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
               },
             });
           }
-
-          if (alarmSoundRef.current) alarmSoundRef.current.play();
         } else {
           setTime(remaining);
         }
