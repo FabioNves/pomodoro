@@ -1,45 +1,55 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import {
+  THEMES,
+  DEFAULT_THEME,
+  applyTheme,
+  getTheme,
+  isValidTheme,
+} from "@/lib/themes";
 
 const ThemeContext = createContext();
+const STORAGE_KEY = "theme";
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState("dark");
+  const [theme, setThemeState] = useState(DEFAULT_THEME);
 
   useEffect(() => {
-    // Get theme from localStorage or default to dark
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme) {
-      setTheme(savedTheme);
-      if (savedTheme === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-    } else {
-      // Default to dark mode for first-time users
-      const initialTheme = "dark";
-      setTheme(initialTheme);
-      localStorage.setItem("theme", initialTheme);
-      document.documentElement.classList.add("dark");
+    // The inline script in layout.js already applied the saved theme before
+    // first paint; this syncs React state and normalises stale values.
+    let saved = null;
+    try {
+      saved = localStorage.getItem(STORAGE_KEY);
+    } catch (e) {}
+    const initial = isValidTheme(saved) ? saved : DEFAULT_THEME;
+    setThemeState(initial);
+    applyTheme(initial);
+    if (initial !== saved) {
+      try {
+        localStorage.setItem(STORAGE_KEY, initial);
+      } catch (e) {}
     }
   }, []);
 
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-
-    if (newTheme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+  const setTheme = (id) => {
+    const next = isValidTheme(id) ? id : DEFAULT_THEME;
+    setThemeState(next);
+    applyTheme(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, next);
+    } catch (e) {}
   };
 
+  const isDark = getTheme(theme).dark;
+
+  // Backwards-compatible light/dark switch.
+  const toggleTheme = () => setTheme(isDark ? "light" : "dark");
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{ theme, setTheme, toggleTheme, isDark, themes: THEMES }}
+    >
       {children}
     </ThemeContext.Provider>
   );

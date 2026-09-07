@@ -18,6 +18,10 @@ const objectIdSchema = z
   .trim()
   .regex(/^[0-9a-fA-F]{24}$/, "Invalid id");
 
+// Calendar placement (see WeekPlan model): minutes from midnight + block length.
+const startMinuteSchema = z.number().int().min(0).max(1439).nullable();
+const durationSchema = z.number().int().min(5).max(1440).nullable();
+
 const addTaskSchema = z.object({
   weekPlanId: objectIdSchema,
   dayOfWeek: z.number().min(0).max(6),
@@ -27,6 +31,8 @@ const addTaskSchema = z.object({
   estimatedTime: z.number().min(0).max(9999).optional(),
   notes: z.string().max(2000).optional(),
   completed: z.boolean().optional(),
+  startMinute: startMinuteSchema.optional(),
+  durationMinutes: durationSchema.optional(),
 });
 
 const patchTaskSchema = z.object({
@@ -38,6 +44,8 @@ const patchTaskSchema = z.object({
   estimatedTime: z.number().min(0).max(9999).optional(),
   notes: z.string().max(2000).optional(),
   projectId: objectIdSchema.nullable().optional(),
+  startMinute: startMinuteSchema.optional(),
+  durationMinutes: durationSchema.optional(),
 });
 
 const deleteTaskSchema = z.object({
@@ -78,6 +86,8 @@ export async function POST(req) {
       notes: body.data.notes || "",
       completed: !!body.data.completed,
       order: maxOrder + 1,
+      startMinute: body.data.startMinute ?? null,
+      durationMinutes: body.data.durationMinutes ?? null,
     });
 
     await plan.save();
@@ -120,6 +130,10 @@ export async function PATCH(req) {
     if (typeof body.data.notes === "string") task.notes = body.data.notes;
     if (body.data.projectId !== undefined)
       task.project = body.data.projectId || null;
+    if (body.data.startMinute !== undefined)
+      task.startMinute = body.data.startMinute;
+    if (body.data.durationMinutes !== undefined)
+      task.durationMinutes = body.data.durationMinutes;
 
     await plan.save();
 

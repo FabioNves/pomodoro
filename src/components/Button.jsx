@@ -21,8 +21,8 @@ export default function Button({
       disabled={disabled}
       className={`
         relative overflow-hidden
-        bg-[#2563eb] hover:bg-[#1d4ed8]
-        text-white font-medium rounded-lg
+        bg-primary hover:bg-primary-hover
+        text-primary-fg font-medium rounded-lg
         shadow-md hover:shadow-lg
         transition-all duration-300
         disabled:opacity-50 disabled:cursor-not-allowed

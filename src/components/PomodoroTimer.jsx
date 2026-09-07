@@ -208,7 +208,7 @@ const PomodoroTimer = ({ showNotification }) => {
   if (!hasMounted) return null;
 
   return (
-    <div className="min-h-screen text-gray-900 dark:text-white p-4">
+    <div className="min-h-screen text-fg p-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col items-center gap-8">
           {/* Header */}
@@ -218,7 +218,7 @@ const PomodoroTimer = ({ showNotification }) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-md md:text-xl font-bold mb-4 bg-gradient-to-r from-[#88b6ff] to-[#014acd] bg-clip-text text-transparent">
+            <h1 className="text-md md:text-xl font-bold mb-4 bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent">
               Boost your productivity with focused work sessions
             </h1>
           </motion.div>
@@ -244,7 +244,7 @@ const PomodoroTimer = ({ showNotification }) => {
               transition={{ duration: 0.5, delay: 0.3 }}
             >
               {/* Timer Section */}
-              <div className="bg-white/80 dark:bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
+              <div className="bg-surface/80 rounded-xl p-6 backdrop-blur-sm border border-edge transition-colors duration-300">
                 <TimerControls
                   handleSessionCompletion={handleSessionCompletion}
                   showNotification={showNotification}
@@ -253,7 +253,7 @@ const PomodoroTimer = ({ showNotification }) => {
               </div>
               {/* Active Project Banner */}
               {/* <motion.div
-                className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-xl p-4 border border-blue-500/30"
+                className="bg-gradient-to-r from-primary/20 to-accent/20 rounded-xl p-4 border border-primary/30"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
@@ -261,14 +261,14 @@ const PomodoroTimer = ({ showNotification }) => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold">Current Project</h3>
-                    <p className="text-gray-300">
+                    <p className="text-fg-muted">
                       {activeProject.title ? (
                         <>
-                          <span className="text-blue-400">
+                          <span className="text-primary">
                             {activeProject.title}
                           </span>
                           {activeProject.milestone && (
-                            <span className="text-purple-400 ml-2">
+                            <span className="text-accent ml-2">
                               • {activeProject.milestone}
                             </span>
                           )}
@@ -287,7 +287,7 @@ const PomodoroTimer = ({ showNotification }) => {
                         projectSelector.scrollIntoView({ behavior: "smooth" });
                       }
                     }}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
+                    className="px-4 py-2 bg-primary hover:bg-primary-hover text-primary-fg rounded-lg transition-colors"
                   >
                     {activeProject.title ? "Change Project" : "Select Project"}
                   </button>
@@ -296,7 +296,7 @@ const PomodoroTimer = ({ showNotification }) => {
 
               {/* Todo List and Session Tasks Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white/80 dark:bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
+                <div className="bg-surface/80 rounded-xl p-6 backdrop-blur-sm border border-edge transition-colors duration-300">
                   <TodoList
                     id="project-selector"
                     user={user}
@@ -310,7 +310,7 @@ const PomodoroTimer = ({ showNotification }) => {
                   />
                 </div>
 
-                <div className="bg-white/80 dark:bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
+                <div className="bg-surface/80 rounded-xl p-6 backdrop-blur-sm border border-edge transition-colors duration-300">
                   <SessionTasks
                     tasks={tasks}
                     toggleBackToDo={toggleBackToDo}
@@ -321,7 +321,7 @@ const PomodoroTimer = ({ showNotification }) => {
               </div>
 
               {/* Completed Sessions */}
-              <div className="bg-white/80 dark:bg-gray-800/50 rounded-xl p-6 backdrop-blur-sm border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
+              <div className="bg-surface/80 rounded-xl p-6 backdrop-blur-sm border border-edge transition-colors duration-300">
                 <CompletedSessions sessions={sessions} />
               </div>
             </motion.div>

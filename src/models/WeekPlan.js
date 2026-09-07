@@ -17,6 +17,11 @@ const weekTaskSchema = new mongoose.Schema(
     notes: { type: String, default: "" },
     completed: { type: Boolean, default: false },
     order: { type: Number, default: 0 },
+    // Calendar placement: minutes from midnight (null = no fixed time, shown
+    // in the day's "unscheduled" area) and block length in minutes (null =
+    // fall back to estimatedTime, then 60).
+    startMinute: { type: Number, default: null },
+    durationMinutes: { type: Number, default: null },
   },
   { _id: true },
 );

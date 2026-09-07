@@ -4,8 +4,8 @@
   "description": "A Pomodoro Timer with a Twist",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#014acd",
+  "background_color": "#15272d",
+  "theme_color": "#1f363d",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -27,7 +27,7 @@
       "name": "Start Timer",
       "short_name": "Timer",
       "description": "Start a Pomodoro session",
-      "url": "/?action=start",
+      "url": "/timer",
       "icons": [
         {
           "src": "/logo/pomodrive-png/icon-192x192.png",

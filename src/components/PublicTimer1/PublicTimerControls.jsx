@@ -155,7 +155,7 @@ const PublicTimerControls = ({ showNotification }) => {
           {/* Focus Timer Display */}
           {isRunning && !focusEnded && (
             <motion.div
-              className="text-5xl font-bold mt-5 bg-gradient-to-r from-[#88b6ff] to-[#014acd] bg-clip-text text-transparent"
+              className="text-5xl font-bold mt-5 bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent"
               animate={{ scale: [1, 1.02, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
@@ -166,7 +166,7 @@ const PublicTimerControls = ({ showNotification }) => {
           {/* Focus Complete Display */}
           {focusEnded && !isBreakRunning && (
             <motion.div
-              className="text-2xl font-bold mt-5 text-green-400 dark:text-green-300"
+              className="text-2xl font-bold mt-5 text-success"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5 }}
@@ -178,7 +178,7 @@ const PublicTimerControls = ({ showNotification }) => {
           {/* Break Timer Display */}
           {isBreakRunning && (
             <motion.div
-              className="text-4xl font-bold mt-5 bg-gradient-to-r from-green-400 to-[#88b6ff] bg-clip-text text-transparent"
+              className="text-4xl font-bold mt-5 text-success"
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 1, repeat: Infinity }}
             >
@@ -198,19 +198,19 @@ const PublicTimerControls = ({ showNotification }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <label className="text-gray-700 dark:text-gray-300 font-medium">
+            <label className="text-fg-muted font-medium">
               Focus Time:{" "}
             </label>
             <select
               value={focusTime}
               onChange={(e) => setFocusTime(Number(e.target.value))}
-              className="text-gray-900 dark:text-white bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600/50 p-2 rounded-md ml-2 focus:border-[#014acd] focus:outline-none transition-colors duration-300"
+              className="text-fg bg-surface border border-edge p-2 rounded-md ml-2 focus:border-focus focus:outline-none transition-colors duration-300"
             >
               {[0.5, 25, 30, 35, 40, 45, 50].map((t) => (
                 <option
                   key={t}
                   value={t}
-                  className="text-gray-900 dark:text-white bg-white dark:bg-gray-800"
+                  className="text-fg bg-surface"
                 >
                   {t} min
                 </option>
@@ -225,19 +225,19 @@ const PublicTimerControls = ({ showNotification }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <label className="text-gray-700 dark:text-gray-300 font-medium">
+            <label className="text-fg-muted font-medium">
               Break Time:{" "}
             </label>
             <select
               value={breakTime}
               onChange={(e) => setBreakTime(Number(e.target.value))}
-              className="text-gray-900 dark:text-white bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600/50 p-2 rounded-md ml-2 focus:border-[#014acd] focus:outline-none transition-colors duration-300"
+              className="text-fg bg-surface border border-edge p-2 rounded-md ml-2 focus:border-focus focus:outline-none transition-colors duration-300"
             >
               {[0, 5, 10, 15, 20].map((t) => (
                 <option
                   key={t}
                   value={t}
-                  className="text-gray-900 dark:text-white bg-white dark:bg-gray-800"
+                  className="text-fg bg-surface"
                 >
                   {t} min
                 </option>
@@ -257,10 +257,10 @@ const PublicTimerControls = ({ showNotification }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="text-gray-700 dark:text-gray-300 font-medium mb-1">
+            <div className="text-fg-muted font-medium mb-1">
               Focus Completed:
             </div>
-            <div className="text-2xl font-bold text-[#014acd] dark:text-[#88b6ff]">
+            <div className="text-2xl font-bold text-primary">
               {focusTime} min
             </div>
           </motion.div>
@@ -272,10 +272,10 @@ const PublicTimerControls = ({ showNotification }) => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="text-gray-700 dark:text-gray-300 font-medium mb-1">
+            <div className="text-fg-muted font-medium mb-1">
               Break Time:
             </div>
-            <div className="text-2xl font-bold text-green-500 dark:text-green-400">
+            <div className="text-2xl font-bold text-success">
               {breakTime} min
             </div>
           </motion.div>
@@ -283,13 +283,13 @@ const PublicTimerControls = ({ showNotification }) => {
       )}
 
       {/* Control Buttons */}
-      <div className="w-full flex justify-center gap-4 bg-gray-200/30 dark:bg-gray-800/30 p-4 rounded-md mt-4 transition-colors duration-300">
+      <div className="w-full flex justify-center gap-4 bg-surface-2 p-4 rounded-md mt-4 transition-colors duration-300">
         {/* Focus Timer Controls */}
         {!focusEnded && (
           <>
             <Button
               onClick={isRunning ? handlePause : handleStart}
-              className="px-8"
+              className={`px-8 ${isRunning ? "!bg-warning hover:!bg-warning-hover !text-white" : "!bg-accent hover:!bg-accent-hover !text-accent-fg"}`}
             >
               {isRunning ? "Pause" : "Start Focus"}
             </Button>
@@ -305,7 +305,7 @@ const PublicTimerControls = ({ showNotification }) => {
             transition={{ duration: 0.3 }}
           >
             <motion.button
-              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200"
+              className={`${isBreakRunning ? "bg-warning hover:bg-warning-hover" : "bg-success hover:bg-success-hover"} text-white px-6 py-2 rounded-lg font-medium transition-all duration-200`}
               onClick={isBreakRunning ? handlePauseBreak : handleStartBreak}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -314,7 +314,7 @@ const PublicTimerControls = ({ showNotification }) => {
             </motion.button>
 
             <motion.button
-              className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200"
+              className="bg-accent hover:bg-accent-hover text-accent-fg px-6 py-2 rounded-lg font-medium transition-all duration-200"
               onClick={handleReset}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -327,7 +327,7 @@ const PublicTimerControls = ({ showNotification }) => {
         {/* Reset Button (always available) */}
         <Button
           onClick={handleReset}
-          className="px-8 !bg-gradient-to-r !from-red-500 !to-red-600 hover:!from-red-600 hover:!to-red-700"
+          className="px-8 !bg-danger hover:!bg-danger-hover !text-white"
         >
           Reset
         </Button>
@@ -335,12 +335,12 @@ const PublicTimerControls = ({ showNotification }) => {
 
       {/* Guest Mode Notice */}
       <motion.div
-        className="mt-4 p-3 bg-[#88b6ff]/10 dark:bg-blue-500/10 border border-[#014acd]/30 dark:border-blue-500/30 rounded-lg text-center transition-colors duration-300"
+        className="mt-4 p-3 bg-primary-soft border border-primary/30 rounded-lg text-center transition-colors duration-300"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.5 }}
       >
-        <p className="text-[#014acd] dark:text-blue-300 text-sm">
+        <p className="text-primary text-sm">
           💡 <strong>Guest Mode:</strong> Timer works fully but sessions aren't
           saved.
           <br />

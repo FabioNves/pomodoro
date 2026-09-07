@@ -24,6 +24,9 @@ const moveSchema = z.object({
   toDayOfWeek: z.number().min(0).max(6),
   taskId: z.string(),
   toProjectId: objectIdSchema.nullable().optional(),
+  // Optional calendar placement on the target day (null clears the time).
+  startMinute: z.number().int().min(0).max(1439).nullable().optional(),
+  durationMinutes: z.number().int().min(5).max(1440).nullable().optional(),
 });
 
 export async function POST(req) {
@@ -65,6 +68,14 @@ export async function POST(req) {
       estimatedTime: task.estimatedTime || 0,
       notes: task.notes || "",
       completed: !!task.completed,
+      startMinute:
+        body.data.startMinute !== undefined
+          ? body.data.startMinute
+          : (task.startMinute ?? null),
+      durationMinutes:
+        body.data.durationMinutes !== undefined
+          ? body.data.durationMinutes
+          : (task.durationMinutes ?? null),
     };
 
     fromDay.tasks.splice(taskIdx, 1);

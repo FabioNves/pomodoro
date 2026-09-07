@@ -2,39 +2,318 @@
 
 @variant dark (.dark &);
 
-:root {
-  --background: #f3f0f9;
-  --foreground: #171717;
-  --gradient-start: #88b6ff;
-  --gradient-end: #014acd;
-  --card-bg: #ffffff;
-  --border-color: #e5e7eb;
-  --hover-bg: #f9fafb;
+/* ═══════════════════════════════════════════════════════════════
+   THEME TOKENS
+   Every theme defines the same semantic tokens. Components only
+   use the semantic utilities mapped in @theme below (bg-surface,
+   text-fg-muted, border-edge, bg-primary, …) and never raw colors.
+   Dark-based themes also get the `.dark` class on <html> so the
+   `dark:` variant keeps working for user-picked content colors.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Light (default) — Pale Sky / Steel Blue / Jet Black / Paprika ── */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #d3e7ee;
+  --bg-2: #abd1dc;
+  --surface: #ffffff;
+  --surface-2: #eaf3f7;
+  --surface-hover: #d3e7ee;
+  --border: #abd1dc;
+  --border-strong: #7097a8;
+
+  --fg: #1f363d;
+  --fg-muted: #4a6772;
+  --fg-subtle: #7097a8;
+
+  --primary: #1f363d;
+  --primary-hover: #2f4f58;
+  --primary-fg: #ffffff;
+  --primary-soft: #d3e7ee;
+
+  --accent: #dc602e;
+  --accent-hover: #c4501f;
+  --accent-fg: #ffffff;
+  --accent-soft: #fbe6da;
+
+  --success: #2f8f6b;
+  --success-hover: #27795a;
+  --success-soft: #dcf1e8;
+  --warning: #d98a1f;
+  --warning-hover: #b8731a;
+  --warning-soft: #fbeed6;
+  --danger: #d24a3a;
+  --danger-hover: #b33a2c;
+  --danger-soft: #f9e0dc;
+
+  --focus: #7097a8;
+  --gradient-start: #7097a8;
+  --gradient-end: #1f363d;
+
+  --chart-1: #7097a8;
+  --chart-2: #dc602e;
+  --chart-3: #1f363d;
+  --chart-grid: #abd1dc;
+  --chart-axis: #4a6772;
 }
 
-.dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --card-bg: #1a1a1a;
-  --border-color: #2a2a2a;
-  --hover-bg: #262626;
+/* ── Dark — Jet Black base with Pale Sky text ── */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #15272d;
+  --bg-2: #1f363d;
+  --surface: #1f363d;
+  --surface-2: #26424a;
+  --surface-hover: #2e4e57;
+  --border: #33525b;
+  --border-strong: #7097a8;
+
+  --fg: #e6f1f5;
+  --fg-muted: #abd1dc;
+  --fg-subtle: #7097a8;
+
+  --primary: #abd1dc;
+  --primary-hover: #d3e7ee;
+  --primary-fg: #1f363d;
+  --primary-soft: #2e4e57;
+
+  --accent: #dc602e;
+  --accent-hover: #e97a49;
+  --accent-fg: #ffffff;
+  --accent-soft: #4a3229;
+
+  --success: #4fbf95;
+  --success-hover: #6ccca8;
+  --success-soft: #244a45;
+  --warning: #e9a94a;
+  --warning-hover: #f0ba67;
+  --warning-soft: #4a3f2a;
+  --danger: #e3665a;
+  --danger-hover: #ec8177;
+  --danger-soft: #4a2f31;
+
+  --focus: #abd1dc;
+  --gradient-start: #d3e7ee;
+  --gradient-end: #7097a8;
+
+  --chart-1: #abd1dc;
+  --chart-2: #dc602e;
+  --chart-3: #7097a8;
+  --chart-grid: #33525b;
+  --chart-axis: #abd1dc;
 }
 
+/* ── Futuristic — near-black with cyan / violet ── */
+[data-theme="futuristic"] {
+  color-scheme: dark;
+
+  --bg: #070a12;
+  --bg-2: #0d1326;
+  --surface: #0f1523;
+  --surface-2: #161d31;
+  --surface-hover: #1c2540;
+  --border: #22304d;
+  --border-strong: #3b4f78;
+
+  --fg: #e8eefb;
+  --fg-muted: #9fb0cc;
+  --fg-subtle: #64748f;
+
+  --primary: #22d3ee;
+  --primary-hover: #67e8f9;
+  --primary-fg: #06141a;
+  --primary-soft: #0f2b38;
+
+  --accent: #a78bfa;
+  --accent-hover: #c4b5fd;
+  --accent-fg: #130b2e;
+  --accent-soft: #241d45;
+
+  --success: #34d399;
+  --success-hover: #6ee7b7;
+  --success-soft: #0f2f2a;
+  --warning: #fbbf24;
+  --warning-hover: #fcd34d;
+  --warning-soft: #33290f;
+  --danger: #fb7185;
+  --danger-hover: #fda4af;
+  --danger-soft: #3a1520;
+
+  --focus: #22d3ee;
+  --gradient-start: #22d3ee;
+  --gradient-end: #a78bfa;
+
+  --chart-1: #22d3ee;
+  --chart-2: #a78bfa;
+  --chart-3: #34d399;
+  --chart-grid: #22304d;
+  --chart-axis: #9fb0cc;
+}
+
+/* ── Feminine — blush with rose / lavender ── */
+[data-theme="feminine"] {
+  color-scheme: light;
+
+  --bg: #fbf3f6;
+  --bg-2: #f3e1e9;
+  --surface: #ffffff;
+  --surface-2: #fdf3f6;
+  --surface-hover: #f8e6ec;
+  --border: #efd6df;
+  --border-strong: #d8a6ba;
+
+  --fg: #3a2430;
+  --fg-muted: #7a5b69;
+  --fg-subtle: #ab8e9a;
+
+  --primary: #c2457a;
+  --primary-hover: #a7366a;
+  --primary-fg: #ffffff;
+  --primary-soft: #fbe4ee;
+
+  --accent: #8b7bd1;
+  --accent-hover: #7563c2;
+  --accent-fg: #ffffff;
+  --accent-soft: #ece8fa;
+
+  --success: #3f9f7c;
+  --success-hover: #33866a;
+  --success-soft: #dff3ec;
+  --warning: #e09a3c;
+  --warning-hover: #c78430;
+  --warning-soft: #fbeed9;
+  --danger: #d9485e;
+  --danger-hover: #bc3a4f;
+  --danger-soft: #fbe1e5;
+
+  --focus: #c2457a;
+  --gradient-start: #e79ac0;
+  --gradient-end: #c2457a;
+
+  --chart-1: #c2457a;
+  --chart-2: #8b7bd1;
+  --chart-3: #e79ac0;
+  --chart-grid: #efd6df;
+  --chart-axis: #7a5b69;
+}
+
+/* ── Professional — neutral slate with navy / teal ── */
+[data-theme="professional"] {
+  color-scheme: light;
+
+  --bg: #f4f6f9;
+  --bg-2: #e7ecf2;
+  --surface: #ffffff;
+  --surface-2: #f2f5f8;
+  --surface-hover: #e9eef4;
+  --border: #d9e0e8;
+  --border-strong: #aab6c5;
+
+  --fg: #101828;
+  --fg-muted: #475467;
+  --fg-subtle: #8a96a8;
+
+  --primary: #1f4e79;
+  --primary-hover: #173d60;
+  --primary-fg: #ffffff;
+  --primary-soft: #e3ecf6;
+
+  --accent: #0e7c86;
+  --accent-hover: #0b636b;
+  --accent-fg: #ffffff;
+  --accent-soft: #dcf1f3;
+
+  --success: #15803d;
+  --success-hover: #116a32;
+  --success-soft: #dcf3e4;
+  --warning: #b45309;
+  --warning-hover: #92400e;
+  --warning-soft: #fdebd5;
+  --danger: #b91c1c;
+  --danger-hover: #991b1b;
+  --danger-soft: #fbe0e0;
+
+  --focus: #1f4e79;
+  --gradient-start: #3b6ea5;
+  --gradient-end: #1f4e79;
+
+  --chart-1: #1f4e79;
+  --chart-2: #0e7c86;
+  --chart-3: #8a96a8;
+  --chart-grid: #d9e0e8;
+  --chart-axis: #475467;
+}
+
+/* Legacy aliases still referenced in a few places (toaster, etc.) */
+:root,
+[data-theme] {
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card-bg: var(--surface);
+  --border-color: var(--border);
+  --hover-bg: var(--surface-hover);
+  --page-bg: linear-gradient(135deg, var(--bg) 0%, var(--bg-2) 100%);
+}
+
+/* ── Tailwind utilities: bg-surface, text-fg-muted, border-edge, … ── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-hover: var(--surface-hover);
+  --color-edge: var(--border);
+  --color-edge-strong: var(--border-strong);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--success);
+  --color-success-hover: var(--success-hover);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-hover: var(--warning-hover);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-focus: var(--focus);
   --color-gradient-start: var(--gradient-start);
   --color-gradient-end: var(--gradient-end);
-  --color-card-bg: var(--card-bg);
-  --color-border: var(--border-color);
-  --color-hover: var(--hover-bg);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+
+  /* legacy names */
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-card-bg: var(--surface);
+  --color-border: var(--border);
+  --color-hover: var(--surface-hover);
+
   --font-sans: var(--font-montserrat), var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--fg);
   font-family: var(--font-montserrat), var(--font-geist-sans), Arial, Helvetica,
     sans-serif;
   font-weight: 500; /* Use Montserrat Medium as default */
@@ -44,6 +323,11 @@ html,
 body {
   overflow-x: hidden;
   width: 100vw;
+}
+
+/* Page backdrop: soft diagonal wash from --bg to --bg-2 */
+.app-bg {
+  background: var(--page-bg);
 }
 
 /* Optional: Add specific font weight classes for Montserrat */

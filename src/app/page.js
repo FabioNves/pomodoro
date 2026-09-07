@@ -5,88 +5,16 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
-import PomodoroTimer from "../components/PomodoroTimer";
 import PublicTimerControls from "../components/PublicTimer1/PublicTimerControls";
-import Navbar from "../components/Navbar";
+import {
+  requestNotificationPermission,
+  showNotification,
+} from "../utils/notifications";
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [hasMounted, setHasMounted] = useState(false);
   const router = useRouter();
-
-  // Notification utilities
-  const requestNotificationPermission = async () => {
-    if ("Notification" in window) {
-      const permission = await Notification.requestPermission();
-      return permission === "granted";
-    }
-    return false;
-  };
-
-  const showNotification = (title, options = {}) => {
-    if (!("Notification" in window) || Notification.permission !== "granted") {
-      return;
-    }
-
-    // `actions` and the callback props are only meaningful for persistent
-    // (service-worker) notifications. Passing `actions` to the plain
-    // Notification constructor throws a TypeError, which would abort whatever
-    // called us (e.g. the focus-end handler before it can play the alarm), so
-    // keep them out of the constructor.
-    const { actions, onClick, onStartBreak, onFinishSession, ...notificationOptions } =
-      options;
-
-    let notification;
-    try {
-      notification = new Notification(title, {
-        icon: "/favicon.ico",
-        badge: "/favicon.ico",
-        body: options.body || "",
-        tag: "pomodoro-timer",
-        requireInteraction: true,
-        silent: false,
-        vibrate: [200, 100, 200],
-        ...notificationOptions,
-      });
-    } catch (error) {
-      console.error("Error showing notification:", error);
-      return;
-    }
-
-    notification.onclick = function () {
-      window.focus();
-      notification.close();
-      if (onClick) {
-        onClick();
-      }
-    };
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.addEventListener(
-        "notificationclick",
-        function (event) {
-          event.preventDefault();
-          window.focus();
-
-          if (event.action === "start-break" && onStartBreak) {
-            onStartBreak();
-          } else if (event.action === "finish-session" && onFinishSession) {
-            onFinishSession();
-          }
-
-          event.notification.close();
-        }
-      );
-    }
-
-    setTimeout(() => {
-      if (notification) {
-        notification.close();
-      }
-    }, 15000);
-
-    return notification;
-  };
 
   useEffect(() => {
     setHasMounted(true);
@@ -107,6 +35,11 @@ export default function App() {
       }
     }
   }, []);
+
+  // Signed-in users land on the dashboard.
+  useEffect(() => {
+    if (hasMounted && user) router.replace("/dashboard");
+  }, [hasMounted, user, router]);
 
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
@@ -159,12 +92,6 @@ export default function App() {
     console.error("Google Login Failed");
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("userId");
-    setUser(null);
-  };
-
   if (!hasMounted) return null;
 
   // Show welcome page with public timer when logged out
@@ -174,7 +101,7 @@ export default function App() {
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden">
           <motion.div
-            className="absolute -top-40 -right-40 w-80 h-80 bg-[#88b6ff]/20 dark:bg-blue-500/20 rounded-full blur-3xl"
+            className="absolute -top-40 -right-40 w-80 h-80 bg-primary/20 rounded-full blur-3xl"
             animate={{
               scale: [1, 1.2, 1],
               rotate: [0, 180, 360],
@@ -210,18 +137,26 @@ export default function App() {
               transition={{ duration: 0.6, delay: 0.2 }}
             >
               <Image
+                src="/logo/pomodrive-svg/pomoDrive-logo-light.svg"
+                alt="PomoDRIVE Logo"
+                width={192}
+                height={80}
+                className="h-20 md:h-48 w-auto block dark:hidden"
+                priority
+              />
+              <Image
                 src="/logo/pomodrive-svg/pomoDrive-logo.svg"
                 alt="PomoDRIVE Logo"
                 width={192}
                 height={80}
-                className="h-20 md:h-48 w-auto"
+                className="h-20 md:h-48 w-auto hidden dark:block"
                 priority
               />
             </motion.div>
 
             {/* Subtitle */}
             <motion.h2
-              className="text-xl md:text-2xl font-semibold text-gray-800 dark:text-gray-300 mb-4"
+              className="text-xl md:text-2xl font-semibold text-fg mb-4"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
@@ -231,7 +166,7 @@ export default function App() {
 
             {/* Description */}
             <motion.p
-              className="text-md text-gray-700 dark:text-gray-400 mb-8 max-w-2xl mx-auto leading-relaxed"
+              className="text-md text-fg-muted mb-8 max-w-2xl mx-auto leading-relaxed"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.6 }}
@@ -272,22 +207,22 @@ export default function App() {
             transition={{ duration: 0.8, delay: 1.2 }}
           >
             {/* Timer Card */}
-            <div className="bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-300 dark:border-gray-700/50 shadow-2xl transition-colors duration-300">
+            <div className="bg-surface/80 backdrop-blur-sm rounded-2xl p-8 border border-edge shadow-2xl transition-colors duration-300">
               {/* Public Timer Controls */}
               <PublicTimerControls showNotification={showNotification} />
 
               {/* Features Highlight */}
               <motion.div
-                className="mt-8 pt-6 border-t border-gray-300 dark:border-gray-700/50"
+                className="mt-8 pt-6 border-t border-edge"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 1.5 }}
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white/60 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
-                    <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-4">
+                  <div className="bg-surface-2 backdrop-blur-sm rounded-xl p-6 border border-edge transition-colors duration-300">
+                    <div className="w-12 h-12 bg-primary-soft rounded-lg flex items-center justify-center mb-4">
                       <svg
-                        className="w-6 h-6 text-blue-400"
+                        className="w-6 h-6 text-primary"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -300,19 +235,19 @@ export default function App() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                    <h3 className="text-lg font-semibold mb-2 text-fg">
                       Project Management
                     </h3>
-                    <p className="text-gray-700 dark:text-gray-400 text-sm">
+                    <p className="text-fg-muted text-sm">
                       Organize tasks by projects and milestones. Track what
                       you&apos;re working on across all your sessions.
                     </p>
                   </div>
 
-                  <div className="bg-white/60 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
-                    <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-4">
+                  <div className="bg-surface-2 backdrop-blur-sm rounded-xl p-6 border border-edge transition-colors duration-300">
+                    <div className="w-12 h-12 bg-accent-soft rounded-lg flex items-center justify-center mb-4">
                       <svg
-                        className="w-6 h-6 text-purple-400"
+                        className="w-6 h-6 text-accent"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -325,19 +260,19 @@ export default function App() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                    <h3 className="text-lg font-semibold mb-2 text-fg">
                       Productivity Analytics
                     </h3>
-                    <p className="text-gray-700 dark:text-gray-400 text-sm">
+                    <p className="text-fg-muted text-sm">
                       Beautiful charts and insights showing your daily, weekly,
                       and monthly productivity patterns.
                     </p>
                   </div>
 
-                  <div className="bg-white/60 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-300 dark:border-gray-700/50 transition-colors duration-300">
-                    <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center mb-4">
+                  <div className="bg-surface-2 backdrop-blur-sm rounded-xl p-6 border border-edge transition-colors duration-300">
+                    <div className="w-12 h-12 bg-success-soft rounded-lg flex items-center justify-center mb-4">
                       <svg
-                        className="w-6 h-6 text-green-400"
+                        className="w-6 h-6 text-success"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -350,10 +285,10 @@ export default function App() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+                    <h3 className="text-lg font-semibold mb-2 text-fg">
                       Session History
                     </h3>
-                    <p className="text-gray-700 dark:text-gray-400 text-sm">
+                    <p className="text-fg-muted text-sm">
                       Keep track of all your completed sessions, see your
                       streaks, and monitor your progress over time.
                     </p>
@@ -367,16 +302,6 @@ export default function App() {
     );
   }
 
-  // Show main app when logged in
-  return (
-    <div className="min-h-screen transition-colors duration-300">
-      <Navbar user={user} onLogout={handleLogout} />
-      <main className="pb-8">
-        <PomodoroTimer showNotification={showNotification} />
-      </main>
-      <footer className="flex justify-center items-center h-8 bg-white/50 dark:bg-gray-800 text-gray-900 dark:text-white backdrop-blur-sm transition-colors duration-300">
-        <p>&copy; 2026 PomoDRIVE App</p>
-      </footer>
-    </div>
-  );
+  // Logged in: the dashboard is the home screen (see the redirect effect above).
+  return null;
 }

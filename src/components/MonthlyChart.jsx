@@ -43,10 +43,10 @@ const MonthlyChart = ({ monthSessions, selectedMonth, selectedYear }) => {
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white/90 dark:bg-gray-800/90 p-3 rounded-lg border border-gray-300 dark:border-gray-600 transition-colors duration-300">
-          <p className="text-gray-900 dark:text-white font-semibold">{`Day ${label}`}</p>
-          <p className="text-green-600 dark:text-green-400">{`Focus Hours: ${payload[0].value}`}</p>
-          <p className="text-blue-600 dark:text-blue-400">
+        <div className="bg-surface p-3 rounded-lg border border-edge transition-colors duration-300">
+          <p className="text-fg font-semibold">{`Day ${label}`}</p>
+          <p className="text-chart-2">{`Focus Hours: ${payload[0].value}`}</p>
+          <p className="text-fg-muted">
             {`Sessions: ${payload[0].payload.sessions}`}
           </p>
         </div>
@@ -68,15 +68,15 @@ const MonthlyChart = ({ monthSessions, selectedMonth, selectedYear }) => {
   if (!monthSessions || monthSessions.length === 0) {
     return (
       <motion.div
-        className="w-full bg-white/80 dark:bg-gray-800/50 p-6 rounded-lg mb-6 transition-colors duration-300 shadow-md"
+        className="w-full bg-surface p-6 rounded-lg mb-6 transition-colors duration-300 shadow-md"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.6, delay: 0.2 }}
       >
-        <h3 className="text-xl font-bold mb-4 text-center bg-gradient-to-r from-[#88b6ff] to-[#014acd] bg-clip-text text-transparent">
+        <h3 className="text-xl font-bold mb-4 text-center bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent">
           Monthly Focus Hours
         </h3>
-        <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
+        <div className="h-[300px] flex items-center justify-center text-fg-subtle">
           No data available for this month
         </div>
       </motion.div>
@@ -85,20 +85,20 @@ const MonthlyChart = ({ monthSessions, selectedMonth, selectedYear }) => {
 
   return (
     <motion.div
-      className="w-full bg-white/80 dark:bg-gray-800/50 p-6 rounded-lg mb-6 transition-colors duration-300 shadow-md"
+      className="w-full bg-surface p-6 rounded-lg mb-6 transition-colors duration-300 shadow-md"
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.6, delay: 0.2 }}
     >
-      <h3 className="text-xl font-bold mb-4 text-center bg-gradient-to-r from-[#88b6ff] to-[#014acd] bg-clip-text text-transparent">
+      <h3 className="text-xl font-bold mb-4 text-center bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent">
         Monthly Focus Hours
       </h3>
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={monthChartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
           <XAxis
             dataKey="day"
-            stroke="#9CA3AF"
+            stroke="var(--chart-axis)"
             fontSize={12}
             interval="preserveStartEnd"
             tickFormatter={(value) =>
@@ -106,31 +106,31 @@ const MonthlyChart = ({ monthSessions, selectedMonth, selectedYear }) => {
             }
           />
           <YAxis
-            stroke="#9CA3AF"
+            stroke="var(--chart-axis)"
             fontSize={12}
             label={{
               value: "Hours",
               angle: -90,
               position: "insideLeft",
-              style: { textAnchor: "middle", fill: "#9CA3AF" },
+              style: { textAnchor: "middle", fill: "var(--chart-axis)" },
             }}
           />
           <Tooltip content={<CustomTooltip />} />
           <Line
             type="monotone"
             dataKey="focusHours"
-            stroke="#10B981"
+            stroke="var(--chart-2)"
             strokeWidth={2}
             dot={{
-              fill: "#10B981",
+              fill: "var(--chart-2)",
               strokeWidth: 2,
               r: 4,
             }}
             activeDot={{
               r: 6,
-              stroke: "#10B981",
+              stroke: "var(--chart-2)",
               strokeWidth: 2,
-              fill: "#059669",
+              fill: "var(--surface)",
             }}
           />
         </LineChart>

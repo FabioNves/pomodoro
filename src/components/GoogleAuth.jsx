@@ -49,7 +49,7 @@ const GoogleAuth = ({ onLogin }) => {
         <div className="flex gap-2 items-center">
           <p>Welcome, {user.name}</p>
           <button
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-700"
+            className="bg-danger text-white px-4 py-2 rounded hover:bg-danger-hover"
             onClick={handleSignOut}
           >
             Sign Out

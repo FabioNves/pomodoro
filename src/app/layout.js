@@ -5,6 +5,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "react-hot-toast";
 import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
 import { ThemeProvider } from "../hooks/useTheme";
+import { THEME_IDS, DARK_THEME_IDS, DEFAULT_THEME } from "../lib/themes";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -112,13 +113,14 @@ export default function RootLayout({ children }) {
             __html: `
               (function() {
                 try {
-                  const theme = localStorage.getItem('theme');
-                  // Default to dark mode if no preference is set
-                  if (theme === 'dark' || !theme) {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
+                  var THEMES = ${JSON.stringify(THEME_IDS)};
+                  var DARK = ${JSON.stringify(DARK_THEME_IDS)};
+                  var saved = localStorage.getItem('theme');
+                  var theme = THEMES.indexOf(saved) !== -1 ? saved : ${JSON.stringify(DEFAULT_THEME)};
+                  var root = document.documentElement;
+                  root.setAttribute('data-theme', theme);
+                  if (DARK.indexOf(theme) !== -1) root.classList.add('dark');
+                  else root.classList.remove('dark');
                 } catch (e) {}
               })();
             `,
@@ -133,7 +135,7 @@ export default function RootLayout({ children }) {
             clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
           >
             <ServiceWorkerRegistration />
-            <div className="w-screen min-h-screen bg-gradient-to-br from-[#f3f0f9] via-[#88b6ff] to-[#014acd] dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 text-gray-900 dark:text-white pt-36 md:pt-24 transition-colors duration-300">
+            <div className="app-bg w-screen min-h-screen text-fg pt-[7.5rem] md:pt-[4.75rem] transition-colors duration-300">
               {children}
             </div>
           </GoogleOAuthProvider>
@@ -143,9 +145,9 @@ export default function RootLayout({ children }) {
               duration: 5000,
               className: "",
               style: {
-                background: "var(--card-bg)",
-                color: "var(--foreground)",
-                border: "1px solid var(--border-color)",
+                background: "var(--surface)",
+                color: "var(--fg)",
+                border: "1px solid var(--border)",
               },
             }}
           />

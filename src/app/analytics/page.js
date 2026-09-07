@@ -293,7 +293,7 @@ const Analytics = () => {
   return (
     <div className="w-screen min-h-screen flex flex-col justify-start items-center gap-4 overflow-y-auto transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
-      <h1 className="text-3xl font-bold py-4 bg-gradient-to-r from-[#88b6ff] to-[#014acd] bg-clip-text text-transparent">
+      <h1 className="text-3xl font-bold py-4 bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent">
         Analytics Dashboard
       </h1>
 
@@ -308,8 +308,8 @@ const Analytics = () => {
           onClick={() => setActiveTab("weekly")}
           className={`px-6 py-2 rounded transition-all duration-300 ${
             activeTab === "weekly"
-              ? "bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-md"
-              : "bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800"
+              ? "bg-primary hover:bg-primary-hover text-primary-fg shadow-md"
+              : "bg-surface text-fg-muted hover:bg-surface-hover"
           }`}
         >
           Weekly Analytics
@@ -318,8 +318,8 @@ const Analytics = () => {
           onClick={() => setActiveTab("monthly")}
           className={`px-6 py-2 rounded transition-all duration-300 ${
             activeTab === "monthly"
-              ? "bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-md"
-              : "bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800"
+              ? "bg-primary hover:bg-primary-hover text-primary-fg shadow-md"
+              : "bg-surface text-fg-muted hover:bg-surface-hover"
           }`}
         >
           Monthly Analytics
@@ -328,8 +328,8 @@ const Analytics = () => {
           onClick={() => setActiveTab("yearly")}
           className={`px-6 py-2 rounded transition-all duration-300 ${
             activeTab === "yearly"
-              ? "bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-md"
-              : "bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800"
+              ? "bg-primary hover:bg-primary-hover text-primary-fg shadow-md"
+              : "bg-surface text-fg-muted hover:bg-surface-hover"
           }`}
         >
           Yearly Analytics
@@ -357,11 +357,11 @@ const Analytics = () => {
                   setSelectedMonth(selectedMonth - 1);
                 }
               }}
-              className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
+              className="bg-surface text-fg-muted p-2 rounded hover:bg-surface-hover transition-all duration-300 shadow-sm hover:shadow-md"
             >
               Prev
             </button>
-            <span className="bg-[#2563eb] text-white px-6 py-2 rounded shadow-md font-medium">
+            <span className="bg-primary text-primary-fg px-6 py-2 rounded shadow-md font-medium">
               {getMonthName(selectedMonth)} {selectedYear}
             </span>
             <button
@@ -373,7 +373,7 @@ const Analytics = () => {
                   setSelectedMonth(selectedMonth + 1);
                 }
               }}
-              className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
+              className="bg-surface text-fg-muted p-2 rounded hover:bg-surface-hover transition-all duration-300 shadow-sm hover:shadow-md"
             >
               Next
             </button>
@@ -404,16 +404,16 @@ const Analytics = () => {
           <div className="flex gap-2 items-center">
             <button
               onClick={() => setYearForYearlyView(yearForYearlyView - 1)}
-              className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
+              className="bg-surface text-fg-muted p-2 rounded hover:bg-surface-hover transition-all duration-300 shadow-sm hover:shadow-md"
             >
               Prev
             </button>
-            <span className="bg-[#2563eb] text-white px-6 py-2 rounded shadow-md font-medium">
+            <span className="bg-primary text-primary-fg px-6 py-2 rounded shadow-md font-medium">
               {yearForYearlyView}
             </span>
             <button
               onClick={() => setYearForYearlyView(yearForYearlyView + 1)}
-              className="bg-white/80 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 p-2 rounded hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 shadow-sm hover:shadow-md"
+              className="bg-surface text-fg-muted p-2 rounded hover:bg-surface-hover transition-all duration-300 shadow-sm hover:shadow-md"
             >
               Next
             </button>

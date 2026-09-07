@@ -145,13 +145,13 @@ function FrequencyPicker({ value, onChange }) {
   let displayLabel;
   if (isDaily) {
     displayLabel = (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[11px] font-medium">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary-soft text-primary text-[11px] font-medium">
         Daily
       </span>
     );
   } else if (days.length === 0) {
     displayLabel = (
-      <span className="text-xs text-gray-400">— pick days —</span>
+      <span className="text-xs text-fg-subtle">— pick days —</span>
     );
   } else {
     displayLabel = (
@@ -159,7 +159,7 @@ function FrequencyPicker({ value, onChange }) {
         {DAY_OPTS.filter((o) => days.includes(o.value)).map((o) => (
           <span
             key={o.value}
-            className="px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] font-medium"
+            className="px-1.5 py-0.5 rounded bg-success-soft text-success text-[10px] font-medium"
           >
             {o.label.slice(0, 1)}
           </span>
@@ -173,12 +173,12 @@ function FrequencyPicker({ value, onChange }) {
       <button
         ref={btnRef}
         type="button"
-        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all min-h-[32px]"
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium bg-surface-2 border border-edge hover:bg-surface-hover transition-all min-h-[32px]"
         onClick={handleOpen}
       >
         {displayLabel}
         <IconChevronDown
-          className={`w-3 h-3 transition-transform text-gray-400 ${open ? "rotate-180" : ""}`}
+          className={`w-3 h-3 transition-transform text-fg-subtle ${open ? "rotate-180" : ""}`}
         />
       </button>
       {createPortal(
@@ -187,32 +187,32 @@ function FrequencyPicker({ value, onChange }) {
             <motion.div
               ref={ref}
               style={{ position: "fixed", top: pos.top, left: pos.left }}
-              className="w-52 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden z-[9999]"
+              className="w-52 bg-surface border border-edge rounded-xl shadow-xl overflow-hidden z-[9999]"
               initial={{ opacity: 0, y: -6, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.96 }}
               transition={{ duration: 0.12 }}
             >
               <div className="py-1">
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-fg-subtle uppercase tracking-wider">
                   Frequency
                 </div>
                 <button
                   type="button"
                   className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
                     isDaily
-                      ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium"
-                      : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                      ? "bg-primary-soft text-primary font-medium"
+                      : "text-fg hover:bg-surface-hover"
                   }`}
                   onClick={setDaily}
                 >
-                  <span className="w-6 h-6 rounded-md flex items-center justify-center text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  <span className="w-6 h-6 rounded-md flex items-center justify-center text-xs bg-primary-soft text-primary">
                     🔄
                   </span>
                   <span>Daily</span>
                 </button>
-                <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                <div className="border-t border-edge my-1" />
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-fg-subtle uppercase tracking-wider">
                   Specific days
                 </div>
                 <div className="px-2 pb-2">
@@ -221,7 +221,7 @@ function FrequencyPicker({ value, onChange }) {
                     return (
                       <label
                         key={opt.value}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/60 text-sm text-gray-700 dark:text-gray-200"
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-surface-hover text-sm text-fg"
                       >
                         <input
                           type="checkbox"
@@ -234,10 +234,10 @@ function FrequencyPicker({ value, onChange }) {
                     );
                   })}
                 </div>
-                <div className="border-t border-gray-100 dark:border-gray-800" />
+                <div className="border-t border-edge" />
                 <button
                   type="button"
-                  className="w-full text-left px-3 py-2 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                  className="w-full text-left px-3 py-2 text-xs text-fg-subtle hover:bg-surface-hover"
                   onClick={clearAll}
                 >
                   Clear
@@ -295,14 +295,14 @@ function ColorPicker({ value, onChange }) {
       <button
         ref={btnRef}
         type="button"
-        className="w-7 h-7 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:scale-110 transition-transform"
+        className="w-7 h-7 rounded-lg border border-edge flex items-center justify-center hover:scale-110 transition-transform"
         onClick={handleOpen}
         aria-label="Pick color"
       >
         {value ? (
           <span className="w-4 h-4 rounded-full" style={{ backgroundColor: value }} />
         ) : (
-          <span className="w-4 h-4 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-600" />
+          <span className="w-4 h-4 rounded-full border-2 border-dashed border-edge" />
         )}
       </button>
       {createPortal(
@@ -311,19 +311,19 @@ function ColorPicker({ value, onChange }) {
             <motion.div
               ref={ref}
               style={{ position: "fixed", top: pos.top, left: pos.left }}
-              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-2.5 z-[9999]"
+              className="bg-surface border border-edge rounded-xl shadow-xl p-2.5 z-[9999]"
               initial={{ opacity: 0, y: -6, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.96 }}
               transition={{ duration: 0.12 }}
             >
-              <div className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-0.5">Color</div>
+              <div className="text-[10px] font-semibold text-fg-subtle uppercase tracking-wider mb-2 px-0.5">Color</div>
               <div className="grid grid-cols-5 gap-1.5">
                 {COLOR_PRESETS.map((c) => (
                   <button
                     key={c.value}
                     type="button"
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-transform hover:scale-110 ${value === c.value ? "ring-2 ring-offset-1 ring-blue-500" : ""}`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-transform hover:scale-110 ${value === c.value ? "ring-2 ring-offset-1 ring-focus" : ""}`}
                     style={{ backgroundColor: c.value }}
                     onClick={() => { onChange(c.value); setOpen(false); }}
                     title={c.label}
@@ -337,11 +337,11 @@ function ColorPicker({ value, onChange }) {
                 ))}
                 <button
                   type="button"
-                  className={`w-7 h-7 rounded-lg border-2 border-dashed flex items-center justify-center transition-transform hover:scale-110 ${!value ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20" : "border-gray-300 dark:border-gray-600"}`}
+                  className={`w-7 h-7 rounded-lg border-2 border-dashed flex items-center justify-center transition-transform hover:scale-110 ${!value ? "border-primary bg-primary-soft" : "border-edge"}`}
                   onClick={() => { onChange(""); setOpen(false); }}
                   title="No color"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-fg-subtle">
                     <path strokeLinecap="round" d="M18 6L6 18M6 6l12 12" />
                   </svg>
                 </button>
@@ -384,14 +384,14 @@ function InlineColorSwatch({ value, onChange }) {
       <button
         ref={btnRef}
         type="button"
-        className="w-7 h-7 rounded-md border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:scale-110 transition-transform shrink-0"
+        className="w-7 h-7 rounded-md border border-edge flex items-center justify-center hover:scale-110 transition-transform shrink-0"
         onClick={handleOpen}
         title="Set color for this option"
       >
         {value ? (
           <span className="w-4 h-4 rounded-full" style={{ backgroundColor: value }} />
         ) : (
-          <span className="w-4 h-4 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-600" />
+          <span className="w-4 h-4 rounded-full border-2 border-dashed border-edge" />
         )}
       </button>
       {createPortal(
@@ -400,7 +400,7 @@ function InlineColorSwatch({ value, onChange }) {
             <motion.div
               ref={ref}
               style={{ position: "fixed", top: pos.top, left: pos.left }}
-              className="z-[10000] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-2.5"
+              className="z-[10000] bg-surface border border-edge rounded-xl shadow-xl p-2.5"
               initial={{ opacity: 0, y: -4, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.96 }}
@@ -411,7 +411,7 @@ function InlineColorSwatch({ value, onChange }) {
                   <button
                     key={c.value}
                     type="button"
-                    className={`w-7 h-7 rounded-md transition-transform hover:scale-110 ${value === c.value ? "ring-2 ring-offset-1 ring-blue-500" : ""}`}
+                    className={`w-7 h-7 rounded-md transition-transform hover:scale-110 ${value === c.value ? "ring-2 ring-offset-1 ring-focus" : ""}`}
                     style={{ backgroundColor: c.value }}
                     onClick={() => { onChange(c.value); setOpen(false); }}
                     title={c.label}
@@ -419,11 +419,11 @@ function InlineColorSwatch({ value, onChange }) {
                 ))}
                 <button
                   type="button"
-                  className="w-7 h-7 rounded-md border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center hover:scale-110 transition-transform"
+                  className="w-7 h-7 rounded-md border-2 border-dashed border-edge flex items-center justify-center hover:scale-110 transition-transform"
                   onClick={() => { onChange(""); setOpen(false); }}
                   title="No color"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-gray-400">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-fg-subtle">
                     <path strokeLinecap="round" d="M18 6L6 18M6 6l12 12" />
                   </svg>
                 </button>
@@ -467,31 +467,31 @@ function AddColumnModal({ onSubmit, onCancel }) {
       onClick={onCancel}
     >
       <motion.div
-        className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4"
+        className="bg-surface border border-edge rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4"
         initial={{ scale: 0.95 }}
         animate={{ scale: 1 }}
         exit={{ scale: 0.95 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Custom Column</h3>
+        <h3 className="text-lg font-semibold text-fg mb-4">Add Custom Column</h3>
         <div className="space-y-4">
           <div>
-            <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Column Name</label>
+            <label className="text-sm text-fg-muted mb-1 block">Column Name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Priority"
-              className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             />
           </div>
           <div>
-            <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Type</label>
+            <label className="text-sm text-fg-muted mb-1 block">Type</label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
             >
               <option value="text">Text</option>
               <option value="dropdown">Dropdown</option>
@@ -502,7 +502,7 @@ function AddColumnModal({ onSubmit, onCancel }) {
           <AnimatePresence>
             {type === "dropdown" ? (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-                <label className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">Options</label>
+                <label className="text-sm text-fg-muted mb-1 block">Options</label>
                 <div className="space-y-2">
                   {options.map((opt, i) => (
                     <div key={i} className="flex gap-2 items-center">
@@ -514,7 +514,7 @@ function AddColumnModal({ onSubmit, onCancel }) {
                           setOptions(copy);
                         }}
                         placeholder={`Option ${i + 1}`}
-                        className="flex-1 px-3 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
                       />
                       <InlineColorSwatch
                         value={opt.color}
@@ -527,7 +527,7 @@ function AddColumnModal({ onSubmit, onCancel }) {
                       {options.length > 1 ? (
                         <button
                           type="button"
-                          className="text-gray-400 hover:text-red-500 p-1"
+                          className="text-fg-subtle hover:text-danger p-1"
                           onClick={() => setOptions(options.filter((_, j) => j !== i))}
                         >
                           <IconTrash className="w-4 h-4" />
@@ -537,7 +537,7 @@ function AddColumnModal({ onSubmit, onCancel }) {
                   ))}
                   <button
                     type="button"
-                    className="text-xs text-blue-500 hover:text-blue-600"
+                    className="text-xs text-primary hover:text-primary-hover"
                     onClick={() => setOptions([...options, { text: "", color: "" }])}
                   >
                     + Add option
@@ -550,14 +550,14 @@ function AddColumnModal({ onSubmit, onCancel }) {
         <div className="flex gap-2 mt-6">
           <button
             type="button"
-            className="flex-1 px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium"
+            className="flex-1 px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm font-medium"
             onClick={handleSubmit}
           >
             Add Column
           </button>
           <button
             type="button"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+            className="px-3 py-2 rounded-lg border border-edge text-sm hover:bg-surface-hover"
             onClick={onCancel}
           >
             Cancel
@@ -589,29 +589,29 @@ function EditColumnColorsModal({ column, onSave, onCancel }) {
       onClick={onCancel}
     >
       <motion.div
-        className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4"
+        className="bg-surface border border-edge rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4"
         initial={{ scale: 0.95 }}
         animate={{ scale: 1 }}
         exit={{ scale: 0.95 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Edit Column</h3>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+        <h3 className="text-lg font-semibold text-fg mb-4">Edit Column</h3>
+        <label className="block text-sm font-medium text-fg-muted mb-1">Name</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+          className="w-full px-3 py-2 rounded-lg border border-edge bg-transparent text-sm text-fg outline-none focus:ring-2 focus:ring-focus mb-4"
           placeholder="Column name"
           autoFocus
         />
         {column.type === "dropdown" && colorRules.length > 0 ? (
           <>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Option Colors</label>
+            <label className="block text-sm font-medium text-fg-muted mb-1">Option Colors</label>
             <div className="space-y-2 mb-4">
               {colorRules.map((rule, i) => (
                 <div key={rule.value} className="flex items-center gap-3">
-                  <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">{rule.value}</span>
+                  <span className="flex-1 text-sm text-fg">{rule.value}</span>
                   <InlineColorSwatch
                     value={rule.color}
                     onChange={(c) => {
@@ -628,7 +628,7 @@ function EditColumnColorsModal({ column, onSave, onCancel }) {
         <div className="flex gap-2">
           <button
             type="button"
-            className="flex-1 px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium"
+            className="flex-1 px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm font-medium"
             onClick={() =>
               onSave({
                 name: name.trim() || column.name,
@@ -640,7 +640,7 @@ function EditColumnColorsModal({ column, onSave, onCancel }) {
           </button>
           <button
             type="button"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+            className="px-3 py-2 rounded-lg border border-edge text-sm hover:bg-surface-hover"
             onClick={onCancel}
           >
             Cancel
@@ -667,18 +667,18 @@ function ColumnMenu({ column, onDelete, onClose, onEditColors }) {
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-1 z-30 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg py-1 min-w-[140px]"
+      className="absolute right-0 top-full mt-1 z-30 bg-surface border border-edge rounded-xl shadow-lg py-1 min-w-[140px]"
     >
       <button
         type="button"
-        className="w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="w-full px-3 py-1.5 text-left text-sm text-fg hover:bg-surface-hover"
         onClick={() => { onEditColors(column); onClose(); }}
       >
         Edit column
       </button>
       <button
         type="button"
-        className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+        className="w-full px-3 py-1.5 text-left text-sm text-danger hover:bg-danger-soft"
         onClick={() => { onDelete(column._id); onClose(); }}
       >
         Delete column
@@ -719,7 +719,7 @@ function DropdownCell({ column, value, onChange }) {
       <button
         ref={btnRef}
         type="button"
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:opacity-80 transition-all"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-fg hover:opacity-80 transition-all"
         onClick={handleOpen}
       >
         {colorRule?.color ? (
@@ -734,7 +734,7 @@ function DropdownCell({ column, value, onChange }) {
             <motion.div
               ref={ref}
               style={{ position: "fixed", top: pos.top, left: pos.left }}
-              className="w-44 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden z-[9999]"
+              className="w-44 bg-surface border border-edge rounded-xl shadow-xl overflow-hidden z-[9999]"
               initial={{ opacity: 0, y: -6, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.96 }}
@@ -745,8 +745,8 @@ function DropdownCell({ column, value, onChange }) {
                   type="button"
                   className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
                     !value
-                      ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium"
-                      : "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                      ? "bg-primary-soft text-primary font-medium"
+                      : "text-fg-subtle hover:bg-surface-hover"
                   }`}
                   onClick={() => { onChange(""); setOpen(false); }}
                 >
@@ -760,8 +760,8 @@ function DropdownCell({ column, value, onChange }) {
                       type="button"
                       className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
                         value === opt
-                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium"
-                          : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                          ? "bg-primary-soft text-primary font-medium"
+                          : "text-fg hover:bg-surface-hover"
                       }`}
                       onClick={() => { onChange(opt); setOpen(false); }}
                     >
@@ -770,7 +770,7 @@ function DropdownCell({ column, value, onChange }) {
                       ) : null}
                       <span>{opt}</span>
                       {value === opt ? (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 ml-auto text-blue-500">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 ml-auto text-primary">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       ) : null}
@@ -795,7 +795,7 @@ function CustomCell({ column, value, onChange }) {
         type="number"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value ? Number(e.target.value) : "")}
-        className="w-full px-2 py-1.5 rounded-md bg-transparent border border-gray-200 dark:border-gray-700 text-sm outline-none"
+        className="w-full px-2 py-1.5 rounded-md bg-transparent border border-edge text-sm outline-none"
       />
     );
   }
@@ -805,7 +805,7 @@ function CustomCell({ column, value, onChange }) {
         type="date"
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2 py-1.5 rounded-md bg-transparent border border-gray-200 dark:border-gray-700 text-sm outline-none"
+        className="w-full px-2 py-1.5 rounded-md bg-transparent border border-edge text-sm outline-none"
       />
     );
   }
@@ -814,7 +814,7 @@ function CustomCell({ column, value, onChange }) {
       type="text"
       value={value || ""}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-2 py-1.5 rounded-md bg-transparent border border-gray-200 dark:border-gray-700 text-sm outline-none"
+      className="w-full px-2 py-1.5 rounded-md bg-transparent border border-edge text-sm outline-none"
     />
   );
 }
@@ -984,32 +984,32 @@ export default function RoutineTasksView({ projectId }) {
 
   return (
     <>
-      <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-surface border border-edge rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40">
-                <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300 min-w-[200px]">Task</th>
-                <th className="px-2 py-3 text-center font-semibold text-gray-700 dark:text-gray-300 w-[50px]">
+              <tr className="border-b border-edge bg-surface-2">
+                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[200px]">Task</th>
+                <th className="px-2 py-3 text-center font-semibold text-fg-muted w-[50px]">
                   <span className="sr-only">Color</span>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 mx-auto text-gray-400">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 mx-auto text-fg-subtle">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485" />
                   </svg>
                 </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300 min-w-[140px]">Frequency</th>
-                <th className="px-2 py-3 text-center font-semibold text-gray-700 dark:text-gray-300 w-[60px]" title="Auto-add to schedule">Auto</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300 min-w-[100px]">Time (min)</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300 min-w-[200px]">Notes</th>
+                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[140px]">Frequency</th>
+                <th className="px-2 py-3 text-center font-semibold text-fg-muted w-[60px]" title="Auto-add to schedule">Auto</th>
+                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[100px]">Time (min)</th>
+                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[200px]">Notes</th>
                 {columns.map((col) => (
                   <th
                     key={col._id}
-                    className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300 min-w-[140px] relative"
+                    className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[140px] relative"
                   >
                     <div className="flex items-center gap-1">
                       <span>{col.name}</span>
                       <button
                         type="button"
-                        className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                        className="p-0.5 rounded hover:bg-surface-hover"
                         onClick={() => setColumnMenuId(columnMenuId === col._id ? null : col._id)}
                       >
                         <IconDots className="w-4 h-4" />
@@ -1030,7 +1030,7 @@ export default function RoutineTasksView({ projectId }) {
                 <th className="px-4 py-3 w-[80px]">
                   <button
                     type="button"
-                    className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 font-medium"
+                    className="flex items-center gap-1 text-xs text-primary hover:text-primary-hover font-medium"
                     onClick={() => setShowAddColumn(true)}
                   >
                     <IconPlus className="w-3.5 h-3.5" />
@@ -1043,14 +1043,14 @@ export default function RoutineTasksView({ projectId }) {
               {routineTasks.map((task) => (
                 <tr
                   key={task._id}
-                  className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors"
+                  className="border-b border-edge hover:bg-surface-hover transition-colors"
                 >
                   <td className="px-4 py-2">
                     <input
                       type="text"
                       value={task.title}
                       onChange={(e) => updateTaskLocal(task._id, { title: e.target.value })}
-                      className="w-full px-2 py-1.5 rounded-md bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-700 focus:border-blue-300 dark:focus:border-blue-600 text-sm outline-none transition-colors"
+                      className="w-full px-2 py-1.5 rounded-md bg-transparent border border-transparent hover:border-edge-strong focus:border-focus text-sm outline-none transition-colors"
                     />
                   </td>
                   <td className="px-2 py-2 text-center">
@@ -1079,7 +1079,7 @@ export default function RoutineTasksView({ projectId }) {
                         value={task.frequencyCustom || ""}
                         onChange={(e) => updateTaskLocal(task._id, { frequencyCustom: e.target.value })}
                         placeholder="e.g. Every 3 days"
-                        className="w-full mt-1 px-2 py-1 rounded-md bg-transparent border border-gray-200 dark:border-gray-700 text-xs outline-none"
+                        className="w-full mt-1 px-2 py-1 rounded-md bg-transparent border border-edge text-xs outline-none"
                       />
                     ) : null}
                   </td>
@@ -1103,7 +1103,7 @@ export default function RoutineTasksView({ projectId }) {
                           estimatedTime: e.target.value ? Number(e.target.value) : 0,
                         })
                       }
-                      className="w-full px-2 py-1.5 rounded-md bg-transparent border border-gray-200 dark:border-gray-700 text-sm outline-none"
+                      className="w-full px-2 py-1.5 rounded-md bg-transparent border border-edge text-sm outline-none"
                       min="0"
                     />
                   </td>
@@ -1113,7 +1113,7 @@ export default function RoutineTasksView({ projectId }) {
                       value={task.notes || ""}
                       onChange={(e) => updateTaskLocal(task._id, { notes: e.target.value })}
                       placeholder="Add notes..."
-                      className="w-full px-2 py-1.5 rounded-md bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-700 focus:border-blue-300 dark:focus:border-blue-600 text-sm outline-none transition-colors"
+                      className="w-full px-2 py-1.5 rounded-md bg-transparent border border-transparent hover:border-edge-strong focus:border-focus text-sm outline-none transition-colors"
                     />
                   </td>
                   {columns.map((col) => (
@@ -1128,7 +1128,7 @@ export default function RoutineTasksView({ projectId }) {
                   <td className="px-4 py-2">
                     <button
                       type="button"
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      className="p-1.5 rounded-lg text-fg-subtle hover:text-danger hover:bg-danger-soft transition-colors"
                       onClick={() => deleteTask(task._id)}
                       aria-label="Delete task"
                     >
@@ -1140,10 +1140,10 @@ export default function RoutineTasksView({ projectId }) {
             </tbody>
           </table>
         </div>
-        <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="px-4 py-3 border-t border-edge">
           <button
             type="button"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-fg-muted hover:bg-surface-hover transition-colors"
             onClick={addRoutineTask}
           >
             <IconPlus className="w-4 h-4" />

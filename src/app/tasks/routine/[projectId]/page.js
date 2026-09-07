@@ -75,18 +75,18 @@ export default function RoutineTasksPage() {
         <div className="flex items-center gap-3 mb-6">
           <button
             type="button"
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="p-2 rounded-lg hover:bg-surface-hover transition-colors"
             onClick={() => router.push("/planner?tab=routines")}
             aria-label="Back to planner"
           >
-            <IconBack className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+            <IconBack className="w-5 h-5 text-fg-muted" />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-xl font-bold text-fg">
               Routine Tasks
             </h1>
             {projectName ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-fg-subtle">
                 {projectName}
               </p>
             ) : null}

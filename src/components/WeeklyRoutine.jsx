@@ -6,35 +6,21 @@ import React, {
   useMemo,
   useRef,
   useEffect,
-  useLayoutEffect,
 } from "react";
-import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { weekLabel } from "@/utils/timeUtils";
-
-// Compute a viewport-aware popover position anchored under an element.
-// Flips above if not enough room below; right-aligns if not enough room right.
-function computePopoverPosition(anchorEl, popW, popH) {
-  if (!anchorEl) return { top: 0, left: 0 };
-  const margin = 8;
-  const rect = anchorEl.getBoundingClientRect();
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
-  let top = rect.bottom + 4;
-  if (top + popH > vh - margin) {
-    const above = rect.top - popH - 4;
-    top = above >= margin ? above : Math.max(margin, vh - popH - margin);
-  }
-
-  let left = rect.left;
-  if (left + popW > vw - margin) {
-    left = rect.right - popW;
-  }
-  left = Math.max(margin, Math.min(left, vw - popW - margin));
-
-  return { top, left };
-}
+import {
+  formatMinutes,
+  minutesToTime,
+  IconPlus,
+  IconCheck,
+  IconDotsVertical,
+  IconNote,
+  AddTaskPopover,
+  TaskEditPopover,
+  TaskColorLines,
+} from "./weekplan/WeekPlanShared";
+import WeekCalendar from "./weekplan/WeekCalendar";
 
 const DAY_NAMES = [
   "Monday",
@@ -48,428 +34,6 @@ const DAY_NAMES = [
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
-function formatMinutes(m) {
-  if (!m) return "0m";
-  const h = Math.floor(m / 60);
-  const min = m % 60;
-  if (h && min) return `${h}h${min}m`;
-  if (h) return `${h}h`;
-  return `${min}m`;
-}
-
-/* ── Icons ─────────────────────────────────────────────── */
-
-function IconPlus({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={className}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function IconTrash({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-      />
-    </svg>
-  );
-}
-
-function IconCheck({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      className={className}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-    </svg>
-  );
-}
-
-function IconDotsVertical({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="5" r="1.8" />
-      <circle cx="12" cy="12" r="1.8" />
-      <circle cx="12" cy="19" r="1.8" />
-    </svg>
-  );
-}
-
-function IconNote({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={className}
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 4h4"
-      />
-    </svg>
-  );
-}
-
-/* ── Add Task Popover ──────────────────────────────────── */
-
-function AddTaskPopover({
-  routineTasks,
-  todoTasks = [],
-  onAdd,
-  onClose,
-  anchorRef,
-  projectId = null,
-}) {
-  const ref = useRef(null);
-  const [mode, setMode] = useState("routine"); // routine | todo | adhoc
-  const [adHocName, setAdHocName] = useState("");
-  const [adHocTime, setAdHocTime] = useState("");
-  const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
-
-  useLayoutEffect(() => {
-    if (!ref.current || !anchorRef?.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    const { top, left } = computePopoverPosition(
-      anchorRef.current,
-      rect.width,
-      rect.height,
-    );
-    setPos({ top, left, ready: true });
-  }, [anchorRef, mode]);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-
-  // Resolve the project id of a todo task (preserves source project when picked).
-  const todoProjectId = (t) => {
-    if (!t?.project) return projectId;
-    return typeof t.project === "object"
-      ? String(t.project._id || t.project)
-      : String(t.project);
-  };
-
-  return createPortal(
-    <div
-      ref={ref}
-      style={{
-        position: "fixed",
-        top: pos.top,
-        left: pos.left,
-        visibility: pos.ready ? "visible" : "hidden",
-      }}
-      className="z-[9999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-[220px] max-h-[300px] overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600"
-    >
-      <div className="flex gap-1 mb-2">
-        <button
-          type="button"
-          className={`flex-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
-            mode === "routine"
-              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-              : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-          }`}
-          onClick={() => setMode("routine")}
-        >
-          Routine
-        </button>
-        <button
-          type="button"
-          className={`flex-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
-            mode === "todo"
-              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-              : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-          }`}
-          onClick={() => setMode("todo")}
-        >
-          Todo
-        </button>
-        <button
-          type="button"
-          className={`flex-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
-            mode === "adhoc"
-              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-              : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-          }`}
-          onClick={() => setMode("adhoc")}
-        >
-          Add
-        </button>
-      </div>
-
-      {mode === "routine" ? (
-        <div className="space-y-1">
-          {routineTasks.length ? (
-            routineTasks.map((rt) => (
-              <button
-                key={rt._id}
-                type="button"
-                className="w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
-                onClick={() => {
-                  const rtPid =
-                    typeof rt.project === "object"
-                      ? String(rt.project?._id || rt.project)
-                      : rt.project
-                        ? String(rt.project)
-                        : projectId;
-                  onAdd({
-                    routineTaskId: rt._id,
-                    projectId: rtPid || null,
-                    taskName: rt.title,
-                    estimatedTime: rt.estimatedTime || 0,
-                  });
-                  onClose();
-                }}
-              >
-                <div className="font-medium">{rt.title}</div>
-                {rt.estimatedTime ? (
-                  <div className="text-xs text-gray-400">
-                    {formatMinutes(rt.estimatedTime)}
-                  </div>
-                ) : null}
-              </button>
-            ))
-          ) : (
-            <div className="px-2 py-2 text-xs text-gray-400">
-              No routine tasks found
-            </div>
-          )}
-        </div>
-      ) : mode === "todo" ? (
-        <div className="space-y-0.5">
-          {todoTasks.length ? (
-            todoTasks.map((t) => (
-              <button
-                key={t._id}
-                type="button"
-                title={t.title}
-                className="w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
-                onClick={() => {
-                  onAdd({
-                    taskName: t.title,
-                    estimatedTime: 0,
-                    projectId: todoProjectId(t),
-                  });
-                  onClose();
-                }}
-              >
-                <div className="font-medium truncate">{t.title}</div>
-              </button>
-            ))
-          ) : (
-            <div className="px-2 py-2 text-xs text-gray-400">
-              No pending tasks
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <input
-            value={adHocName}
-            onChange={(e) => setAdHocName(e.target.value)}
-            placeholder="Task name"
-            className="w-full px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && adHocName.trim()) {
-                onAdd({
-                  taskName: adHocName.trim(),
-                  estimatedTime: adHocTime ? Number(adHocTime) : 0,
-                  projectId: projectId || null,
-                });
-                onClose();
-              }
-            }}
-          />
-          <input
-            type="number"
-            value={adHocTime}
-            onChange={(e) => setAdHocTime(e.target.value)}
-            placeholder="Time (min)"
-            className="w-full px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-            min="0"
-          />
-          <button
-            type="button"
-            className="w-full px-2 py-1.5 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium"
-            onClick={() => {
-              if (!adHocName.trim()) return;
-              onAdd({
-                taskName: adHocName.trim(),
-                estimatedTime: adHocTime ? Number(adHocTime) : 0,
-                projectId: projectId || null,
-              });
-              onClose();
-            }}
-          >
-            Add
-          </button>
-        </div>
-      )}
-    </div>,
-    document.body,
-  );
-}
-
-/* ── Task Edit Popover ─────────────────────────────────── */
-
-function TaskEditPopover({ task, onSave, onDelete, onClose, anchorRef }) {
-  const ref = useRef(null);
-  const [name, setName] = useState(task?.taskName || "");
-  const [time, setTime] = useState(
-    task?.estimatedTime ? String(task.estimatedTime) : "",
-  );
-  const [notes, setNotes] = useState(task?.notes || "");
-  const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
-
-  useLayoutEffect(() => {
-    if (!ref.current || !anchorRef?.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    const { top, left } = computePopoverPosition(
-      anchorRef.current,
-      rect.width,
-      rect.height,
-    );
-    setPos({ top, left, ready: true });
-  }, [anchorRef]);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-
-  const handleSave = () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    onSave({
-      taskName: trimmed,
-      estimatedTime: time ? Number(time) || 0 : 0,
-      notes,
-    });
-    onClose();
-  };
-
-  return createPortal(
-    <div
-      ref={ref}
-      style={{
-        position: "fixed",
-        top: pos.top,
-        left: pos.left,
-        visibility: pos.ready ? "visible" : "hidden",
-      }}
-      className="z-[9999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-[260px]"
-    >
-      <div className="space-y-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Task name"
-          className="w-full px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) handleSave();
-            if (e.key === "Escape") onClose();
-          }}
-        />
-        <input
-          type="number"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          placeholder="Time (min)"
-          min="0"
-          className="w-full px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
-        />
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes (shown on hover)"
-          rows={3}
-          className="w-full px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none resize-none"
-        />
-        <div className="flex gap-2 pt-0.5">
-          <button
-            type="button"
-            className="flex-1 px-2 py-1.5 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-medium"
-            onClick={handleSave}
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            className="px-2 py-1.5 rounded-lg border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/20"
-            onClick={() => {
-              onDelete();
-              onClose();
-            }}
-            aria-label="Delete task"
-            title="Delete task"
-          >
-            <IconTrash className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-/* ── Color Lines (vertical bars for task colors) ───────── */
-
-function TaskColorLines({ manualColor, conditionalColor }) {
-  if (!manualColor && !conditionalColor) return null;
-  return (
-    <div className="flex gap-0.5 shrink-0 self-stretch">
-      {manualColor ? (
-        <div
-          className="w-[3px] rounded-full"
-          style={{ backgroundColor: manualColor }}
-        />
-      ) : null}
-      {conditionalColor ? (
-        <div
-          className="w-[3px] rounded-full"
-          style={{ backgroundColor: conditionalColor }}
-        />
-      ) : null}
-    </div>
-  );
-}
 
 /* ── Main WeeklyRoutine Component ──────────────────────── */
 
@@ -485,6 +49,9 @@ export default function WeeklyRoutine({
   onUpdateTask,
   onMoveTask,
   onEditWeek,
+  // "list" (project rows per day) or "calendar" (hour grid); chosen by the
+  // planner tab that renders this component.
+  view = "list",
 }) {
   const [addingDay, setAddingDay] = useState(null);
   const [editingTaskKey, setEditingTaskKey] = useState(null);
@@ -843,7 +410,7 @@ export default function WeeklyRoutine({
           {task._virtual && !task._dated ? (
             <span
               title="Auto-scheduled from routine"
-              className="text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 shrink-0"
+              className="text-[10px] px-1 py-0.5 rounded bg-warning-soft text-warning shrink-0"
             >
               ⚡
             </span>
@@ -851,7 +418,7 @@ export default function WeeklyRoutine({
           {task._dated ? (
             <span
               title="Scheduled from Tasks"
-              className="shrink-0 text-[#2563eb] dark:text-blue-400"
+              className="shrink-0 text-primary"
               aria-label="Scheduled from Tasks"
             >
               <svg
@@ -870,12 +437,12 @@ export default function WeeklyRoutine({
           <span
             className={`text-xs truncate ${
               task.completed
-                ? "line-through text-gray-400 dark:text-gray-500"
+                ? "line-through text-fg-subtle"
                 : task._dated
-                  ? "text-gray-700 dark:text-gray-200"
+                  ? "text-fg"
                   : task._virtual
-                    ? "text-gray-600 dark:text-gray-300 italic"
-                    : "text-gray-700 dark:text-gray-200"
+                    ? "text-fg-muted italic"
+                    : "text-fg"
             }`}
             title={task.notes || task.taskName}
           >
@@ -883,7 +450,7 @@ export default function WeeklyRoutine({
           </span>
           {task.notes ? (
             <span
-              className="shrink-0 text-amber-500 dark:text-amber-400"
+              className="shrink-0 text-warning"
               title={task.notes}
               aria-label="Has notes"
             >
@@ -891,8 +458,16 @@ export default function WeeklyRoutine({
             </span>
           ) : null}
         </div>
+        {task.startMinute != null ? (
+          <span
+            className="text-[10px] text-primary shrink-0 tabular-nums"
+            title="Scheduled time"
+          >
+            {minutesToTime(task.startMinute)}
+          </span>
+        ) : null}
         {task.estimatedTime ? (
-          <span className="text-[10px] text-gray-400 shrink-0">
+          <span className="text-[10px] text-fg-subtle shrink-0">
             {task.estimatedTime}
           </span>
         ) : null}
@@ -900,7 +475,7 @@ export default function WeeklyRoutine({
           task._dated ? null : (
             <button
               type="button"
-              className="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors border-dashed border-amber-400/70 dark:border-amber-500/70 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+              className="w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors border-dashed border-warning/70 hover:border-success hover:bg-success-soft"
               onClick={() => {
                 const rtId = task.routineTask
                   ? typeof task.routineTask === "object"
@@ -926,8 +501,8 @@ export default function WeeklyRoutine({
               type="button"
               className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors ${
                 task.completed
-                  ? "bg-green-500 border-green-500 text-white"
-                  : "border-gray-300 dark:border-gray-600 hover:border-green-400"
+                  ? "bg-success border-success text-white"
+                  : "border-edge hover:border-success"
               }`}
               onClick={() => onToggleTask(dayIdx, task._id, !task.completed)}
               aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
@@ -940,7 +515,7 @@ export default function WeeklyRoutine({
                   editBtnRefs.current[editKey] = el;
                 }}
                 type="button"
-                className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-blue-500 transition-all"
+                className="opacity-0 group-hover:opacity-100 p-0.5 text-fg-subtle hover:text-primary transition-all"
                 onClick={(e) => {
                   e.stopPropagation();
                   setEditingTaskKey((cur) =>
@@ -1010,10 +585,10 @@ export default function WeeklyRoutine({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+          <h3 className="text-lg font-bold text-fg">
             {weekLabel(weekPlan.weekStart)}
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-fg-subtle">
             {dateRange}
           </p>
         </div>
@@ -1021,7 +596,7 @@ export default function WeeklyRoutine({
           {onEditWeek ? (
             <button
               type="button"
-              className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+              className="p-1.5 rounded-lg text-fg-subtle hover:text-primary hover:bg-primary-soft transition-colors"
               onClick={() => onEditWeek(weekPlan)}
               aria-label="Edit week"
               title="Edit week"
@@ -1044,13 +619,32 @@ export default function WeeklyRoutine({
         </div>
       </div>
 
+      {view === "calendar" ? (
+        <WeekCalendar
+          weekPlan={weekPlan}
+          dayTasks={dayDisplayTasks}
+          dayDates={dayDates}
+          todayDow={todayDow}
+          routineTasks={routineTasks}
+          todoTasks={todoTasks}
+          projectNameMap={projectNameMap}
+          taskColorMap={taskColorMap}
+          getTaskProjectId={getTaskProjectId}
+          onAddTask={onAddTask}
+          onToggleTask={onToggleTask}
+          onDeleteTask={onDeleteTask}
+          onUpdateTask={onUpdateTask}
+          onMoveTask={onMoveTask}
+        />
+      ) : (
+        <>
       {/* Desktop grid */}
       <div className="hidden md:block overflow-x-auto">
-        <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-surface border border-edge rounded-2xl shadow-sm overflow-hidden">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr>
-                <th className="px-2 py-2 text-left text-xs font-semibold text-white bg-red-600 border-r border-red-700 w-[60px] rounded-tl-2xl">
+                <th className="px-2 py-2 text-left text-xs font-semibold text-accent-fg bg-accent border-r border-accent-hover w-[60px] rounded-tl-2xl">
                   {weekLabel(weekPlan.weekStart)}
                 </th>
                 {DAY_NAMES.map((name, i) => {
@@ -1066,10 +660,10 @@ export default function WeeklyRoutine({
                       key={i}
                       className={`px-3 py-2 text-center text-xs font-bold border-r last:border-r-0 ${
                         isToday
-                          ? "bg-blue-600 text-white border-blue-700"
+                          ? "bg-primary text-primary-fg border-primary-hover"
                           : allDone
-                            ? "bg-green-600/20 text-green-700 dark:text-green-300 border-gray-200 dark:border-gray-700"
-                            : "bg-blue-800 text-white border-blue-900"
+                            ? "bg-success-soft text-success border-edge"
+                            : "bg-primary-hover text-primary-fg border-primary"
                       }`}
                     >
                       <div>{name}</div>
@@ -1112,7 +706,7 @@ export default function WeeklyRoutine({
                     <tr>
                       <td
                         colSpan={8}
-                        className="px-3 py-1.5 text-xs font-bold text-blue-100 bg-blue-900/80 dark:bg-blue-900/60 border-b border-blue-800/40"
+                        className="px-3 py-1.5 text-xs font-bold text-primary bg-primary-soft border-b border-edge"
                       >
                         {sectionName}
                       </td>
@@ -1123,9 +717,9 @@ export default function WeeklyRoutine({
                       (_, rowIdx) => (
                         <tr
                           key={rowIdx}
-                          className="border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+                          className="border-b border-edge last:border-b-0"
                         >
-                          <td className="px-2 py-1 text-xs text-gray-400 dark:text-gray-500 border-r border-gray-200 dark:border-gray-700 font-medium">
+                          <td className="px-2 py-1 text-xs text-fg-subtle border-r border-edge font-medium">
                             {rowIdx + 1}
                           </td>
                           {DAY_NAMES.map((_, dayIdx) => {
@@ -1140,7 +734,7 @@ export default function WeeklyRoutine({
                             );
                             const dropHighlight =
                               dragOverCell === cellKey
-                                ? "bg-blue-50/60 dark:bg-blue-900/20"
+                                ? "bg-primary-soft"
                                 : "";
 
                             if (!task) {
@@ -1150,7 +744,7 @@ export default function WeeklyRoutine({
                                 return (
                                   <td
                                     key={dayIdx}
-                                    className={`px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800 relative ${dropHighlight}`}
+                                    className={`px-2 py-1 border-r last:border-r-0 border-edge relative ${dropHighlight}`}
                                     {...dropHandlers}
                                   >
                                     <button
@@ -1158,7 +752,7 @@ export default function WeeklyRoutine({
                                         addBtnRefs.current[addKey] = el;
                                       }}
                                       type="button"
-                                      className="w-full flex items-center justify-center gap-1 py-1 rounded text-xs text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                      className="w-full flex items-center justify-center gap-1 py-1 rounded text-xs text-fg-subtle hover:text-primary hover:bg-primary-soft transition-colors"
                                       onClick={() =>
                                         setAddingDay(
                                           addingDay === addKey ? null : addKey,
@@ -1172,6 +766,7 @@ export default function WeeklyRoutine({
                                         <AddTaskPopover
                                           routineTasks={sectionRoutineTasks}
                                           todoTasks={sectionTodoTasks}
+                                          projectNameMap={projectNameMap}
                                           projectId={
                                             sectionKey === "other"
                                               ? null
@@ -1193,7 +788,7 @@ export default function WeeklyRoutine({
                               return (
                                 <td
                                   key={dayIdx}
-                                  className={`px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800 ${dropHighlight}`}
+                                  className={`px-2 py-1 border-r last:border-r-0 border-edge ${dropHighlight}`}
                                   {...dropHandlers}
                                 />
                               );
@@ -1202,9 +797,9 @@ export default function WeeklyRoutine({
                             return (
                               <td
                                 key={dayIdx}
-                                className={`px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800 ${
+                                className={`px-2 py-1 border-r last:border-r-0 border-edge ${
                                   task.completed
-                                    ? "bg-green-50/50 dark:bg-green-900/10"
+                                    ? "bg-success-soft/50"
                                     : ""
                                 } ${dropHighlight}`}
                                 {...dropHandlers}
@@ -1222,8 +817,8 @@ export default function WeeklyRoutine({
 
               {/* If no sections at all, show a single add row */}
               {!sectionKeys.length ? (
-                <tr className="border-b border-gray-100 dark:border-gray-800">
-                  <td className="px-2 py-1 text-xs text-gray-400 dark:text-gray-500 border-r border-gray-200 dark:border-gray-700 font-medium">
+                <tr className="border-b border-edge">
+                  <td className="px-2 py-1 text-xs text-fg-subtle border-r border-edge font-medium">
                     1
                   </td>
                   {DAY_NAMES.map((_, dayIdx) => {
@@ -1236,12 +831,12 @@ export default function WeeklyRoutine({
                     );
                     const dropHighlight =
                       dragOverCell === cellKey
-                        ? "bg-blue-50/60 dark:bg-blue-900/20"
+                        ? "bg-primary-soft"
                         : "";
                     return (
                       <td
                         key={dayIdx}
-                        className={`px-2 py-1 border-r last:border-r-0 border-gray-100 dark:border-gray-800 relative ${dropHighlight}`}
+                        className={`px-2 py-1 border-r last:border-r-0 border-edge relative ${dropHighlight}`}
                         {...dropHandlers}
                       >
                         <button
@@ -1249,7 +844,7 @@ export default function WeeklyRoutine({
                             addBtnRefs.current[addKey] = el;
                           }}
                           type="button"
-                          className="w-full flex items-center justify-center gap-1 py-1 rounded text-xs text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          className="w-full flex items-center justify-center gap-1 py-1 rounded text-xs text-fg-subtle hover:text-primary hover:bg-primary-soft transition-colors"
                           onClick={() =>
                             setAddingDay(addingDay === addKey ? null : addKey)
                           }
@@ -1261,6 +856,7 @@ export default function WeeklyRoutine({
                             <AddTaskPopover
                               routineTasks={routineTasks}
                               todoTasks={todoTasks}
+                              projectNameMap={projectNameMap}
                               projectId={null}
                               onAdd={(data) => onAddTask(dayIdx, data)}
                               onClose={() => setAddingDay(null)}
@@ -1277,8 +873,8 @@ export default function WeeklyRoutine({
               ) : null}
 
               {/* Totals row */}
-              <tr className="bg-gray-50/80 dark:bg-gray-800/40 border-t border-gray-200 dark:border-gray-700">
-                <td className="px-2 py-2 text-xs font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
+              <tr className="bg-surface-2 border-t border-edge">
+                <td className="px-2 py-2 text-xs font-bold text-fg-muted border-r border-edge">
                   Total
                 </td>
                 {DAY_NAMES.map((_, dayIdx) => {
@@ -1298,21 +894,21 @@ export default function WeeklyRoutine({
                   return (
                     <td
                       key={dayIdx}
-                      className="px-2 py-2 text-center border-r last:border-r-0 border-gray-200 dark:border-gray-700"
+                      className="px-2 py-2 text-center border-r last:border-r-0 border-edge"
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 shrink-0 whitespace-nowrap">
+                        <span className="text-xs font-semibold text-fg-muted shrink-0 whitespace-nowrap">
                           {formatMinutes(totalMin)}
                         </span>
                         {totalMin > 0 ? (
-                          <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div className="flex-1 h-1.5 bg-edge rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${
                                 pct === 100
-                                  ? "bg-green-500"
+                                  ? "bg-success"
                                   : pct > 50
-                                    ? "bg-blue-500"
-                                    : "bg-orange-400"
+                                    ? "bg-primary"
+                                    : "bg-warning"
                               }`}
                               style={{ width: `${pct}%` }}
                             />
@@ -1352,15 +948,15 @@ export default function WeeklyRoutine({
           return (
             <div
               key={dayIdx}
-              className={`bg-white/80 dark:bg-gray-900/40 border rounded-xl overflow-hidden ${
+              className={`bg-surface border rounded-xl overflow-hidden ${
                 isToday
-                  ? "border-blue-400 dark:border-blue-600 ring-1 ring-blue-200 dark:ring-blue-800"
-                  : "border-gray-200 dark:border-gray-700"
+                  ? "border-primary ring-1 ring-focus/40"
+                  : "border-edge"
               }`}
             >
               <div
                 className={`px-4 py-2 font-semibold text-sm ${
-                  isToday ? "bg-blue-600 text-white" : "bg-blue-800 text-white"
+                  isToday ? "bg-primary text-primary-fg" : "bg-primary-hover text-primary-fg"
                 }`}
               >
                 {name}
@@ -1400,7 +996,7 @@ export default function WeeklyRoutine({
                   );
                   const mobileDropHighlight =
                     dragOverCell === mobileSectionDropKey
-                      ? "ring-1 ring-blue-300 dark:ring-blue-700"
+                      ? "ring-1 ring-focus"
                       : "";
                   return (
                     <div
@@ -1408,7 +1004,7 @@ export default function WeeklyRoutine({
                       className={`rounded-md ${mobileDropHighlight}`}
                       {...mobileDropHandlers}
                     >
-                      <div className="text-[10px] font-bold text-blue-100 bg-blue-900/80 dark:bg-blue-900/60 px-2 py-0.5 rounded-md mb-1.5 inline-block">
+                      <div className="text-[10px] font-bold text-primary bg-primary-soft px-2 py-0.5 rounded-md mb-1.5 inline-block">
                         {sectionName}
                       </div>
                       <div className="space-y-2">
@@ -1426,8 +1022,8 @@ export default function WeeklyRoutine({
                               key={task._id}
                               className={`flex items-center gap-2 p-2 rounded-lg ${
                                 task.completed
-                                  ? "bg-green-50 dark:bg-green-900/10"
-                                  : "bg-gray-50 dark:bg-gray-800/30"
+                                  ? "bg-success-soft"
+                                  : "bg-surface-2"
                               } ${canDrag ? "cursor-grab active:cursor-grabbing" : ""}`}
                               draggable={canDrag}
                               onDragStart={(e) => {
@@ -1461,7 +1057,7 @@ export default function WeeklyRoutine({
                                 ) : (
                                   <button
                                     type="button"
-                                    className="w-5 h-5 rounded border shrink-0 flex items-center justify-center transition-colors border-dashed border-amber-400/70 dark:border-amber-500/70 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                    className="w-5 h-5 rounded border shrink-0 flex items-center justify-center transition-colors border-dashed border-warning/70 hover:border-success hover:bg-success-soft"
                                     onClick={() => {
                                       const rtId = task.routineTask
                                         ? typeof task.routineTask === "object"
@@ -1487,8 +1083,8 @@ export default function WeeklyRoutine({
                                   type="button"
                                   className={`w-5 h-5 rounded border shrink-0 flex items-center justify-center transition-colors ${
                                     task.completed
-                                      ? "bg-green-500 border-green-500 text-white"
-                                      : "border-gray-300 dark:border-gray-600 hover:border-green-400"
+                                      ? "bg-success border-success text-white"
+                                      : "border-edge hover:border-success"
                                   }`}
                                   onClick={() =>
                                     onToggleTask(
@@ -1506,8 +1102,8 @@ export default function WeeklyRoutine({
                               <span
                                 className={`flex-1 text-sm ${
                                   task.completed
-                                    ? "line-through text-gray-400"
-                                    : "text-gray-700 dark:text-gray-200"
+                                    ? "line-through text-fg-subtle"
+                                    : "text-fg"
                                 }`}
                                 title={task.notes || task.taskName}
                               >
@@ -1515,7 +1111,7 @@ export default function WeeklyRoutine({
                               </span>
                               {task.notes ? (
                                 <span
-                                  className="shrink-0 text-amber-500 dark:text-amber-400"
+                                  className="shrink-0 text-warning"
                                   title={task.notes}
                                   aria-label="Has notes"
                                 >
@@ -1523,7 +1119,7 @@ export default function WeeklyRoutine({
                                 </span>
                               ) : null}
                               {task.estimatedTime ? (
-                                <span className="text-xs text-gray-400 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
+                                <span className="text-xs text-fg-subtle px-1.5 py-0.5 bg-surface-2 rounded">
                                   {task.estimatedTime}m
                                 </span>
                               ) : null}
@@ -1534,7 +1130,7 @@ export default function WeeklyRoutine({
                                       editBtnRefs.current[editKey] = el;
                                     }}
                                     type="button"
-                                    className="p-1 text-gray-400 hover:text-blue-500"
+                                    className="p-1 text-fg-subtle hover:text-primary"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setEditingTaskKey((cur) =>
@@ -1572,7 +1168,7 @@ export default function WeeklyRoutine({
                               addBtnRefs.current[addKey] = el;
                             }}
                             type="button"
-                            className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border border-dashed border-gray-200 dark:border-gray-700"
+                            className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs text-fg-subtle hover:text-primary hover:bg-primary-soft transition-colors border border-dashed border-edge"
                             onClick={() =>
                               setAddingDay(addingDay === addKey ? null : addKey)
                             }
@@ -1585,6 +1181,7 @@ export default function WeeklyRoutine({
                               <AddTaskPopover
                                 routineTasks={sectionRoutineTasks}
                                 todoTasks={sectionTodoTasks}
+                                projectNameMap={projectNameMap}
                                 projectId={
                                   sectionKey === "other" ? null : sectionKey
                                 }
@@ -1610,7 +1207,7 @@ export default function WeeklyRoutine({
                         addBtnRefs.current[`mobile-${dayIdx}`] = el;
                       }}
                       type="button"
-                      className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border border-dashed border-gray-200 dark:border-gray-700"
+                      className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs text-fg-subtle hover:text-primary hover:bg-primary-soft transition-colors border border-dashed border-edge"
                       onClick={() =>
                         setAddingDay(addingDay === dayIdx ? null : dayIdx)
                       }
@@ -1623,6 +1220,7 @@ export default function WeeklyRoutine({
                         <AddTaskPopover
                           routineTasks={routineTasks}
                           todoTasks={todoTasks}
+                          projectNameMap={projectNameMap}
                           projectId={null}
                           onAdd={(data) => onAddTask(dayIdx, data)}
                           onClose={() => setAddingDay(null)}
@@ -1637,24 +1235,24 @@ export default function WeeklyRoutine({
               </div>
 
               {/* Day total + progress */}
-              <div className="px-4 py-2 bg-gray-50/80 dark:bg-gray-800/40 border-t border-gray-100 dark:border-gray-800">
+              <div className="px-4 py-2 bg-surface-2 border-t border-edge">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-gray-600 dark:text-gray-400">
+                  <span className="font-medium text-fg-muted">
                     Total: {formatMinutes(totalMin)}
                   </span>
                   {totalMin > 0 ? (
-                    <span className="text-gray-400">{pct}%</span>
+                    <span className="text-fg-subtle">{pct}%</span>
                   ) : null}
                 </div>
                 {totalMin > 0 ? (
-                  <div className="mt-1 h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className="mt-1 h-1.5 w-full bg-edge rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all ${
                         pct === 100
-                          ? "bg-green-500"
+                          ? "bg-success"
                           : pct > 50
-                            ? "bg-blue-500"
-                            : "bg-orange-400"
+                            ? "bg-primary"
+                            : "bg-warning"
                       }`}
                       style={{ width: `${pct}%` }}
                     />
@@ -1665,6 +1263,8 @@ export default function WeeklyRoutine({
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 }

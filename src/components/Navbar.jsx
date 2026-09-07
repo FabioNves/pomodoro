@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
-import ThemeToggle from "./ThemeToggle";
 import { validateStoredToken } from "@/utils/tokenValidator";
 
 /* ── Nav icon components ───────────────────────────────── */
@@ -98,8 +97,26 @@ function IconSettings({ className = "" }) {
   );
 }
 
+function IconDashboard({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <rect x="3" y="3" width="8" height="8" rx="1.5" />
+      <rect x="13" y="3" width="8" height="5" rx="1.5" />
+      <rect x="13" y="11" width="8" height="10" rx="1.5" />
+      <rect x="3" y="14" width="8" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
 const NAV_ITEMS = [
-  { href: "/", label: "Timer", Icon: IconTimer },
+  { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
+  { href: "/timer", label: "Timer", Icon: IconTimer },
   { href: "/planner", label: "Planner", Icon: IconTasks },
   { href: "/analytics", label: "Analytics", Icon: IconAnalytics },
   { href: "/settings", label: "Settings", Icon: IconSettings },
@@ -169,14 +186,14 @@ const Navbar = ({ user, onLogout }) => {
 
   return (
     <>
-      <div className="fixed top-0 left-0 right-0 z-50 px-4 pt-4">
+      <div className="fixed top-0 left-0 right-0 z-50 px-4 pt-3">
         <motion.nav
-          className="max-w-7xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-xl transition-colors duration-300"
+          className="max-w-7xl mx-auto bg-surface/80 backdrop-blur-xl rounded-xl border border-edge shadow-lg transition-colors duration-300"
           initial={{ y: -100, opacity: 0, scale: 0.95 }}
           animate={{ y: 0, opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
         >
-          <div className="px-6 py-4 flex items-center justify-between">
+          <div className="px-4 py-1.5 flex items-center justify-between">
             {/* Logo Section - Left */}
             <motion.div
               className="flex items-center"
@@ -188,18 +205,18 @@ const Navbar = ({ user, onLogout }) => {
                 <img
                   src="/logo/pomodrive-svg/pomoDrive-horizontal-light.svg"
                   alt="PomoDRIVE"
-                  className="h-10 block dark:hidden"
+                  className="h-7 block dark:hidden"
                 />
                 <img
                   src="/logo/pomodrive-svg/pomoDrive-horizontal.svg"
                   alt="PomoDRIVE"
-                  className="h-10 hidden dark:block"
+                  className="h-7 hidden dark:block"
                 />
               </Link>
             </motion.div>
 
             {/* Navigation Items - Center */}
-            <div className="hidden md:flex items-center gap-2 bg-gray-50/80 dark:bg-gray-800/50 px-4 py-2 rounded-xl border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm">
+            <div className="hidden md:flex items-center gap-1 bg-surface-2/80 px-1.5 py-1 rounded-lg border border-edge backdrop-blur-sm">
               {NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.href}
@@ -211,29 +228,28 @@ const Navbar = ({ user, onLogout }) => {
             </div>
 
             {/* Auth Section - Right */}
-            <div className="flex items-center space-x-4">
-              <ThemeToggle />
+            <div className="flex items-center space-x-3">
               {user ? (
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-3">
                   <motion.div
-                    className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-[#88b6ff]/10 to-[#014acd]/10 dark:from-[#88b6ff]/20 dark:to-[#014acd]/20 px-4 py-2 rounded-xl border border-[#88b6ff]/30 dark:border-[#88b6ff]/40"
+                    className="hidden sm:flex items-center gap-2 bg-primary-soft px-2.5 py-1 rounded-lg border border-edge"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2 }}
                   >
-                    <div className="w-8 h-8 bg-gradient-to-br from-[#88b6ff] to-[#014acd] rounded-full flex items-center justify-center shadow-lg shadow-[#88b6ff]/25">
-                      <span className="text-white text-sm font-semibold">
+                    <div className="w-6 h-6 bg-gradient-to-br from-gradient-start to-gradient-end rounded-full flex items-center justify-center shadow-md shadow-primary/25">
+                      <span className="text-primary-fg text-[11px] font-semibold">
                         {user.name?.charAt(0).toUpperCase()}
                       </span>
                     </div>
-                    <span className="text-gray-800 dark:text-gray-200 text-sm font-semibold">
+                    <span className="text-fg text-xs font-semibold">
                       {user.name}
                     </span>
                   </motion.div>
                   {/* Desktop logout (mobile logout lives in burger menu) */}
                   <motion.button
                     onClick={handleLogout}
-                    className="hidden md:inline-flex px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg shadow-red-500/25 transition-all duration-200"
+                    className="hidden md:inline-flex px-3.5 py-1.5 bg-danger hover:bg-danger-hover text-white text-sm font-semibold rounded-lg shadow-md shadow-danger/25 transition-all duration-200"
                     whileHover={{ scale: 1.05, y: -2 }}
                     whileTap={{ scale: 0.95 }}
                   >
@@ -243,7 +259,7 @@ const Navbar = ({ user, onLogout }) => {
               ) : (
                 <motion.button
                   onClick={handleLogin}
-                  className="px-6 py-2.5 bg-gradient-to-r from-[#88b6ff] to-[#014acd] hover:from-[#014acd] hover:to-[#88b6ff] text-white font-semibold rounded-xl shadow-lg shadow-[#88b6ff]/30 transition-all duration-200"
+                  className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-primary-fg text-sm font-semibold rounded-lg shadow-md shadow-primary/30 transition-all duration-200"
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   initial={{ opacity: 0, x: 20 }}
@@ -261,7 +277,7 @@ const Navbar = ({ user, onLogout }) => {
                 type="button"
                 aria-label={user ? "Logout" : "Login"}
                 onClick={user ? handleLogout : handleLogin}
-                className="text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors"
+                className="text-fg-muted hover:text-fg transition-colors"
               >
                 {user ? (
                   <svg
@@ -299,8 +315,8 @@ const Navbar = ({ user, onLogout }) => {
       </div>
 
       {/* Mobile Sub-navbar with icons */}
-      <div className="fixed top-[76px] left-0 right-0 z-50 md:hidden px-4 pt-1">
-        <div className="max-w-7xl mx-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-xl border border-gray-200/60 dark:border-gray-700/60 shadow-lg">
+      <div className="fixed top-[58px] left-0 right-0 z-50 md:hidden px-4 pt-1">
+        <div className="max-w-7xl mx-auto bg-surface/80 backdrop-blur-xl rounded-lg border border-edge shadow-md">
           <div className="flex items-center justify-around px-2 py-1.5">
             {NAV_ITEMS.map((item) => (
               <MobileNavIcon
@@ -325,7 +341,7 @@ const Navbar = ({ user, onLogout }) => {
             onClick={() => setShowLoginModal(false)}
           >
             <motion.div
-              className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 border border-gray-200 dark:border-gray-700 shadow-2xl transition-colors duration-300"
+              className="bg-surface rounded-2xl p-8 max-w-md w-full mx-4 border border-edge shadow-2xl transition-colors duration-300"
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -333,10 +349,10 @@ const Navbar = ({ user, onLogout }) => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                <h2 className="text-2xl font-bold text-fg mb-2">
                   Welcome to PomoDRIVE
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-fg-muted">
                   Sign in to track your productivity sessions
                 </p>
               </div>
@@ -353,13 +369,13 @@ const Navbar = ({ user, onLogout }) => {
 
                 <button
                   onClick={() => setShowLoginModal(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="text-fg-subtle hover:text-fg transition-colors"
                 >
                   Cancel
                 </button>
               </div>
 
-              <div className="text-center text-sm text-gray-500 mt-4">
+              <div className="text-center text-sm text-fg-subtle mt-4">
                 <p>Your data is secure and private</p>
               </div>
             </motion.div>
@@ -381,10 +397,10 @@ const NavLink = ({ href, label, Icon }) => {
   return (
     <Link href={href} aria-current={isActive ? "page" : undefined}>
       <motion.span
-        className={`relative flex items-center gap-1.5 px-4 py-2 transition-colors duration-200 cursor-pointer group rounded-lg ${
+        className={`relative flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors duration-200 cursor-pointer group rounded-md ${
           isActive
-            ? "text-gray-900 dark:text-white font-semibold"
-            : "text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
+            ? "text-fg font-semibold"
+            : "text-fg-muted hover:text-fg font-medium"
         }`}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
@@ -393,7 +409,7 @@ const NavLink = ({ href, label, Icon }) => {
         <Icon className="w-4 h-4" />
         {label}
         <motion.span
-          className={`absolute inset-0 bg-gradient-to-r from-[#88b6ff]/10 to-[#014acd]/10 rounded-lg -z-10 transition-opacity ${
+          className={`absolute inset-0 bg-primary-soft rounded-lg -z-10 transition-opacity ${
             isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           }`}
         ></motion.span>
@@ -416,8 +432,8 @@ const MobileNavIcon = ({ href, label, Icon }) => {
       aria-current={isActive ? "page" : undefined}
       className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors duration-200 ${
         isActive
-          ? "text-blue-600 dark:text-blue-400 font-semibold bg-blue-50/80 dark:bg-blue-900/30"
-          : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          ? "text-primary font-semibold bg-primary-soft"
+          : "text-fg-subtle hover:text-fg-muted"
       }`}
     >
       <Icon className="w-5 h-5" />

@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { jwtDecode } from "jwt-decode";
 import { generateSessionId } from "@/utils/sessionUtils";
 import { getMondayOf, weekLabel } from "@/utils/timeUtils";
+import { COLOR_PALETTES } from "@/lib/habitPalettes";
 import WeeklyRoutine from "@/components/WeeklyRoutine";
 import RoutineTasksView from "@/components/RoutineTasksView";
 
@@ -239,12 +240,12 @@ function getProjectColorMeta(headerColor) {
 function ProjectOptionsMenu({ project, onDelete, onSetColor }) {
   return (
     <motion.div
-      className="w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden"
+      className="w-56 bg-surface border border-edge rounded-lg shadow-lg overflow-hidden"
       initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
     >
-      <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+      <div className="px-3 py-2 text-xs uppercase tracking-wide text-fg-subtle">
         Header color
       </div>
       <div className="px-3 pb-2 grid grid-cols-6 gap-2">
@@ -252,7 +253,7 @@ function ProjectOptionsMenu({ project, onDelete, onSetColor }) {
           <button
             key={c.key}
             type="button"
-            className={`w-5 h-5 rounded-full ${c.swatchClass} border border-white/40 dark:border-black/20 hover:scale-105 transition-transform`}
+            className={`w-5 h-5 rounded-full ${c.swatchClass} border border-edge hover:scale-105 transition-transform`}
             aria-label={`Set color to ${c.label}`}
             onClick={(e) => {
               e.stopPropagation();
@@ -261,10 +262,10 @@ function ProjectOptionsMenu({ project, onDelete, onSetColor }) {
           />
         ))}
       </div>
-      <div className="border-t border-gray-200 dark:border-gray-700" />
+      <div className="border-t border-edge" />
       <button
         type="button"
-        className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+        className="w-full text-left px-3 py-2 text-sm text-danger hover:bg-surface-hover"
         onClick={(e) => {
           e.stopPropagation();
           onDelete(project);
@@ -283,8 +284,8 @@ function ToggleCircle({ checked, onToggle }) {
       onClick={onToggle}
       className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
         checked
-          ? "bg-[#014acd] border-[#014acd]"
-          : "bg-transparent border-gray-300 dark:border-gray-600"
+          ? "bg-primary border-primary"
+          : "bg-transparent border-edge"
       }`}
       whileTap={{ scale: 0.95 }}
       aria-pressed={checked}
@@ -294,7 +295,7 @@ function ToggleCircle({ checked, onToggle }) {
         <motion.svg
           viewBox="0 0 24 24"
           fill="none"
-          stroke="white"
+          stroke="var(--primary-fg)"
           strokeWidth="3"
           className="w-3.5 h-3.5"
           initial={{ pathLength: 0 }}
@@ -354,7 +355,7 @@ function TaskRow({
   return (
     <div>
       <div
-        className={`group flex items-start gap-2 py-1.5 rounded-md hover:bg-white/70 dark:hover:bg-gray-800/40 transition-colors px-2 ${
+        className={`group flex items-start gap-2 py-1.5 rounded-md hover:bg-surface-hover transition-colors px-2 ${
           depth > 0 ? "ml-5" : ""
         } ${canDrag ? "cursor-grab active:cursor-grabbing" : ""}`}
         draggable={canDrag}
@@ -394,8 +395,8 @@ function TaskRow({
           <div
             className={`text-sm leading-5 break-words ${
               task.completed
-                ? "text-gray-500 dark:text-gray-400 line-through"
-                : "text-gray-900 dark:text-gray-100"
+                ? "text-fg-subtle line-through"
+                : "text-fg"
             }`}
           >
             {task.title}
@@ -404,7 +405,7 @@ function TaskRow({
 
         {task.scheduledDate ? (
           <span
-            className="shrink-0 text-[#2563eb] dark:text-blue-400 self-center"
+            className="shrink-0 text-primary self-center"
             title={`Scheduled for ${scheduledDateDisplay}`}
             aria-label={`Scheduled for ${scheduledDateDisplay}`}
           >
@@ -415,7 +416,7 @@ function TaskRow({
         <div className="relative">
           <button
             type="button"
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white p-1"
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-fg-subtle hover:text-fg p-1"
             onClick={(e) => {
               e.stopPropagation();
               setMenuOpen((v) => !v);
@@ -428,14 +429,14 @@ function TaskRow({
           <AnimatePresence>
             {menuOpen ? (
               <motion.div
-                className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-20"
+                className="absolute right-0 mt-1 w-40 bg-surface border border-edge rounded-lg shadow-lg overflow-hidden z-20"
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
               >
                 <button
                   type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover"
                   onClick={() => {
                     setMenuOpen(false);
                     setShowSubtaskInput(true);
@@ -445,7 +446,7 @@ function TaskRow({
                 </button>
                 <button
                   type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover"
                   onClick={() => {
                     setMenuOpen(false);
                     setDateDraft(scheduledDateValue);
@@ -457,7 +458,7 @@ function TaskRow({
                 {task.scheduledDate ? (
                   <button
                     type="button"
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover"
                     onClick={() => {
                       setMenuOpen(false);
                       onSetScheduledDate?.(task, null);
@@ -466,10 +467,10 @@ function TaskRow({
                     Clear date
                   </button>
                 ) : null}
-                <div className="border-t border-gray-200 dark:border-gray-700" />
+                <div className="border-t border-edge" />
                 <button
                   type="button"
-                  className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="w-full text-left px-3 py-2 text-sm text-danger hover:bg-surface-hover"
                   onClick={() => {
                     setMenuOpen(false);
                     onDeleteTask?.(task);
@@ -495,7 +496,7 @@ function TaskRow({
               value={subtaskTitle}
               onChange={(e) => setSubtaskTitle(e.target.value)}
               placeholder="New subtask"
-              className="flex-1 px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+              className="flex-1 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   const title = subtaskTitle.trim();
@@ -510,7 +511,7 @@ function TaskRow({
             />
             <button
               type="button"
-              className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm"
+              className="px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm"
               onClick={() => {
                 const title = subtaskTitle.trim();
                 if (!title) return;
@@ -537,7 +538,7 @@ function TaskRow({
               type="date"
               value={dateDraft}
               onChange={(e) => setDateDraft(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+              className="flex-1 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   onSetScheduledDate?.(task, dateDraft || null);
@@ -549,7 +550,7 @@ function TaskRow({
             />
             <button
               type="button"
-              className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm"
+              className="px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm"
               onClick={() => {
                 onSetScheduledDate?.(task, dateDraft || null);
                 setShowDateInput(false);
@@ -559,7 +560,7 @@ function TaskRow({
             </button>
             <button
               type="button"
-              className="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm"
+              className="px-3 py-2 rounded-lg bg-surface-2 text-fg text-sm"
               onClick={() => setShowDateInput(false)}
             >
               Cancel
@@ -625,17 +626,17 @@ function AddTaskModal({
           }}
         >
           <motion.div
-            className="w-full max-w-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl overflow-hidden"
+            className="w-full max-w-sm bg-surface border border-edge rounded-2xl shadow-xl overflow-hidden"
             initial={{ opacity: 0, y: 8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
           >
                 <div className="px-5 pt-4 pb-2">
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-base font-semibold text-fg">
                     New task
                   </h3>
                   {projectName ? (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                    <p className="text-xs text-fg-subtle mt-0.5 truncate">
                       in {projectName}
                     </p>
                   ) : null}
@@ -648,40 +649,40 @@ function AddTaskModal({
                   className="px-5 pb-5 space-y-3"
                 >
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                    <label className="block text-xs font-medium text-fg-muted mb-1">
                       Title
                     </label>
                     <input
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="Task title"
-                      className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none focus:ring-2 focus:ring-[#2563eb]/40"
+                      className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none focus:ring-2 focus:ring-focus/40"
                       autoFocus
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                      Date <span className="text-gray-400">(optional)</span>
+                    <label className="block text-xs font-medium text-fg-muted mb-1">
+                      Date <span className="text-fg-subtle">(optional)</span>
                     </label>
                     <input
                       type="date"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none focus:ring-2 focus:ring-[#2563eb]/40"
+                      className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none focus:ring-2 focus:ring-focus/40"
                     />
                   </div>
                   <div className="flex justify-end gap-2 pt-1">
                     <button
                       type="button"
                       onClick={onCancel}
-                      className="px-3 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm hover:bg-gray-300 dark:hover:bg-gray-600"
+                      className="px-3 py-2 rounded-lg bg-surface-2 text-fg text-sm hover:bg-surface-hover"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={!title.trim()}
-                      className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Add task
                     </button>
@@ -758,13 +759,13 @@ function ProjectColumn({
 
   return (
     <div className="w-full md:w-[340px] shrink-0">
-      <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-visible">
+      <div className="bg-surface border border-edge rounded-2xl shadow-sm overflow-visible">
         <div
-          className={`flex items-center justify-between px-4 py-3 border-b border-gray-200/70 dark:border-gray-700/70 rounded-t-2xl ${collapsed ? "rounded-b-2xl md:rounded-b-none" : ""} ${colorMeta.headerClass}`}
+          className={`flex items-center justify-between px-4 py-3 border-b border-edge rounded-t-2xl ${collapsed ? "rounded-b-2xl md:rounded-b-none" : ""} ${colorMeta.headerClass}`}
         >
           <button
             type="button"
-            className="md:hidden font-semibold text-gray-900 dark:text-white truncate flex items-center gap-2"
+            className="md:hidden font-semibold text-fg truncate flex items-center gap-2"
             onClick={() => setCollapsed((v) => !v)}
           >
             <svg
@@ -782,13 +783,13 @@ function ProjectColumn({
             </svg>
             {project.name}
           </button>
-          <div className="hidden md:block font-semibold text-gray-900 dark:text-white truncate">
+          <div className="hidden md:block font-semibold text-fg truncate">
             {project.name}
           </div>
           <div className="relative">
             <button
               type="button"
-              className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white p-1"
+              className="text-fg-subtle hover:text-fg p-1"
               aria-label="Project menu"
               onClick={(e) => {
                 e.stopPropagation();
@@ -822,7 +823,7 @@ function ProjectColumn({
             <div className="px-2 pb-2">
               <button
                 type="button"
-                className="w-full text-left text-sm text-[#2563eb] hover:text-[#1d4ed8] font-medium"
+                className="w-full text-left text-sm text-primary hover:text-primary-hover font-medium"
                 onClick={() => {
                   setNewTitle("");
                   setNewDate("");
@@ -853,10 +854,10 @@ function ProjectColumn({
 
             <div className="px-2 mt-1">
               <div className="flex items-center gap-2 py-1 px-1">
-                <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <span className="text-[11px] font-semibold text-fg-subtle uppercase tracking-wider whitespace-nowrap">
                   This Week
                 </span>
-                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700/60" />
+                <div className="flex-1 h-px bg-edge" />
               </div>
             </div>
             <div
@@ -895,7 +896,7 @@ function ProjectColumn({
                   />
                 ))
               ) : (
-                <div className="px-4 py-2 text-xs text-gray-400 dark:text-gray-500 italic">
+                <div className="px-4 py-2 text-xs text-fg-subtle italic">
                   No tasks this week
                 </div>
               )}
@@ -903,10 +904,10 @@ function ProjectColumn({
 
             <div className="px-2 mt-3">
               <div className="flex items-center gap-2 py-1 px-1">
-                <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <span className="text-[11px] font-semibold text-fg-subtle uppercase tracking-wider whitespace-nowrap">
                   Later
                 </span>
-                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700/60" />
+                <div className="flex-1 h-px bg-edge" />
               </div>
             </div>
             <div
@@ -945,7 +946,7 @@ function ProjectColumn({
                   />
                 ))
               ) : (
-                <div className="px-4 py-2 text-xs text-gray-400 dark:text-gray-500 italic">
+                <div className="px-4 py-2 text-xs text-fg-subtle italic">
                   No tasks scheduled for later
                 </div>
               )}
@@ -954,7 +955,7 @@ function ProjectColumn({
             <div className="px-2 pb-3">
               <button
                 type="button"
-                className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-white/70 dark:hover:bg-gray-800/40 text-sm text-gray-700 dark:text-gray-200"
+                className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-surface-hover text-sm text-fg-muted"
                 onClick={() => setCompletedOpen((v) => !v)}
               >
                 <span>Completed ({completedTopLevel.length})</span>
@@ -985,7 +986,7 @@ function ProjectColumn({
                         ))}
                       </div>
                     ) : (
-                      <div className="px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                      <div className="px-2 py-2 text-sm text-fg-subtle">
                         No completed tasks
                       </div>
                     )}
@@ -1007,7 +1008,7 @@ function ProjectColumn({
                     );
                   }
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-primary hover:bg-primary-soft transition-colors"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -1036,75 +1037,6 @@ function ProjectColumn({
    ║  HABITS TAB — palettes, helpers, components          ║
    ╚══════════════════════════════════════════════════════╝ */
 
-const COLOR_PALETTES = {
-  blue: {
-    label: "Blue",
-    swatch: "bg-blue-500",
-    shades: [
-      "bg-blue-100 dark:bg-blue-900/40",
-      "bg-blue-200 dark:bg-blue-800/50",
-      "bg-blue-400 dark:bg-blue-600/70",
-      "bg-blue-500 dark:bg-blue-500",
-      "bg-blue-700 dark:bg-blue-400",
-    ],
-  },
-  green: {
-    label: "Green",
-    swatch: "bg-green-500",
-    shades: [
-      "bg-green-100 dark:bg-green-900/40",
-      "bg-green-200 dark:bg-green-800/50",
-      "bg-green-400 dark:bg-green-600/70",
-      "bg-green-500 dark:bg-green-500",
-      "bg-green-700 dark:bg-green-400",
-    ],
-  },
-  red: {
-    label: "Red",
-    swatch: "bg-red-500",
-    shades: [
-      "bg-red-100 dark:bg-red-900/40",
-      "bg-red-200 dark:bg-red-800/50",
-      "bg-red-400 dark:bg-red-600/70",
-      "bg-red-500 dark:bg-red-500",
-      "bg-red-700 dark:bg-red-400",
-    ],
-  },
-  orange: {
-    label: "Orange",
-    swatch: "bg-orange-500",
-    shades: [
-      "bg-orange-100 dark:bg-orange-900/40",
-      "bg-orange-200 dark:bg-orange-800/50",
-      "bg-orange-400 dark:bg-orange-600/70",
-      "bg-orange-500 dark:bg-orange-500",
-      "bg-orange-700 dark:bg-orange-400",
-    ],
-  },
-  purple: {
-    label: "Purple",
-    swatch: "bg-purple-500",
-    shades: [
-      "bg-purple-100 dark:bg-purple-900/40",
-      "bg-purple-200 dark:bg-purple-800/50",
-      "bg-purple-400 dark:bg-purple-600/70",
-      "bg-purple-500 dark:bg-purple-500",
-      "bg-purple-700 dark:bg-purple-400",
-    ],
-  },
-  yellow: {
-    label: "Yellow",
-    swatch: "bg-yellow-500",
-    shades: [
-      "bg-yellow-100 dark:bg-yellow-900/40",
-      "bg-yellow-200 dark:bg-yellow-700/50",
-      "bg-yellow-400 dark:bg-yellow-600/70",
-      "bg-yellow-500 dark:bg-yellow-500",
-      "bg-yellow-600 dark:bg-yellow-400",
-    ],
-  },
-};
-
 function getPalette(color) {
   return COLOR_PALETTES[color] || COLOR_PALETTES.blue;
 }
@@ -1119,7 +1051,7 @@ function autoShadeIndex(value, maxLevel, shadeCount = 5) {
 }
 
 function getShadeClass(color, level, maxLevel) {
-  if (!level) return "bg-gray-100 dark:bg-gray-800/60";
+  if (!level) return "bg-surface-2";
   const palette = getPalette(color);
   return palette.shades[autoShadeIndex(level, maxLevel, palette.shades.length)];
 }
@@ -1177,12 +1109,12 @@ function LevelColorPicker({ level, fallbackColor, maxLevel, onPick }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`w-4 h-4 rounded-sm ring-1 ring-black/10 dark:ring-white/15 ${levelShadeClass(level, fallbackColor, maxLevel)}`}
+        className={`w-4 h-4 rounded-sm ring-1 ring-edge ${levelShadeClass(level, fallbackColor, maxLevel)}`}
         aria-label="Choose level color"
         title="Choose color"
       />
       {open ? (
-        <div className="absolute z-50 top-6 left-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-2">
+        <div className="absolute z-50 top-6 left-0 bg-surface border border-edge rounded-lg shadow-xl p-2">
           <div className="flex flex-col gap-1">
             {Object.entries(COLOR_PALETTES).map(([key, pal]) => (
               <div key={key} className="flex gap-1">
@@ -1194,7 +1126,7 @@ function LevelColorPicker({ level, fallbackColor, maxLevel, onPick }) {
                       type="button"
                       className={`w-5 h-5 rounded-sm ${sc} transition-transform ${
                         selected
-                          ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-900"
+                          ? "ring-2 ring-focus ring-offset-1 ring-offset-bg"
                           : "hover:scale-110"
                       }`}
                       onClick={() => {
@@ -1295,7 +1227,7 @@ function YearHeatmap({ year, habit, entriesByDate, onDayClick, selectedDate }) {
           {monthLabels.map((m, idx) => (
             <div
               key={idx}
-              className="text-[10px] text-gray-500 dark:text-gray-400 absolute"
+              className="text-[10px] text-fg-subtle absolute"
               style={{
                 position: "relative",
                 left: 0,
@@ -1315,7 +1247,7 @@ function YearHeatmap({ year, habit, entriesByDate, onDayClick, selectedDate }) {
             {dayLabels.map((label, i) => (
               <div
                 key={i}
-                className="h-[11px] flex items-center text-[10px] text-gray-400 dark:text-gray-500 leading-none"
+                className="h-[11px] flex items-center text-[10px] text-fg-subtle leading-none"
               >
                 {label}
               </div>
@@ -1347,9 +1279,9 @@ function YearHeatmap({ year, habit, entriesByDate, onDayClick, selectedDate }) {
                       type="button"
                       className={`w-[11px] h-[11px] rounded-[2px] transition-all ${shadeClass} ${
                         isSelected
-                          ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-900"
+                          ? "ring-2 ring-focus ring-offset-1 ring-offset-bg"
                           : ""
-                      } ${isToday && !isSelected ? "ring-1 ring-gray-400 dark:ring-gray-500" : ""} hover:ring-2 hover:ring-blue-400 hover:ring-offset-1 dark:hover:ring-offset-gray-900`}
+                      } ${isToday && !isSelected ? "ring-1 ring-edge-strong" : ""} hover:ring-2 hover:ring-focus hover:ring-offset-1 hover:ring-offset-bg`}
                       onClick={() => onDayClick(dateStr)}
                       title={`${dateStr}${level ? ` — ${habit.levels?.find((l) => l.value === level)?.label || `Level ${level}`}` : ""}`}
                     />
@@ -1361,10 +1293,10 @@ function YearHeatmap({ year, habit, entriesByDate, onDayClick, selectedDate }) {
         </div>
 
         <div className="flex items-center gap-1 mt-2 ml-8">
-          <span className="text-[10px] text-gray-400 dark:text-gray-500 mr-1">
+          <span className="text-[10px] text-fg-subtle mr-1">
             Less
           </span>
-          <div className="w-[11px] h-[11px] rounded-[2px] bg-gray-100 dark:bg-gray-800/60" />
+          <div className="w-[11px] h-[11px] rounded-[2px] bg-surface-2" />
           {(habit.levels || [])
             .sort((a, b) => a.value - b.value)
             .map((l, i) => (
@@ -1374,7 +1306,7 @@ function YearHeatmap({ year, habit, entriesByDate, onDayClick, selectedDate }) {
                 title={l.label}
               />
             ))}
-          <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-1">
+          <span className="text-[10px] text-fg-subtle ml-1">
             More
           </span>
         </div>
@@ -1399,12 +1331,12 @@ function LevelPicker({ habit, date, currentLevel, onSetLevel, onClose }) {
   return (
     <motion.div
       ref={ref}
-      className="absolute z-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 min-w-[180px]"
+      className="absolute z-40 bg-surface border border-edge rounded-xl shadow-xl p-3 min-w-[180px]"
       initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
     >
-      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+      <div className="text-xs font-medium text-fg-subtle mb-2">
         {date}
       </div>
       <div className="flex flex-col gap-1">
@@ -1412,15 +1344,15 @@ function LevelPicker({ habit, date, currentLevel, onSetLevel, onClose }) {
           type="button"
           className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors ${
             currentLevel === 0
-              ? "bg-gray-100 dark:bg-gray-800 font-medium"
-              : "hover:bg-gray-50 dark:hover:bg-gray-800/60"
+              ? "bg-surface-2 font-medium"
+              : "hover:bg-surface-hover"
           }`}
           onClick={() => {
             onSetLevel(habit._id, date, 0);
             onClose();
           }}
         >
-          <div className="w-3 h-3 rounded-sm bg-gray-100 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-600" />
+          <div className="w-3 h-3 rounded-sm bg-surface-2 border border-edge" />
           None
         </button>
         {(habit.levels || [])
@@ -1431,8 +1363,8 @@ function LevelPicker({ habit, date, currentLevel, onSetLevel, onClose }) {
               type="button"
               className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors ${
                 currentLevel === l.value
-                  ? "bg-gray-100 dark:bg-gray-800 font-medium"
-                  : "hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                  ? "bg-surface-2 font-medium"
+                  : "hover:bg-surface-hover"
               }`}
               onClick={() => {
                 onSetLevel(habit._id, date, l.value);
@@ -1511,7 +1443,7 @@ function CreateHabitForm({ onSubmit, onCancel }) {
 
   return (
     <motion.div
-      className="mt-3 bg-white/90 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 rounded-xl p-4"
+      className="mt-3 bg-surface-2 border border-edge rounded-xl p-4"
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: "auto" }}
       exit={{ opacity: 0, height: 0 }}
@@ -1521,7 +1453,7 @@ function CreateHabitForm({ onSubmit, onCancel }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Habit name (e.g. Running)"
-          className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+          className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSubmit();
             if (e.key === "Escape") onCancel();
@@ -1529,7 +1461,7 @@ function CreateHabitForm({ onSubmit, onCancel }) {
           autoFocus
         />
         <div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+          <div className="text-xs text-fg-subtle mb-1.5">
             Color
           </div>
           <div className="flex gap-2">
@@ -1539,7 +1471,7 @@ function CreateHabitForm({ onSubmit, onCancel }) {
                 type="button"
                 className={`w-6 h-6 rounded-full ${pal.swatch} transition-transform ${
                   color === key
-                    ? "ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-gray-900 scale-110"
+                    ? "ring-2 ring-offset-2 ring-focus ring-offset-bg scale-110"
                     : "hover:scale-110"
                 }`}
                 onClick={() => setColor(key)}
@@ -1549,7 +1481,7 @@ function CreateHabitForm({ onSubmit, onCancel }) {
           </div>
         </div>
         <div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+          <div className="text-xs text-fg-subtle mb-1.5">
             Intensity Levels
           </div>
           <div className="space-y-1.5">
@@ -1565,12 +1497,12 @@ function CreateHabitForm({ onSubmit, onCancel }) {
                   value={l.label}
                   onChange={(e) => updateLevel(i, "label", e.target.value)}
                   placeholder={`Level ${i + 1} label`}
-                  className="flex-1 px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-xs outline-none"
+                  className="flex-1 px-2 py-1.5 rounded-lg bg-surface-2 border border-edge text-xs outline-none"
                 />
                 {levels.length > 1 ? (
                   <button
                     type="button"
-                    className="text-gray-400 hover:text-red-500 p-0.5"
+                    className="text-fg-subtle hover:text-danger p-0.5"
                     onClick={() => removeLevel(i)}
                   >
                     <IconTrash className="w-3.5 h-3.5" />
@@ -1582,7 +1514,7 @@ function CreateHabitForm({ onSubmit, onCancel }) {
           {levels.length < 10 ? (
             <button
               type="button"
-              className="mt-1.5 text-xs text-blue-500 hover:text-blue-600"
+              className="mt-1.5 text-xs text-primary hover:text-primary-hover"
               onClick={addLevel}
             >
               + Add level
@@ -1592,14 +1524,14 @@ function CreateHabitForm({ onSubmit, onCancel }) {
         <div className="flex gap-2">
           <button
             type="button"
-            className="flex-1 px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium"
+            className="flex-1 px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm font-medium"
             onClick={handleSubmit}
           >
             Create
           </button>
           <button
             type="button"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+            className="px-3 py-2 rounded-lg border border-edge text-sm hover:bg-surface-hover"
             onClick={onCancel}
           >
             Cancel
@@ -1680,29 +1612,29 @@ function EditHabitModal({ habit, onSave, onCancel }) {
       onClick={onCancel}
     >
       <motion.div
-        className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-6 w-[90vw] max-w-md max-h-[85vh] overflow-y-auto"
+        className="bg-surface border border-edge rounded-2xl shadow-2xl p-6 w-[90vw] max-w-md max-h-[85vh] overflow-y-auto"
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+        <h3 className="text-lg font-bold text-fg mb-4">
           Edit Habit
         </h3>
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
+            <label className="text-xs text-fg-subtle mb-1 block">
               Name
             </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
               autoFocus
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1.5 block">
+            <label className="text-xs text-fg-subtle mb-1.5 block">
               Color
             </label>
             <div className="flex gap-2">
@@ -1712,7 +1644,7 @@ function EditHabitModal({ habit, onSave, onCancel }) {
                   type="button"
                   className={`w-6 h-6 rounded-full ${pal.swatch} transition-transform ${
                     color === key
-                      ? "ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-gray-900 scale-110"
+                      ? "ring-2 ring-offset-2 ring-focus ring-offset-bg scale-110"
                       : "hover:scale-110"
                   }`}
                   onClick={() => setColor(key)}
@@ -1723,10 +1655,10 @@ function EditHabitModal({ habit, onSave, onCancel }) {
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
+              <div className="text-sm font-medium text-fg-muted">
                 Inverted habit
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
+              <div className="text-xs text-fg-subtle">
                 Auto-marked daily. Remove if you didn&apos;t do it.
               </div>
             </div>
@@ -1735,7 +1667,7 @@ function EditHabitModal({ habit, onSave, onCancel }) {
               role="switch"
               aria-checked={inverted}
               onClick={() => setInverted((v) => !v)}
-              className={`relative w-10 h-6 rounded-full transition-colors ${inverted ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"}`}
+              className={`relative w-10 h-6 rounded-full transition-colors ${inverted ? "bg-primary" : "bg-edge"}`}
             >
               <span
                 className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${inverted ? "translate-x-4" : ""}`}
@@ -1743,7 +1675,7 @@ function EditHabitModal({ habit, onSave, onCancel }) {
             </button>
           </div>
           <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1.5 block">
+            <label className="text-xs text-fg-subtle mb-1.5 block">
               Intensity Levels
             </label>
             <div className="space-y-1.5">
@@ -1759,12 +1691,12 @@ function EditHabitModal({ habit, onSave, onCancel }) {
                     value={l.label}
                     onChange={(e) => updateLevel(i, "label", e.target.value)}
                     placeholder={`Level ${i + 1} label`}
-                    className="flex-1 px-2 py-1.5 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-xs outline-none"
+                    className="flex-1 px-2 py-1.5 rounded-lg bg-surface-2 border border-edge text-xs outline-none"
                   />
                   {levels.length > 1 ? (
                     <button
                       type="button"
-                      className="text-gray-400 hover:text-red-500 p-0.5"
+                      className="text-fg-subtle hover:text-danger p-0.5"
                       onClick={() => removeLevel(i)}
                     >
                       <IconTrash className="w-3.5 h-3.5" />
@@ -1776,7 +1708,7 @@ function EditHabitModal({ habit, onSave, onCancel }) {
             {levels.length < 10 ? (
               <button
                 type="button"
-                className="mt-1.5 text-xs text-blue-500 hover:text-blue-600"
+                className="mt-1.5 text-xs text-primary hover:text-primary-hover"
                 onClick={addLevel}
               >
                 + Add level
@@ -1786,14 +1718,14 @@ function EditHabitModal({ habit, onSave, onCancel }) {
           <div className="flex gap-2 pt-2">
             <button
               type="button"
-              className="flex-1 px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium"
+              className="flex-1 px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm font-medium"
               onClick={handleSave}
             >
               Save
             </button>
             <button
               type="button"
-              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="px-3 py-2 rounded-lg border border-edge text-sm hover:bg-surface-hover"
               onClick={onCancel}
             >
               Cancel
@@ -1832,28 +1764,28 @@ function EditWeekModal({ weekPlan, projects, onSave, onCancel }) {
       onClick={onCancel}
     >
       <motion.div
-        className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4"
+        className="bg-surface border border-edge rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4"
         initial={{ scale: 0.95 }}
         animate={{ scale: 1 }}
         exit={{ scale: 0.95 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+        <h3 className="text-lg font-semibold text-fg mb-1">
           {weekLabel(weekPlan.weekStart)}
         </h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        <p className="text-xs text-fg-subtle mb-4">
           Choose which projects appear in this week.
         </p>
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">
+            <label className="text-xs text-fg-subtle mb-1 block">
               Projects
             </label>
             <div className="space-y-1 max-h-[220px] overflow-y-auto">
               {projects.map((p) => (
                 <label
                   key={p._id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer text-sm"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-hover cursor-pointer text-sm"
                 >
                   <input
                     type="checkbox"
@@ -1865,21 +1797,21 @@ function EditWeekModal({ weekPlan, projects, onSave, onCancel }) {
                 </label>
               ))}
               {!projects.length ? (
-                <div className="text-xs text-gray-400 px-2">No projects</div>
+                <div className="text-xs text-fg-subtle px-2">No projects</div>
               ) : null}
             </div>
           </div>
           <div className="flex gap-2 pt-1">
             <button
               type="button"
-              className="flex-1 px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm font-medium"
+              className="flex-1 px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm font-medium"
               onClick={handleSubmit}
             >
               Save
             </button>
             <button
               type="button"
-              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="px-3 py-2 rounded-lg border border-edge text-sm hover:bg-surface-hover"
               onClick={onCancel}
             >
               Cancel
@@ -1897,15 +1829,17 @@ function EditWeekModal({ weekPlan, projects, onSave, onCancel }) {
 
 const TABS = [
   { key: "tasks", label: "Tasks" },
-  { key: "routines", label: "Routines" },
-  { key: "habits", label: "Habits" },
+  { key: "calendar", label: "Calendar" },
   { key: "schedule", label: "Schedule" },
+  { key: "habits", label: "Habits" },
+  { key: "routines", label: "Routines" },
 ];
+const DEFAULT_TAB = "tasks";
 
 function PlannerTabs({ active, onChange }) {
   return (
-    <div className="px-4 pt-4 pb-3 flex justify-center">
-      <div className="inline-flex gap-1 p-1 rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
+    <div className="px-4 pt-3 pb-3 flex md:justify-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="inline-flex shrink-0 gap-1 p-1 rounded-xl bg-surface border border-edge">
         {TABS.map((t) => {
           const isActive = active === t.key;
           return (
@@ -1915,8 +1849,8 @@ function PlannerTabs({ active, onChange }) {
               onClick={() => onChange(t.key)}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? "bg-blue-50/80 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                  : "text-gray-600 dark:text-gray-300 hover:bg-white/70 dark:hover:bg-gray-800/50"
+                  ? "bg-primary-soft text-primary"
+                  : "text-fg-muted hover:bg-surface-hover"
               }`}
             >
               {t.label}
@@ -1936,7 +1870,9 @@ function PlannerPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const activeTab = TABS.some((t) => t.key === tabParam) ? tabParam : "tasks";
+  const activeTab = TABS.some((t) => t.key === tabParam)
+    ? tabParam
+    : DEFAULT_TAB;
 
   const setTab = useCallback(
     (key) => {
@@ -2688,6 +2624,8 @@ function PlannerPageInner() {
                   order: d.tasks.length,
                   routineTask: data.routineTaskId || null,
                   project: data.projectId || null,
+                  startMinute: data.startMinute ?? null,
+                  durationMinutes: data.durationMinutes ?? null,
                 },
               ],
             };
@@ -2757,9 +2695,21 @@ function PlannerPageInner() {
   );
 
   const moveWeekTask = useCallback(
-    async ({ taskId, fromDayOfWeek, toDayOfWeek, toProjectId }) => {
+    async ({
+      taskId,
+      fromDayOfWeek,
+      toDayOfWeek,
+      toProjectId,
+      startMinute,
+      durationMinutes,
+    }) => {
       if (!selectedWeekPlanId) return;
       if (typeof taskId !== "string" || taskId.startsWith("temp_")) return;
+      // Calendar placement is only changed when explicitly provided.
+      const timing = {
+        ...(startMinute !== undefined ? { startMinute } : {}),
+        ...(durationMinutes !== undefined ? { durationMinutes } : {}),
+      };
       // Optimistic update: pull from `fromDay`, push to `toDay` with new project
       setWeekPlans((prev) =>
         prev.map((wp) => {
@@ -2791,6 +2741,7 @@ function PlannerPageInner() {
                       ? toProjectId
                       : movedTask.project || null,
                   order: d.tasks.length,
+                  ...timing,
                 },
               ],
             };
@@ -2807,6 +2758,7 @@ function PlannerPageInner() {
             toDayOfWeek,
             taskId,
             toProjectId: toProjectId ?? null,
+            ...timing,
           }),
         });
         if (mountedRef.current)
@@ -2905,10 +2857,10 @@ function PlannerPageInner() {
      ╚════════════════════════════════════════════════════╝ */
 
   const renderTasksSidebar = () => (
-    <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm p-3">
+    <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3">
       <button
         type="button"
-        className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-white/70 dark:hover:bg-gray-800/40"
+        className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-surface-hover"
         onClick={() => setProjectsOpen((v) => (creatingProject ? true : !v))}
       >
         <span className="font-semibold">Projects</span>
@@ -2928,7 +2880,7 @@ function PlannerPageInner() {
                 return (
                 <div
                   key={p._id}
-                  className="group flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/40"
+                  className="group flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-fg-muted hover:bg-surface-hover"
                 >
                   <div
                     className={`w-3 h-3 rounded-full shrink-0 ${colorMeta.swatchClass}`}
@@ -2937,7 +2889,7 @@ function PlannerPageInner() {
                   <div className="relative">
                     <button
                       type="button"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white p-1"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-fg-subtle hover:text-fg p-1"
                       aria-label="Project menu"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -2976,7 +2928,7 @@ function PlannerPageInner() {
               );
               })}
               {!projects.length ? (
-                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="px-3 py-2 text-sm text-fg-subtle">
                   No projects yet
                 </div>
               ) : null}
@@ -2986,7 +2938,7 @@ function PlannerPageInner() {
               {!creatingProject ? (
                 <button
                   type="button"
-                  className="w-full px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-white dark:hover:bg-gray-800/50"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm font-medium hover:bg-surface-hover"
                   onClick={() => setCreatingProject(true)}
                 >
                   + Create new project
@@ -2997,7 +2949,7 @@ function PlannerPageInner() {
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
                     placeholder="Project name"
-                    className="flex-1 px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+                    className="flex-1 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         const name = projectName.trim();
@@ -3012,7 +2964,7 @@ function PlannerPageInner() {
                   />
                   <button
                     type="button"
-                    className="w-full px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm"
+                    className="w-full px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm"
                     onClick={() => {
                       const name = projectName.trim();
                       if (!name) return;
@@ -3033,8 +2985,8 @@ function PlannerPageInner() {
   );
 
   const renderHabitsSidebar = () => (
-    <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm p-3 overflow-hidden">
-      <div className="px-2 py-2 font-semibold text-gray-900 dark:text-white">
+    <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3 overflow-hidden">
+      <div className="px-2 py-2 font-semibold text-fg">
         Habits
       </div>
       <div className="space-y-1 mt-1">
@@ -3046,8 +2998,8 @@ function PlannerPageInner() {
               key={h._id}
               className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
                 isActive
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium"
-                  : "text-gray-700 dark:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/40"
+                  ? "bg-primary-soft text-primary font-medium"
+                  : "text-fg-muted hover:bg-surface-hover"
               }`}
               onClick={() => {
                 setSelectedHabitId(h._id);
@@ -3060,7 +3012,7 @@ function PlannerPageInner() {
               <div className="flex-1 min-w-0 truncate">{h.name}</div>
               <button
                 type="button"
-                className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 p-0.5"
+                className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-fg-subtle hover:text-danger p-0.5"
                 onClick={(e) => {
                   e.stopPropagation();
                   deleteHabit(h);
@@ -3073,7 +3025,7 @@ function PlannerPageInner() {
           );
         })}
         {!habits.length && !creatingHabit ? (
-          <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+          <div className="px-3 py-2 text-sm text-fg-subtle">
             No habits yet
           </div>
         ) : null}
@@ -3091,7 +3043,7 @@ function PlannerPageInner() {
       {!creatingHabit ? (
         <button
           type="button"
-          className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-white dark:hover:bg-gray-800/50 transition-colors"
+          className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm font-medium hover:bg-surface-hover transition-colors"
           onClick={() => setCreatingHabit(true)}
         >
           <IconPlus className="w-4 h-4" />
@@ -3104,8 +3056,8 @@ function PlannerPageInner() {
   /* ── Routines tab renderers ────────────────────────── */
 
   const renderRoutinesSidebar = () => (
-    <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm p-3 overflow-hidden">
-      <div className="px-2 py-2 font-semibold text-gray-900 dark:text-white">
+    <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3 overflow-hidden">
+      <div className="px-2 py-2 font-semibold text-fg">
         Projects
       </div>
       <div className="space-y-1 mt-1">
@@ -3117,8 +3069,8 @@ function PlannerPageInner() {
               key={p._id}
               className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
                 isActive
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium"
-                  : "text-gray-700 dark:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/40"
+                  ? "bg-primary-soft text-primary font-medium"
+                  : "text-fg-muted hover:bg-surface-hover"
               }`}
               onClick={() => setSelectedRoutineProjectId(p._id)}
             >
@@ -3130,7 +3082,7 @@ function PlannerPageInner() {
           );
         })}
         {!projects.length ? (
-          <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+          <div className="px-3 py-2 text-sm text-fg-subtle">
             No projects yet
           </div>
         ) : null}
@@ -3146,7 +3098,7 @@ function PlannerPageInner() {
         {selectedRoutineProjectId ? (
           <button
             type="button"
-            className="md:hidden mb-3 flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400"
+            className="md:hidden mb-3 flex items-center gap-1 text-sm text-primary"
             onClick={() => setSelectedRoutineProjectId(null)}
           >
             <svg
@@ -3175,7 +3127,7 @@ function PlannerPageInner() {
               <button
                 key={p._id}
                 type="button"
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 hover:bg-white dark:hover:bg-gray-800/50 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left bg-surface-2 border border-edge hover:bg-surface-hover transition-colors"
                 onClick={() => setSelectedRoutineProjectId(p._id)}
               >
                 <div
@@ -3186,7 +3138,7 @@ function PlannerPageInner() {
               );
             })}
             {!projects.length ? (
-              <div className="text-gray-600 dark:text-gray-300 px-2 py-4">
+              <div className="text-fg-muted px-2 py-4">
                 Create a project in the Tasks tab first.
               </div>
             ) : null}
@@ -3196,7 +3148,7 @@ function PlannerPageInner() {
         {selectedRoutineProjectId ? (
           <>
             {proj ? (
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              <h2 className="text-lg font-semibold text-fg mb-4">
                 {proj.name}
               </h2>
             ) : null}
@@ -3206,7 +3158,7 @@ function PlannerPageInner() {
             />
           </>
         ) : (
-          <div className="hidden md:flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+          <div className="hidden md:flex flex-col items-center justify-center h-full text-fg-subtle">
             <p className="text-lg">
               {projects.length
                 ? "Select a project"
@@ -3219,8 +3171,8 @@ function PlannerPageInner() {
   };
 
   const renderScheduleSidebar = () => (
-    <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm p-3 overflow-hidden">
-      <div className="px-2 py-2 font-semibold text-gray-900 dark:text-white">
+    <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3 overflow-hidden">
+      <div className="px-2 py-2 font-semibold text-fg">
         Weekly Routines
       </div>
       <div className="space-y-1 mt-1">
@@ -3236,21 +3188,21 @@ function PlannerPageInner() {
               key={wp._id}
               className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
                 isActive
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium"
-                  : "text-gray-700 dark:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/40"
+                  ? "bg-primary-soft text-primary font-medium"
+                  : "text-fg-muted hover:bg-surface-hover"
               }`}
               onClick={() => setSelectedWeekPlanId(wp._id)}
             >
-              <div className="w-3 h-3 rounded-full shrink-0 bg-blue-500" />
+              <div className="w-3 h-3 rounded-full shrink-0 bg-primary" />
               <div className="flex-1 min-w-0">
                 <div className="truncate">{weekLabel(wp.weekStart)}</div>
-                <div className="text-[10px] text-gray-400 dark:text-gray-500">
+                <div className="text-[10px] text-fg-subtle">
                   {fmt(start)} – {fmt(end)}
                 </div>
               </div>
               <button
                 type="button"
-                className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 p-0.5"
+                className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-fg-subtle hover:text-danger p-0.5"
                 onClick={(e) => {
                   e.stopPropagation();
                   deleteWeekPlan(wp);
@@ -3263,7 +3215,7 @@ function PlannerPageInner() {
           );
         })}
         {!weekPlans.length ? (
-          <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+          <div className="px-3 py-2 text-sm text-fg-subtle">
             No weekly routines yet
           </div>
         ) : null}
@@ -3271,7 +3223,7 @@ function PlannerPageInner() {
 
       <button
         type="button"
-        className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-white dark:hover:bg-gray-800/50 transition-colors"
+        className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm font-medium hover:bg-surface-hover transition-colors"
         onClick={addWeek}
       >
         <IconPlus className="w-4 h-4" />
@@ -3304,7 +3256,7 @@ function PlannerPageInner() {
         ))}
 
         {!projects.length ? (
-          <div className="text-gray-600 dark:text-gray-300 px-4 py-4">
+          <div className="text-fg-muted px-4 py-4">
             Create a project to start adding tasks.
           </div>
         ) : null}
@@ -3317,8 +3269,8 @@ function PlannerPageInner() {
       {/* Mobile: list when none selected */}
       {!selectedHabitId ? (
         <div className="md:hidden">
-          <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm p-3">
-            <div className="px-2 py-2 font-semibold text-gray-900 dark:text-white">
+          <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3">
+            <div className="px-2 py-2 font-semibold text-fg">
               Habits
             </div>
             <div className="space-y-1 mt-1">
@@ -3327,7 +3279,7 @@ function PlannerPageInner() {
                 return (
                   <div
                     key={h._id}
-                    className="group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors text-gray-700 dark:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/40"
+                    className="group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors text-fg-muted hover:bg-surface-hover"
                     onClick={() => {
                       setSelectedHabitId(h._id);
                       setSelectedDate(null);
@@ -3338,7 +3290,7 @@ function PlannerPageInner() {
                     />
                     <div className="flex-1 min-w-0 truncate">{h.name}</div>
                     <svg
-                      className="w-4 h-4 text-gray-400"
+                      className="w-4 h-4 text-fg-subtle"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -3354,7 +3306,7 @@ function PlannerPageInner() {
                 );
               })}
               {!habits.length && !creatingHabit ? (
-                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="px-3 py-2 text-sm text-fg-subtle">
                   No habits yet
                 </div>
               ) : null}
@@ -3362,7 +3314,7 @@ function PlannerPageInner() {
             {!creatingHabit ? (
               <button
                 type="button"
-                className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-white dark:hover:bg-gray-800/50 transition-colors"
+                className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm font-medium hover:bg-surface-hover transition-colors"
                 onClick={() => setCreatingHabit(true)}
               >
                 <IconPlus className="w-4 h-4" />
@@ -3387,7 +3339,7 @@ function PlannerPageInner() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="md:hidden p-1.5 -ml-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="md:hidden p-1.5 -ml-1.5 rounded-lg hover:bg-surface-hover transition-colors"
                 onClick={() => {
                   setSelectedHabitId(null);
                   setSelectedDate(null);
@@ -3410,12 +3362,12 @@ function PlannerPageInner() {
               </button>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h2 className="text-xl font-bold text-fg">
                     {selectedHabit.name}
                   </h2>
                   <button
                     type="button"
-                    className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    className="p-1 rounded-md hover:bg-surface-hover text-fg-subtle hover:text-fg-muted transition-colors"
                     onClick={() => setEditingHabit(selectedHabit)}
                     aria-label="Edit habit"
                   >
@@ -3434,12 +3386,12 @@ function PlannerPageInner() {
                     </svg>
                   </button>
                   {selectedHabit.inverted ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-soft text-primary font-medium">
                       inverted
                     </span>
                   ) : null}
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                <p className="text-sm text-fg-subtle mt-0.5">
                   {totalTracked} day{totalTracked !== 1 ? "s" : ""} tracked in{" "}
                   {year}
                 </p>
@@ -3449,7 +3401,7 @@ function PlannerPageInner() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="px-2 py-1 rounded-lg border border-edge text-sm hover:bg-surface-hover"
                 onClick={() => setYear((y) => y - 1)}
               >
                 &larr;
@@ -3459,7 +3411,7 @@ function PlannerPageInner() {
               </span>
               <button
                 type="button"
-                className="px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="px-2 py-1 rounded-lg border border-edge text-sm hover:bg-surface-hover"
                 onClick={() => setYear((y) => y + 1)}
               >
                 &rarr;
@@ -3485,7 +3437,7 @@ function PlannerPageInner() {
 
             <div className="flex items-center gap-1.5 mt-2">
               <svg
-                className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0"
+                className="w-3.5 h-3.5 text-fg-subtle shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -3497,7 +3449,7 @@ function PlannerPageInner() {
                   d="M12 16v-4M12 8h.01"
                 />
               </svg>
-              <span className="text-[11px] text-gray-400 dark:text-gray-500">
+              <span className="text-[11px] text-fg-subtle">
                 Only the last 7 days can be edited
               </span>
             </div>
@@ -3518,7 +3470,7 @@ function PlannerPageInner() {
           </div>
 
           <div className="mt-8">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            <h3 className="text-sm font-semibold text-fg-muted mb-2">
               Intensity Levels
             </h3>
             <div className="flex flex-wrap gap-3">
@@ -3534,7 +3486,7 @@ function PlannerPageInner() {
                       <div
                         className={`w-4 h-4 rounded-sm ${levelShadeClass(l, selectedHabit.color, maxLvl)}`}
                       />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                      <span className="text-xs text-fg-muted">
                         {l.label}
                       </span>
                     </div>
@@ -3544,7 +3496,7 @@ function PlannerPageInner() {
           </div>
         </div>
       ) : (
-        <div className="hidden md:flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+        <div className="hidden md:flex flex-col items-center justify-center h-full text-fg-subtle">
           <p className="text-lg">
             {habits.length
               ? "Select a habit to view its tracker"
@@ -3555,13 +3507,13 @@ function PlannerPageInner() {
     </div>
   );
 
-  const renderScheduleMain = () => (
+  const renderScheduleMain = (view = "list") => (
     <div className="h-full overflow-auto p-4 md:p-6">
       {/* Mobile: list when none selected */}
       {!selectedWeekPlanId ? (
         <div className="md:hidden">
-          <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm p-3">
-            <div className="px-2 py-2 font-semibold text-gray-900 dark:text-white">
+          <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3">
+            <div className="px-2 py-2 font-semibold text-fg">
               Weekly Routines
             </div>
             <div className="space-y-1 mt-1">
@@ -3574,18 +3526,18 @@ function PlannerPageInner() {
                 return (
                   <div
                     key={wp._id}
-                    className="group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors text-gray-700 dark:text-gray-200 hover:bg-white/70 dark:hover:bg-gray-800/40"
+                    className="group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors text-fg-muted hover:bg-surface-hover"
                     onClick={() => setSelectedWeekPlanId(wp._id)}
                   >
-                    <div className="w-3 h-3 rounded-full shrink-0 bg-blue-500" />
+                    <div className="w-3 h-3 rounded-full shrink-0 bg-primary" />
                     <div className="flex-1 min-w-0">
                       <div className="truncate">{weekLabel(wp.weekStart)}</div>
-                      <div className="text-[10px] text-gray-400 dark:text-gray-500">
+                      <div className="text-[10px] text-fg-subtle">
                         {fmt(start)} – {fmt(end)}
                       </div>
                     </div>
                     <svg
-                      className="w-4 h-4 text-gray-400"
+                      className="w-4 h-4 text-fg-subtle"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -3601,14 +3553,14 @@ function PlannerPageInner() {
                 );
               })}
               {!weekPlans.length ? (
-                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="px-3 py-2 text-sm text-fg-subtle">
                   No weekly routines yet
                 </div>
               ) : null}
             </div>
             <button
               type="button"
-              className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/70 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-white dark:hover:bg-gray-800/50 transition-colors"
+              className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm font-medium hover:bg-surface-hover transition-colors"
               onClick={addWeek}
             >
               <IconPlus className="w-4 h-4" />
@@ -3622,7 +3574,7 @@ function PlannerPageInner() {
         <div>
           <button
             type="button"
-            className="md:hidden flex items-center gap-1 mb-4 p-1.5 -ml-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-600 dark:text-gray-300"
+            className="md:hidden flex items-center gap-1 mb-4 p-1.5 -ml-1.5 rounded-lg hover:bg-surface-hover transition-colors text-sm text-fg-muted"
             onClick={() => setSelectedWeekPlanId(null)}
             aria-label="Back to list"
           >
@@ -3642,6 +3594,7 @@ function PlannerPageInner() {
             Back
           </button>
           <WeeklyRoutine
+            view={view}
             weekPlan={selectedWeekPlan}
             routineTasks={allRoutineTasks}
             columns={allColumns}
@@ -3656,7 +3609,7 @@ function PlannerPageInner() {
           />
         </div>
       ) : (
-        <div className="hidden md:flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+        <div className="hidden md:flex flex-col items-center justify-center h-full text-fg-subtle">
           <p className="text-lg">
             {weekPlans.length
               ? "Select a weekly routine"
@@ -3671,6 +3624,7 @@ function PlannerPageInner() {
      ║  Render                                            ║
      ╚════════════════════════════════════════════════════╝ */
 
+  // Calendar and Schedule share the week-plan sidebar.
   const sidebar =
     activeTab === "tasks"
       ? renderTasksSidebar()
@@ -3687,7 +3641,9 @@ function PlannerPageInner() {
         ? renderRoutinesMain()
         : activeTab === "habits"
           ? renderHabitsMain()
-          : renderScheduleMain();
+          : activeTab === "calendar"
+            ? renderScheduleMain("calendar")
+            : renderScheduleMain("list");
 
   return (
     <div className="w-screen min-h-screen transition-colors duration-300">
@@ -3695,15 +3651,17 @@ function PlannerPageInner() {
 
       <PlannerTabs active={activeTab} onChange={setTab} />
 
-      <div className="w-full h-[calc(100vh-9rem)] flex flex-col md:flex-row md:px-6">
+      <div className="w-full h-[calc(100vh-7.75rem)] flex flex-col md:flex-row md:px-6">
         {/* Sidebar (desktop only) */}
-        <div className="hidden md:block md:static md:w-[280px] md:pt-0 md:bg-transparent md:shadow-none h-full px-4 pb-6 overflow-y-auto">
-          {sidebar}
-        </div>
+        {sidebar ? (
+          <div className="hidden md:block md:static md:w-[280px] md:pt-0 md:bg-transparent md:shadow-none h-full px-4 pb-6 overflow-y-auto">
+            {sidebar}
+          </div>
+        ) : null}
 
         {/* Main */}
         <div className="flex-1 h-full px-2 md:px-0 md:pr-4 pb-6 overflow-hidden min-w-0">
-          <div className="h-full bg-white/40 dark:bg-gray-950/10 border border-gray-200/50 dark:border-gray-800/40 rounded-2xl overflow-hidden">
+          <div className="h-full bg-surface/40 border border-edge rounded-2xl overflow-hidden">
             {main}
           </div>
         </div>

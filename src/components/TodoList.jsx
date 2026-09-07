@@ -178,15 +178,15 @@ const TodoList = ({
 
   return (
     <div className="w-full mt-5">
-      <div className="bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-200/70 dark:border-gray-700/70 bg-white/60 dark:bg-gray-900/30">
+      <div className="bg-surface border border-edge rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-edge bg-surface-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="font-semibold text-gray-900 dark:text-white truncate">
+              <div className="font-semibold text-fg truncate">
                 Project & Task Planning
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 mt-0.5 truncate">
-                <span className="text-gray-500 dark:text-gray-400">
+              <div className="text-sm text-fg-muted mt-0.5 truncate">
+                <span className="text-fg-subtle">
                   Active:
                 </span>{" "}
                 {activeProject.title || "No project selected"}
@@ -198,7 +198,7 @@ const TodoList = ({
         <div className="px-2 py-2">
           <div className="px-2 pb-2">
             <select
-              className="w-full px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
             >
@@ -214,7 +214,7 @@ const TodoList = ({
           <div className="px-2 pb-2 flex gap-2">
             <input
               type="text"
-              className="flex-1 px-3 py-2 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm outline-none placeholder-gray-400 dark:placeholder-gray-500"
+              className="flex-1 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none placeholder-fg-subtle"
               value={todoInput}
               onChange={(e) => setTodoInput(e.target.value)}
               placeholder={`What task are you working on${
@@ -224,7 +224,7 @@ const TodoList = ({
             />
             <button
               type="button"
-              className="px-3 py-2 rounded-lg bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-sm"
+              className="px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm"
               onClick={handleAddTodoTask}
             >
               Add
@@ -236,16 +236,16 @@ const TodoList = ({
               activeEntries.map(({ task, index }) => (
                 <div
                   key={task.taskId || index}
-                  className="group flex items-start justify-between gap-2 py-1.5 rounded-md hover:bg-white/70 dark:hover:bg-gray-800/40 transition-colors px-2"
+                  className="group flex items-start justify-between gap-2 py-1.5 rounded-md hover:bg-surface-hover transition-colors px-2"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm leading-5 break-words text-gray-900 dark:text-gray-100">
+                    <div className="text-sm leading-5 break-words text-fg">
                       {task.task}
                     </div>
                   </div>
                   <button
                     type="button"
-                    className="shrink-0 px-3 py-1.5 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white text-sm transition-colors"
+                    className="shrink-0 px-3 py-1.5 rounded-lg bg-warning hover:bg-warning-hover text-white text-sm transition-colors"
                     onClick={() => transferTaskToSession(index)}
                   >
                     Start
@@ -253,7 +253,7 @@ const TodoList = ({
                 </div>
               ))
             ) : (
-              <div className="px-2 py-3 text-sm text-gray-500 dark:text-gray-400">
+              <div className="px-2 py-3 text-sm text-fg-subtle">
                 No tasks found for this project yet.
               </div>
             )}
@@ -263,7 +263,7 @@ const TodoList = ({
           <div className="px-2 pb-2 pt-2">
             <button
               type="button"
-              className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-white/70 dark:hover:bg-gray-800/40 text-sm text-gray-700 dark:text-gray-200"
+              className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-surface-hover text-sm text-fg-muted"
               onClick={() => setCompletedOpen((v) => !v)}
             >
               <span>Completed ({completedEntries.length})</span>
@@ -291,7 +291,7 @@ const TodoList = ({
                   completedEntries.map(({ task, index }) => (
                     <div
                       key={task.taskId || index}
-                      className="flex items-start justify-between gap-2 py-1.5 rounded-md px-2 text-gray-600 dark:text-gray-400"
+                      className="flex items-start justify-between gap-2 py-1.5 rounded-md px-2 text-fg-muted"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm leading-5 break-words line-through">
@@ -301,7 +301,7 @@ const TodoList = ({
                     </div>
                   ))
                 ) : (
-                  <div className="px-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="px-2 py-2 text-sm text-fg-subtle">
                     No completed tasks
                   </div>
                 )}
