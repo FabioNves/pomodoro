@@ -17,6 +17,7 @@ import { jwtDecode } from "jwt-decode";
 import { generateSessionId } from "@/utils/sessionUtils";
 import { getMondayOf, weekLabel } from "@/utils/timeUtils";
 import { COLOR_PALETTES } from "@/lib/habitPalettes";
+import { PROJECT_COLORS, getProjectColorMeta } from "@/lib/projectColors";
 import WeeklyRoutine from "@/components/WeeklyRoutine";
 import RoutineTasksView from "@/components/RoutineTasksView";
 
@@ -187,55 +188,6 @@ function isInCurrentWeek(dateValue) {
 /* ╔══════════════════════════════════════════════════════╗
    ║  TASKS TAB — colors, components, helpers             ║
    ╚══════════════════════════════════════════════════════╝ */
-
-const PROJECT_COLORS = [
-  {
-    key: "blue",
-    label: "Blue",
-    swatchClass: "bg-blue-500",
-    headerClass: "bg-blue-500/30 dark:bg-blue-400/25",
-    borderClass: "border-blue-500/20 dark:border-blue-400/30",
-  },
-  {
-    key: "green",
-    label: "Green",
-    swatchClass: "bg-green-500",
-    headerClass: "bg-green-500/30 dark:bg-green-400/25",
-    borderClass: "border-green-500/20 dark:border-green-400/30",
-  },
-  {
-    key: "red",
-    label: "Red",
-    swatchClass: "bg-red-500",
-    headerClass: "bg-red-500/30 dark:bg-red-400/25",
-    borderClass: "border-red-500/20 dark:border-red-400/30",
-  },
-  {
-    key: "orange",
-    label: "Orange",
-    swatchClass: "bg-orange-500",
-    headerClass: "bg-orange-500/30 dark:bg-orange-400/25",
-    borderClass: "border-orange-500/20 dark:border-orange-400/30",
-  },
-  {
-    key: "purple",
-    label: "Purple",
-    swatchClass: "bg-purple-500",
-    headerClass: "bg-purple-500/30 dark:bg-purple-400/25",
-    borderClass: "border-purple-500/20 dark:border-purple-400/30",
-  },
-  {
-    key: "gray",
-    label: "Gray",
-    swatchClass: "bg-gray-500",
-    headerClass: "bg-gray-500/30 dark:bg-gray-400/25",
-    borderClass: "border-gray-500/20 dark:border-gray-400/30",
-  },
-];
-
-function getProjectColorMeta(headerColor) {
-  return PROJECT_COLORS.find((c) => c.key === headerColor) || PROJECT_COLORS[0];
-}
 
 function ProjectOptionsMenu({ project, onDelete, onSetColor }) {
   return (
@@ -1915,6 +1867,8 @@ function PlannerPageInner() {
   const [routineTasksByProject, setRoutineTasksByProject] = useState({});
   const [columnsByProject, setColumnsByProject] = useState({});
   const [editingWeekPlan, setEditingWeekPlan] = useState(null);
+  // Phone drawer with planner sections + weeks (calendar tab).
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // ── routines tab state ────────────────────────────────
   const [selectedRoutineProjectId, setSelectedRoutineProjectId] =
@@ -2029,13 +1983,25 @@ function PlannerPageInner() {
     }
   }, [habits, selectedHabitId]);
 
-  // Auto-select first week plan (desktop only)
+  // Auto-select a week plan: the current week when it exists, else the latest.
+  // Desktop always; on phones only when the calendar opens (once), so the
+  // "Back to list" flow in the schedule tab keeps working.
+  const weekAutoSelectedRef = useRef(false);
   useEffect(() => {
-    if (!selectedWeekPlanId && weekPlans.length) {
-      const isDesktop = window.matchMedia("(min-width: 768px)").matches;
-      if (isDesktop) setSelectedWeekPlanId(weekPlans[0]._id);
-    }
-  }, [weekPlans, selectedWeekPlanId]);
+    if (selectedWeekPlanId || !weekPlans.length) return;
+    const isDesktop = window.matchMedia("(min-width: 768px)").matches;
+    if (!isDesktop && (activeTab !== "calendar" || weekAutoSelectedRef.current))
+      return;
+    weekAutoSelectedRef.current = true;
+    const monday = getMondayOf(new Date());
+    const current = weekPlans.find((wp) => wp.weekStart === monday);
+    setSelectedWeekPlanId((current || weekPlans[0])._id);
+  }, [weekPlans, selectedWeekPlanId, activeTab]);
+
+  // Close the phone drawer once the user picked a week or a section.
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [selectedWeekPlanId, activeTab]);
 
   // Auto-select first project in routines tab (desktop only)
   useEffect(() => {
@@ -3507,8 +3473,52 @@ function PlannerPageInner() {
     </div>
   );
 
+  // Calendar tab: the tab strip is hidden, so the sidebar carries the
+  // section navigation above the week list.
+  const renderSectionNav = () => (
+    <nav
+      className="bg-surface border border-edge rounded-2xl shadow-sm p-2 space-y-0.5"
+      aria-label="Planner sections"
+    >
+      {TABS.map((t) => {
+        const isActive = activeTab === t.key;
+        return (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            aria-current={isActive ? "page" : undefined}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isActive
+                ? "bg-primary-soft text-primary"
+                : "text-fg-muted hover:bg-surface-hover hover:text-fg"
+            }`}
+          >
+            {t.label}
+            {isActive ? (
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+            ) : null}
+          </button>
+        );
+      })}
+    </nav>
+  );
+
+  const renderCalendarSidebar = () => (
+    <div className="space-y-3">
+      {renderSectionNav()}
+      {renderScheduleSidebar()}
+    </div>
+  );
+
   const renderScheduleMain = (view = "list") => (
-    <div className="h-full overflow-auto p-4 md:p-6">
+    <div
+      className={
+        view === "calendar"
+          ? "h-full flex flex-col p-2 md:p-3"
+          : "h-full overflow-auto p-4 md:p-6"
+      }
+    >
       {/* Mobile: list when none selected */}
       {!selectedWeekPlanId ? (
         <div className="md:hidden">
@@ -3571,30 +3581,35 @@ function PlannerPageInner() {
       ) : null}
 
       {selectedWeekPlan ? (
-        <div>
-          <button
-            type="button"
-            className="md:hidden flex items-center gap-1 mb-4 p-1.5 -ml-1.5 rounded-lg hover:bg-surface-hover transition-colors text-sm text-fg-muted"
-            onClick={() => setSelectedWeekPlanId(null)}
-            aria-label="Back to list"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <div className={view === "calendar" ? "flex-1 min-h-0 flex flex-col" : ""}>
+          {view !== "calendar" ? (
+            <button
+              type="button"
+              className="md:hidden flex items-center gap-1 mb-4 p-1.5 -ml-1.5 rounded-lg hover:bg-surface-hover transition-colors text-sm text-fg-muted"
+              onClick={() => setSelectedWeekPlanId(null)}
+              aria-label="Back to list"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            Back
-          </button>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              Back
+            </button>
+          ) : null}
           <WeeklyRoutine
             view={view}
+            onOpenSidebar={
+              view === "calendar" ? () => setMobileSidebarOpen(true) : undefined
+            }
             weekPlan={selectedWeekPlan}
             routineTasks={allRoutineTasks}
             columns={allColumns}
@@ -3632,7 +3647,9 @@ function PlannerPageInner() {
         ? renderRoutinesSidebar()
         : activeTab === "habits"
           ? renderHabitsSidebar()
-          : renderScheduleSidebar();
+          : activeTab === "calendar"
+            ? renderCalendarSidebar()
+            : renderScheduleSidebar();
 
   const main =
     activeTab === "tasks"
@@ -3649,23 +3666,66 @@ function PlannerPageInner() {
     <div className="w-screen min-h-screen transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
 
-      <PlannerTabs active={activeTab} onChange={setTab} />
+      {/* The calendar hides the tab strip (it moves into the sidebar) to give
+          the hour grid as much height as possible. */}
+      {activeTab !== "calendar" ? (
+        <PlannerTabs active={activeTab} onChange={setTab} />
+      ) : null}
 
-      <div className="w-full h-[calc(100vh-7.75rem)] flex flex-col md:flex-row md:px-6">
+      <div
+        className={`w-full flex flex-col md:flex-row md:px-6 ${
+          activeTab === "calendar"
+            ? "h-[calc(100vh-10rem)] md:h-[calc(100vh-5.5rem)] pt-1"
+            : "h-[calc(100vh-13rem)] md:h-[calc(100vh-7.75rem)]"
+        }`}
+      >
         {/* Sidebar (desktop only) */}
         {sidebar ? (
-          <div className="hidden md:block md:static md:w-[280px] md:pt-0 md:bg-transparent md:shadow-none h-full px-4 pb-6 overflow-y-auto">
+          <div className="hidden md:block md:static md:w-[280px] md:pt-0 md:bg-transparent md:shadow-none h-full px-4 pb-4 overflow-y-auto">
             {sidebar}
           </div>
         ) : null}
 
         {/* Main */}
-        <div className="flex-1 h-full px-2 md:px-0 md:pr-4 pb-6 overflow-hidden min-w-0">
+        <div
+          className={`flex-1 h-full px-2 md:px-0 md:pr-4 overflow-hidden min-w-0 ${
+            activeTab === "calendar" ? "pb-2 md:pb-3" : "pb-4"
+          }`}
+        >
           <div className="h-full bg-surface/40 border border-edge rounded-2xl overflow-hidden">
             {main}
           </div>
         </div>
       </div>
+
+      {/* Phone drawer: planner sections + week list (calendar tab) */}
+      <AnimatePresence>
+        {mobileSidebarOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[60] md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setMobileSidebarOpen(false)}
+              aria-hidden="true"
+            />
+            <motion.div
+              className="absolute left-0 top-0 bottom-0 w-[280px] max-w-[85vw] bg-bg p-3 overflow-y-auto shadow-2xl"
+              initial={{ x: -40 }}
+              animate={{ x: 0 }}
+              exit={{ x: -40 }}
+              transition={{ type: "spring", stiffness: 400, damping: 32 }}
+              role="dialog"
+              aria-label="Weeks and sections"
+            >
+              {renderCalendarSidebar()}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {/* Modals — root-mounted so they survive tab switches */}
       <AnimatePresence>

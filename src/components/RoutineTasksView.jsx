@@ -9,6 +9,14 @@ import React, {
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateSessionId } from "@/utils/sessionUtils";
+import Dropdown from "@/components/ui/Dropdown";
+
+const COLUMN_TYPE_OPTIONS = [
+  { value: "text", label: "Text" },
+  { value: "dropdown", label: "Dropdown" },
+  { value: "number", label: "Number" },
+  { value: "date", label: "Date" },
+];
 
 function getIdentityHeaders() {
   if (typeof window === "undefined") return {};
@@ -488,16 +496,14 @@ function AddColumnModal({ onSubmit, onCancel }) {
           </div>
           <div>
             <label className="text-sm text-fg-muted mb-1 block">Type</label>
-            <select
+            <Dropdown
+              block
               value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
-            >
-              <option value="text">Text</option>
-              <option value="dropdown">Dropdown</option>
-              <option value="number">Number</option>
-              <option value="date">Date</option>
-            </select>
+              options={COLUMN_TYPE_OPTIONS}
+              onChange={(v) => setType(v)}
+              menuLabel="Column type"
+              showDot={false}
+            />
           </div>
           <AnimatePresence>
             {type === "dropdown" ? (

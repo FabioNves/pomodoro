@@ -41,8 +41,8 @@ export const THEMES = [
     },
   },
   {
-    id: "feminine",
-    name: "Feminine",
+    id: "rose",
+    name: "Rose",
     tagline: "Blush, rose & lavender",
     dark: false,
     preview: {
@@ -70,15 +70,24 @@ export const DEFAULT_THEME = "dark";
 export const THEME_IDS = THEMES.map((t) => t.id);
 export const DARK_THEME_IDS = THEMES.filter((t) => t.dark).map((t) => t.id);
 
+// Renamed theme ids, so stored preferences survive the rename.
+export const LEGACY_THEME_IDS = { feminine: "rose" };
+
+/** Map a stored id through the legacy renames. */
+export function normaliseThemeId(id) {
+  return LEGACY_THEME_IDS[id] || id;
+}
+
 export function getTheme(id) {
+  const wanted = normaliseThemeId(id);
   return (
-    THEMES.find((t) => t.id === id) ||
+    THEMES.find((t) => t.id === wanted) ||
     THEMES.find((t) => t.id === DEFAULT_THEME)
   );
 }
 
 export function isValidTheme(id) {
-  return THEME_IDS.includes(id);
+  return THEME_IDS.includes(normaliseThemeId(id));
 }
 
 /** Apply a theme to <html>: data-theme attribute + `.dark` class. */

@@ -1,9 +1,81 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import Navbar from "@/components/Navbar";
 import { useTheme } from "@/hooks/useTheme";
+import { useTimerSettings } from "@/hooks/useTimerSettings";
+import { createSoundKit } from "@/utils/sounds";
+import TimerPreview from "@/components/timer/TimerPreview";
+import {
+  ALARM_SOUNDS,
+  TIMER_FORMATS,
+  FACE_STYLES,
+  formatTimer,
+} from "@/lib/timerSettings";
+
+/** On/off switch drawn with the theme tokens. */
+function Toggle({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative shrink-0 w-11 h-6 rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus/50 ${
+        checked ? "bg-primary border-primary" : "bg-edge border-edge"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full shadow transition-transform ${
+          checked ? "translate-x-5 bg-primary-fg" : "bg-surface"
+        }`}
+      />
+    </button>
+  );
+}
+
+function SettingRow({ title, hint, children }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <p className="font-medium text-sm text-fg">{title}</p>
+        {hint ? <p className="text-xs text-fg-muted">{hint}</p> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Radio-card group used for alarm, clock format and face style. */
+function OptionCards({ name, options, value, onChange, renderPreview, columns = "grid-cols-2 sm:grid-cols-4" }) {
+  return (
+    <div className={`grid ${columns} gap-2`} role="radiogroup" aria-label={name}>
+      {options.map((o) => {
+        const active = o.id === value;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(o.id)}
+            className={`text-left p-2.5 rounded-lg border transition-colors ${
+              active
+                ? "border-primary bg-primary-soft"
+                : "border-edge bg-surface hover:border-edge-strong"
+            }`}
+          >
+            {renderPreview ? renderPreview(o, active) : null}
+            <p className="text-sm font-semibold text-fg">{o.name}</p>
+            {o.hint ? <p className="text-[11px] text-fg-subtle">{o.hint}</p> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Star used to mark the preferred theme: filled when chosen, outline otherwise. */
 function StarIcon({ filled, className = "" }) {
@@ -62,6 +134,13 @@ function ThemePreview({ preview }) {
 
 export default function SettingsPage() {
   const { theme, setTheme, themes } = useTheme();
+  const { settings: timer, update: updateTimer, reset: resetTimer } =
+    useTimerSettings();
+  // Previews always play, at the chosen volume, even while sound is off.
+  const previewKit = useMemo(
+    () => createSoundKit({ ...timer, soundEnabled: true, uiSounds: true }),
+    [timer],
+  );
   const [user, setUser] = useState(null);
   const [hasMounted, setHasMounted] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -200,6 +279,219 @@ export default function SettingsPage() {
                   <strong className="text-fg">{currentTheme.name}</strong>
                 </span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Timer Section */}
+        <div className="bg-surface rounded-lg p-6 border border-edge mb-6 transition-colors duration-300 shadow-md">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <h2 className="text-2xl font-semibold flex items-center gap-2 text-fg">
+              <svg
+                className="w-6 h-6 text-accent"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+              >
+                <circle cx="12" cy="13" r="8" />
+                <path d="M12 9v4l2.5 2.5M12 5V3M10 3h4" />
+              </svg>
+              Timer
+            </h2>
+            <button
+              type="button"
+              onClick={resetTimer}
+              className="text-xs text-fg-subtle hover:text-danger transition-colors"
+            >
+              Reset to defaults
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Sound */}
+            <div className="bg-surface-2 p-4 rounded-lg space-y-4 transition-colors duration-300">
+              <SettingRow
+                title="Sound"
+                hint="Alarm when a block ends, plus soft cues for start, pause and clicks."
+              >
+                <Toggle
+                  checked={timer.soundEnabled}
+                  onChange={(v) => updateTimer({ soundEnabled: v })}
+                  label="Sound"
+                />
+              </SettingRow>
+
+              <div
+                className={`space-y-4 transition-opacity ${
+                  timer.soundEnabled ? "" : "opacity-50 pointer-events-none"
+                }`}
+                aria-disabled={!timer.soundEnabled}
+              >
+                <div>
+                  <div className="flex items-center justify-between text-xs text-fg-muted mb-1">
+                    <span>Volume</span>
+                    <span className="tabular-nums">
+                      {Math.round(timer.volume * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={Math.round(timer.volume * 100)}
+                    onChange={(e) =>
+                      updateTimer({ volume: Number(e.target.value) / 100 })
+                    }
+                    onMouseUp={() => previewKit.click()}
+                    onTouchEnd={() => previewKit.click()}
+                    className="w-full accent-primary"
+                    aria-label="Volume"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium text-fg">Alarm</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => previewKit.alarm(timer.alarmSound)}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-edge text-primary hover:bg-primary-soft transition-colors"
+                      >
+                        Preview
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => previewKit.stopAlarm()}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-edge text-fg-subtle hover:text-fg transition-colors"
+                      >
+                        Stop
+                      </button>
+                    </div>
+                  </div>
+                  <OptionCards
+                    name="Alarm sound"
+                    options={ALARM_SOUNDS}
+                    value={timer.alarmSound}
+                    onChange={(id) => {
+                      updateTimer({ alarmSound: id });
+                      previewKit.alarm(id);
+                    }}
+                  />
+                </div>
+
+                <SettingRow
+                  title="Interface cues"
+                  hint="Short tones on start, pause and button clicks."
+                >
+                  <Toggle
+                    checked={timer.uiSounds}
+                    onChange={(v) => {
+                      updateTimer({ uiSounds: v });
+                      if (v) previewKit.start();
+                    }}
+                    label="Interface cues"
+                  />
+                </SettingRow>
+                <SettingRow
+                  title="Countdown ticks"
+                  hint="A soft tick during the last ten seconds."
+                >
+                  <Toggle
+                    checked={timer.tickSound}
+                    onChange={(v) => {
+                      updateTimer({ tickSound: v });
+                      if (v) previewKit.tick();
+                    }}
+                    label="Countdown ticks"
+                  />
+                </SettingRow>
+              </div>
+            </div>
+
+            {/* Clock */}
+            <div className="bg-surface-2 p-4 rounded-lg space-y-4 transition-colors duration-300">
+              <div className="rounded-xl bg-surface border border-edge">
+                <TimerPreview
+                  format={timer.timerFormat}
+                  style={timer.faceStyle}
+                />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-fg mb-2">Clock format</p>
+                <OptionCards
+                  name="Clock format"
+                  options={TIMER_FORMATS}
+                  value={timer.timerFormat}
+                  onChange={(id) => updateTimer({ timerFormat: id })}
+                  columns="grid-cols-3"
+                  renderPreview={(o) => (
+                    <p className="text-xl font-bold tabular-nums text-fg mb-1">
+                      {formatTimer(1499, o.id)}
+                    </p>
+                  )}
+                />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-fg mb-2">Clock style</p>
+                <OptionCards
+                  name="Clock style"
+                  options={FACE_STYLES}
+                  value={timer.faceStyle}
+                  onChange={(id) => updateTimer({ faceStyle: id })}
+                  columns="grid-cols-3"
+                />
+              </div>
+            </div>
+
+            {/* Defaults */}
+            <div className="bg-surface-2 p-4 rounded-lg space-y-4 transition-colors duration-300">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <label className="flex items-center justify-between gap-3 text-sm text-fg">
+                  <span>
+                    Default focus
+                    <span className="block text-xs text-fg-muted">minutes</span>
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="180"
+                    value={timer.defaultFocus}
+                    onChange={(e) =>
+                      updateTimer({ defaultFocus: Number(e.target.value) })
+                    }
+                    className="w-20 px-2 py-1.5 rounded-lg bg-surface border border-edge text-sm text-fg text-right tabular-nums focus:border-focus outline-none"
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-3 text-sm text-fg">
+                  <span>
+                    Default break
+                    <span className="block text-xs text-fg-muted">minutes</span>
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="60"
+                    value={timer.defaultBreak}
+                    onChange={(e) =>
+                      updateTimer({ defaultBreak: Number(e.target.value) })
+                    }
+                    className="w-20 px-2 py-1.5 rounded-lg bg-surface border border-edge text-sm text-fg text-right tabular-nums focus:border-focus outline-none"
+                  />
+                </label>
+              </div>
+              <SettingRow
+                title="Start breaks automatically"
+                hint="Begin the break as soon as a focus block ends."
+              >
+                <Toggle
+                  checked={timer.autoStartBreak}
+                  onChange={(v) => updateTimer({ autoStartBreak: v })}
+                  label="Start breaks automatically"
+                />
+              </SettingRow>
             </div>
           </div>
         </div>

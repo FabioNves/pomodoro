@@ -10,9 +10,19 @@ import toast from "react-hot-toast";
 import Navbar from "@/components/Navbar";
 import TimerControls from "@/components/TimerControls";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import WeekCalendar from "@/components/weekplan/WeekCalendar";
+import Dropdown from "@/components/ui/Dropdown";
+import { useWeekPlanTasks } from "@/hooks/useWeekPlanTasks";
 import { apiJson } from "@/utils/apiClient";
 import { COLOR_PALETTES } from "@/lib/habitPalettes";
-import { getMondayOf } from "@/utils/timeUtils";
+import { projectOptions, getProjectColorMeta } from "@/lib/projectColors";
+import {
+  dayTasksForPlan,
+  routineColorMap,
+  makeProjectResolver,
+  idOf,
+} from "@/lib/weekPlanView";
+import { getMondayOf, weekLabel } from "@/utils/timeUtils";
 import {
   requestNotificationPermission,
   showNotification,
@@ -40,6 +50,9 @@ function loadActiveProject() {
   }
 }
 
+// Sessions need a label; a project is optional so unassigned work still saves.
+const NO_PROJECT_LABEL = "Unassigned";
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -59,6 +72,8 @@ export default function DashboardPage() {
     projectId: "",
     title: "",
   });
+  // What is being worked on: a todo, a routine task, or a typed name.
+  const [activeTask, setActiveTask] = useState("");
 
   /* ── auth ─────────────────────────────────────────── */
   useEffect(() => {
@@ -132,18 +147,54 @@ export default function DashboardPage() {
     };
   }, [user]);
 
-  // The current week's plan when it exists, otherwise the most recent one.
-  const weekPlan = (() => {
-    if (!weekPlans.length) return null;
-    const monday = getMondayOf(new Date());
-    return weekPlans.find((wp) => wp.weekStart === monday) || weekPlans[0];
-  })();
+  // This week's plan drives the today column; the summary falls back to the
+  // most recent plan when this week has none yet.
+  const monday = getMondayOf(new Date());
+  const currentWeekPlan =
+    weekPlans.find((wp) => wp.weekStart === monday) || null;
+  const weekPlan = currentWeekPlan || weekPlans[0] || null;
+
+  const setPlan = useCallback((updated) => {
+    if (!updated?._id) return;
+    setWeekPlans((prev) =>
+      prev.some((wp) => wp._id === updated._id)
+        ? prev.map((wp) => (wp._id === updated._id ? updated : wp))
+        : [updated, ...prev],
+    );
+  }, []);
+
+  // Created on demand the first time something is added to today's column.
+  const createPlan = useCallback(async () => {
+    try {
+      const created = await apiJson("/api/week-plans", {
+        method: "POST",
+        body: JSON.stringify({
+          name: weekLabel(monday),
+          weekStart: monday,
+          projects: projects.map((p) => p._id),
+        }),
+      });
+      setPlan(created);
+      return created;
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not create this week's plan.");
+      return null;
+    }
+  }, [monday, projects, setPlan]);
+
+  const weekActions = useWeekPlanTasks({
+    plan: currentWeekPlan,
+    setPlan,
+    createPlan,
+  });
 
   /* ── timer ────────────────────────────────────────── */
   const chooseProject = (projectId) => {
     const p = projects.find((x) => String(x._id) === projectId);
     const next = p ? { projectId: String(p._id), title: p.name } : { projectId: "", title: "" };
     setActiveProject(next);
+    setActiveTask(""); // tasks belong to a project
     try {
       localStorage.setItem("activeProject", JSON.stringify(next));
     } catch {}
@@ -151,23 +202,23 @@ export default function DashboardPage() {
 
   const handleSessionCompletion = useCallback(
     async (focus, brk) => {
-      if (!activeProject.title) {
-        toast.error("Pick a project for this session first.");
-        return;
-      }
+      const label = activeProject.title || NO_PROJECT_LABEL;
       try {
         await apiJson("/api/sessions", {
           method: "POST",
           body: JSON.stringify({
             focusTime: focus,
             breakTime: brk,
-            currentProject: activeProject,
-            tasks: [],
+            currentProject: { title: label },
+            tasks: activeTask
+              ? [{ task: activeTask, completed: false, brand: { title: label } }]
+              : [],
           }),
         });
-        toast.success(`Saved a ${focus}-minute session on ${activeProject.title}.`);
+        const on = activeTask ? `${activeTask} · ${label}` : label;
+        toast.success(`Saved a ${focus}-minute session on ${on}.`);
         showNotification("🎯 Session Completed!", {
-          body: `Great work! You completed a ${focus}-minute focus session on ${activeProject.title}.`,
+          body: `Great work! You completed a ${focus}-minute focus session on ${on}.`,
           icon: "/favicon.ico",
         });
         refreshSessions();
@@ -176,7 +227,7 @@ export default function DashboardPage() {
         toast.error("Could not save the session.");
       }
     },
-    [activeProject, refreshSessions],
+    [activeProject, activeTask, refreshSessions],
   );
 
   const navigate = useCallback(
@@ -186,40 +237,124 @@ export default function DashboardPage() {
 
   if (!hasMounted || !user) return null;
 
-  const timerSlot = (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <label
-          htmlFor="dashboard-project"
-          className="text-xs text-fg-subtle shrink-0"
-        >
-          Project
-        </label>
-        <select
-          id="dashboard-project"
-          value={activeProject.projectId}
-          onChange={(e) => chooseProject(e.target.value)}
-          className="flex-1 min-w-[160px] max-w-xs px-2 py-1.5 rounded-lg bg-surface-2 border border-edge text-sm text-fg focus:border-focus outline-none"
-        >
-          <option value="">Choose a project…</option>
-          {projects.map((p) => (
-            <option key={p._id} value={String(p._id)}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        {!activeProject.title ? (
-          <span className="text-[11px] text-warning">
-            Needed to save sessions
-          </span>
-        ) : null}
-      </div>
-      <TimerControls
-        handleSessionCompletion={handleSessionCompletion}
-        showNotification={showNotification}
-        activeProject={activeProject}
+  // Optional project + task row under the timer controls, inside the panel.
+  const activeProjectId = activeProject.projectId;
+  const taskGroups = activeProjectId
+    ? [
+        {
+          key: "todo",
+          label: "Tasks",
+          options: tasks
+            .filter(
+              (t) =>
+                !t.completed && String(idOf(t.project)) === String(activeProjectId),
+            )
+            .map((t) => ({ value: t.title, label: t.title })),
+        },
+        {
+          key: "routine",
+          label: "Routines",
+          options: routineTasks
+            .filter(
+              (rt) => String(idOf(rt.project)) === String(activeProjectId),
+            )
+            .map((rt) => ({
+              value: rt.title,
+              label: rt.title,
+              color: rt.color || undefined,
+              hint: rt.estimatedTime ? `${rt.estimatedTime} min` : undefined,
+            })),
+        },
+      ]
+    : [];
+
+  const projectPicker = (
+    <div className="flex flex-wrap items-center justify-center gap-2">
+      <Dropdown
+        id="dashboard-project"
+        label="Project"
+        value={activeProjectId}
+        options={[
+          { value: "", label: "No project" },
+          ...projectOptions(projects),
+        ]}
+        onChange={chooseProject}
+        placeholder="Optional"
+        tone="primary"
+        align="center"
+        menuLabel="Project"
       />
+      {activeProjectId ? (
+        <Dropdown
+          id="dashboard-task"
+          label="Task"
+          value={activeTask}
+          groups={taskGroups}
+          onChange={(v) => setActiveTask(v)}
+          placeholder="Optional"
+          tone="accent"
+          align="center"
+          menuLabel="Task"
+          custom={{ type: "text", label: "Custom", placeholder: "Task name" }}
+        />
+      ) : null}
     </div>
+  );
+
+  const timerSlot = (
+    <TimerControls
+      handleSessionCompletion={handleSessionCompletion}
+      showNotification={showNotification}
+      extra={projectPicker}
+    />
+  );
+
+  // Today's column of the week calendar, with the same add / drag flow.
+  const todayDow = (new Date().getDay() + 6) % 7;
+  const todayTasks = dayTasksForPlan({
+    weekPlan: currentWeekPlan,
+    routineTasks,
+    tasks,
+    dayIdx: todayDow,
+  });
+  const dayTasks = Array.from({ length: 7 }, (_, d) =>
+    d === todayDow ? todayTasks : [],
+  );
+  const mondayDate = new Date(monday + "T00:00:00");
+  const dayDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(mondayDate);
+    d.setDate(d.getDate() + i);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const projectNames = Object.fromEntries(
+    projects.map((p) => [String(p._id), p.name]),
+  );
+  const projectColors = Object.fromEntries(
+    projects.map((p) => [
+      String(p._id),
+      getProjectColorMeta(p.headerColor).swatchClass,
+    ]),
+  );
+  const todaySlot = (
+    <WeekCalendar
+      weekPlan={currentWeekPlan || { weekStart: monday, days: [] }}
+      dayTasks={dayTasks}
+      dayDates={dayDates}
+      todayDow={todayDow}
+      routineTasks={routineTasks}
+      todoTasks={tasks.filter((t) => !t.completed)}
+      projectNameMap={projectNames}
+      projectColorMap={projectColors}
+      taskColorMap={routineColorMap(routineTasks)}
+      getTaskProjectId={makeProjectResolver(routineTasks)}
+      onAddTask={weekActions.addTask}
+      onToggleTask={weekActions.toggleTask}
+      onDeleteTask={weekActions.deleteTask}
+      onUpdateTask={weekActions.updateTask}
+      onMoveTask={weekActions.moveTask}
+      visibleDays={[todayDow]}
+      compact
+    />
   );
 
   return (
@@ -238,6 +373,7 @@ export default function DashboardPage() {
           sessions={sessions}
           palettes={COLOR_PALETTES}
           timerSlot={timerSlot}
+          todaySlot={todaySlot}
           onNavigate={navigate}
         />
       </main>

@@ -5,7 +5,12 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "react-hot-toast";
 import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
 import { ThemeProvider } from "../hooks/useTheme";
-import { THEME_IDS, DARK_THEME_IDS, DEFAULT_THEME } from "../lib/themes";
+import {
+  THEME_IDS,
+  DARK_THEME_IDS,
+  DEFAULT_THEME,
+  LEGACY_THEME_IDS,
+} from "../lib/themes";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -115,7 +120,9 @@ export default function RootLayout({ children }) {
                 try {
                   var THEMES = ${JSON.stringify(THEME_IDS)};
                   var DARK = ${JSON.stringify(DARK_THEME_IDS)};
+                  var LEGACY = ${JSON.stringify(LEGACY_THEME_IDS)};
                   var saved = localStorage.getItem('theme');
+                  if (LEGACY[saved]) saved = LEGACY[saved];
                   var theme = THEMES.indexOf(saved) !== -1 ? saved : ${JSON.stringify(DEFAULT_THEME)};
                   var root = document.documentElement;
                   root.setAttribute('data-theme', theme);
@@ -135,7 +142,7 @@ export default function RootLayout({ children }) {
             clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
           >
             <ServiceWorkerRegistration />
-            <div className="app-bg w-screen min-h-screen text-fg pt-[7.5rem] md:pt-[4.75rem] transition-colors duration-300">
+            <div className="app-bg w-screen min-h-screen text-fg pt-[4.5rem] md:pt-[4.75rem] pb-[5.25rem] md:pb-0 transition-colors duration-300">
               {children}
             </div>
           </GoogleOAuthProvider>

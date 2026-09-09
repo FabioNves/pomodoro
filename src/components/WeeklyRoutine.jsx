@@ -21,6 +21,7 @@ import {
   TaskColorLines,
 } from "./weekplan/WeekPlanShared";
 import WeekCalendar from "./weekplan/WeekCalendar";
+import { getProjectColorMeta } from "@/lib/projectColors";
 
 const DAY_NAMES = [
   "Monday",
@@ -52,6 +53,8 @@ export default function WeeklyRoutine({
   // "list" (project rows per day) or "calendar" (hour grid); chosen by the
   // planner tab that renders this component.
   view = "list",
+  // Calendar view on phones: opens the drawer with sections + weeks.
+  onOpenSidebar,
 }) {
   const [addingDay, setAddingDay] = useState(null);
   const [editingTaskKey, setEditingTaskKey] = useState(null);
@@ -100,6 +103,14 @@ export default function WeeklyRoutine({
   const projectNameMap = useMemo(() => {
     const map = {};
     for (const p of projects) map[p._id] = p.name;
+    return map;
+  }, [projects]);
+
+  // Map project id → swatch class, so grouped pickers can show its colour
+  const projectColorMap = useMemo(() => {
+    const map = {};
+    for (const p of projects)
+      map[p._id] = getProjectColorMeta(p.headerColor).swatchClass;
     return map;
   }, [projects]);
 
@@ -581,16 +592,50 @@ export default function WeeklyRoutine({
   });
 
   return (
-    <div className="mt-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-        <div>
-          <h3 className="text-lg font-bold text-fg">
-            {weekLabel(weekPlan.weekStart)}
-          </h3>
-          <p className="text-sm text-fg-subtle">
-            {dateRange}
-          </p>
+    <div className={view === "calendar" ? "h-full flex flex-col min-h-0" : "mt-8"}>
+      {/* Header — a single compact line in calendar view to leave room for the grid */}
+      <div
+        className={
+          view === "calendar"
+            ? "flex items-center justify-between gap-2 mb-2 shrink-0"
+            : "flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4"
+        }
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {view === "calendar" && onOpenSidebar ? (
+            <button
+              type="button"
+              className="md:hidden p-1.5 -ml-1 rounded-lg text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors"
+              onClick={onOpenSidebar}
+              aria-label="Open weeks and sections"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-5 h-5"
+                aria-hidden="true"
+              >
+                <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          ) : null}
+          {view === "calendar" ? (
+            <h3 className="text-base font-bold text-fg truncate">
+              {weekLabel(weekPlan.weekStart)}
+              <span className="ml-2 text-xs font-normal text-fg-subtle">
+                {dateRange}
+              </span>
+            </h3>
+          ) : (
+            <div>
+              <h3 className="text-lg font-bold text-fg">
+                {weekLabel(weekPlan.weekStart)}
+              </h3>
+              <p className="text-sm text-fg-subtle">{dateRange}</p>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {onEditWeek ? (
@@ -620,6 +665,7 @@ export default function WeeklyRoutine({
       </div>
 
       {view === "calendar" ? (
+        <div className="flex-1 min-h-0">
         <WeekCalendar
           weekPlan={weekPlan}
           dayTasks={dayDisplayTasks}
@@ -628,6 +674,7 @@ export default function WeeklyRoutine({
           routineTasks={routineTasks}
           todoTasks={todoTasks}
           projectNameMap={projectNameMap}
+          projectColorMap={projectColorMap}
           taskColorMap={taskColorMap}
           getTaskProjectId={getTaskProjectId}
           onAddTask={onAddTask}
@@ -636,6 +683,7 @@ export default function WeeklyRoutine({
           onUpdateTask={onUpdateTask}
           onMoveTask={onMoveTask}
         />
+        </div>
       ) : (
         <>
       {/* Desktop grid */}
@@ -767,6 +815,7 @@ export default function WeeklyRoutine({
                                           routineTasks={sectionRoutineTasks}
                                           todoTasks={sectionTodoTasks}
                                           projectNameMap={projectNameMap}
+                                          projectColorMap={projectColorMap}
                                           projectId={
                                             sectionKey === "other"
                                               ? null
@@ -857,6 +906,7 @@ export default function WeeklyRoutine({
                               routineTasks={routineTasks}
                               todoTasks={todoTasks}
                               projectNameMap={projectNameMap}
+                              projectColorMap={projectColorMap}
                               projectId={null}
                               onAdd={(data) => onAddTask(dayIdx, data)}
                               onClose={() => setAddingDay(null)}
@@ -1182,6 +1232,7 @@ export default function WeeklyRoutine({
                                 routineTasks={sectionRoutineTasks}
                                 todoTasks={sectionTodoTasks}
                                 projectNameMap={projectNameMap}
+                                projectColorMap={projectColorMap}
                                 projectId={
                                   sectionKey === "other" ? null : sectionKey
                                 }
@@ -1221,6 +1272,7 @@ export default function WeeklyRoutine({
                           routineTasks={routineTasks}
                           todoTasks={todoTasks}
                           projectNameMap={projectNameMap}
+                          projectColorMap={projectColorMap}
                           projectId={null}
                           onAdd={(data) => onAddTask(dayIdx, data)}
                           onClose={() => setAddingDay(null)}

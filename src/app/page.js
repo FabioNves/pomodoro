@@ -207,7 +207,7 @@ export default function App() {
             transition={{ duration: 0.8, delay: 1.2 }}
           >
             {/* Timer Card */}
-            <div className="bg-surface/80 backdrop-blur-sm rounded-2xl p-8 border border-edge shadow-2xl transition-colors duration-300">
+            <div className="bg-surface/80 backdrop-blur-sm rounded-2xl p-4 sm:p-8 border border-edge shadow-2xl transition-colors duration-300">
               {/* Public Timer Controls */}
               <PublicTimerControls showNotification={showNotification} />
 

@@ -67,6 +67,7 @@ function SectionCard({
   onAction,
   children,
   className = "",
+  bodyClassName = "px-4 py-3",
 }) {
   return (
     <section
@@ -95,7 +96,7 @@ function SectionCard({
           <IconArrow className="w-3.5 h-3.5" />
         </button>
       </header>
-      <div className="flex-1 px-4 py-3">{children}</div>
+      <div className={`flex-1 ${bodyClassName}`}>{children}</div>
     </section>
   );
 }
@@ -164,6 +165,7 @@ export default function DashboardOverview({
   sessions = [],
   palettes = {},
   timerSlot = null,
+  todaySlot = null,
   onNavigate,
 }) {
   const go = (key) => () => onNavigate?.(key);
@@ -386,8 +388,11 @@ export default function DashboardOverview({
           </p>
         </div>
 
+        {/* One grid for everything so phones can put the timer and today's
+            calendar first (order-*) while larger screens keep the DOM order. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {/* Quick stats */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="order-3 md:order-none md:col-span-2 xl:col-span-3 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <StatTile
             label="Focus today"
             value={hoursLabel(analytics.todayMinutes)}
@@ -435,7 +440,6 @@ export default function DashboardOverview({
         </div>
 
         {/* Timer + analytics */}
-        <div className="grid md:grid-cols-3 gap-4">
           <SectionCard
             title="Timer"
             subtitle={
@@ -446,11 +450,79 @@ export default function DashboardOverview({
             Icon={IconTimer}
             actionLabel="Open Timer"
             onAction={go("timer")}
-            className="md:col-span-2"
+            className="order-1 md:order-none md:col-span-2"
           >
             {timerSlot || (
               <EmptyHint actionLabel="Open Timer" onAction={go("timer")}>
                 Run focused sessions and keep your streak going.
+              </EmptyHint>
+            )}
+          </SectionCard>
+
+          {/* Today / Calendar */}
+          <SectionCard
+            title="Today"
+            subtitle={`${DAY_SHORT[todayDow]} · hour by hour`}
+            Icon={IconCalendar}
+            actionLabel="Open Calendar"
+            onAction={go("calendar")}
+            className="order-2 md:order-none"
+            bodyClassName={todaySlot ? "p-2" : undefined}
+          >
+            {todaySlot ? (
+              <div className="h-[400px]">{todaySlot}</div>
+            ) : weekSummary.timed.length || weekSummary.untimed.length ? (
+              <div className="space-y-1.5">
+                {weekSummary.timed.map(({ task, start, end }) => {
+                  const isNow =
+                    weekSummary.nowMin >= start && weekSummary.nowMin < end;
+                  return (
+                    <div
+                      key={task._id}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs ${
+                        task.completed
+                          ? "bg-success-soft border-success/30 text-fg-subtle"
+                          : isNow
+                            ? "bg-accent-soft border-accent/40 text-fg"
+                            : "bg-surface-2 border-edge text-fg"
+                      }`}
+                    >
+                      <span className="tabular-nums text-fg-subtle shrink-0">
+                        {minutesToTime(start)}–{minutesToTime(end)}
+                      </span>
+                      <span
+                        className={`truncate flex-1 ${task.completed ? "line-through" : "font-medium"}`}
+                      >
+                        {task.taskName}
+                      </span>
+                      {isNow && !task.completed ? (
+                        <span className="text-[10px] font-semibold text-accent shrink-0">
+                          now
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {weekSummary.untimed.length ? (
+                  <div className="pt-1 text-[11px] text-fg-subtle">
+                    No time yet:{" "}
+                    <span className="text-fg-muted">
+                      {weekSummary.untimed
+                        .slice(0, 3)
+                        .map((t) => t.taskName)
+                        .join(", ")}
+                      {weekSummary.untimed.length > 3
+                        ? ` +${weekSummary.untimed.length - 3} more`
+                        : ""}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <EmptyHint actionLabel="Plan today" onAction={go("calendar")}>
+                {weekPlan
+                  ? "Nothing on today's calendar. Drag tasks onto an hour to plan your day."
+                  : "Create a week plan to start placing tasks on the calendar."}
               </EmptyHint>
             )}
           </SectionCard>
@@ -461,6 +533,7 @@ export default function DashboardOverview({
             Icon={IconAnalytics}
             actionLabel="Open Analytics"
             onAction={go("analytics")}
+            className="order-4 md:order-none"
           >
             {analytics.totalSessions ? (
               <div className="space-y-3">
@@ -531,74 +604,8 @@ export default function DashboardOverview({
               </EmptyHint>
             )}
           </SectionCard>
-        </div>
 
         {/* Planner sections */}
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {/* Today / Calendar */}
-          <SectionCard
-            title="Today"
-            subtitle={`${DAY_SHORT[todayDow]} · hour by hour`}
-            Icon={IconCalendar}
-            actionLabel="Open Calendar"
-            onAction={go("calendar")}
-          >
-            {weekSummary.timed.length || weekSummary.untimed.length ? (
-              <div className="space-y-1.5">
-                {weekSummary.timed.map(({ task, start, end }) => {
-                  const isNow =
-                    weekSummary.nowMin >= start && weekSummary.nowMin < end;
-                  return (
-                    <div
-                      key={task._id}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs ${
-                        task.completed
-                          ? "bg-success-soft border-success/30 text-fg-subtle"
-                          : isNow
-                            ? "bg-accent-soft border-accent/40 text-fg"
-                            : "bg-surface-2 border-edge text-fg"
-                      }`}
-                    >
-                      <span className="tabular-nums text-fg-subtle shrink-0">
-                        {minutesToTime(start)}–{minutesToTime(end)}
-                      </span>
-                      <span
-                        className={`truncate flex-1 ${task.completed ? "line-through" : "font-medium"}`}
-                      >
-                        {task.taskName}
-                      </span>
-                      {isNow && !task.completed ? (
-                        <span className="text-[10px] font-semibold text-accent shrink-0">
-                          now
-                        </span>
-                      ) : null}
-                    </div>
-                  );
-                })}
-                {weekSummary.untimed.length ? (
-                  <div className="pt-1 text-[11px] text-fg-subtle">
-                    No time yet:{" "}
-                    <span className="text-fg-muted">
-                      {weekSummary.untimed
-                        .slice(0, 3)
-                        .map((t) => t.taskName)
-                        .join(", ")}
-                      {weekSummary.untimed.length > 3
-                        ? ` +${weekSummary.untimed.length - 3} more`
-                        : ""}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <EmptyHint actionLabel="Plan today" onAction={go("calendar")}>
-                {weekPlan
-                  ? "Nothing on today's calendar. Drag tasks onto an hour to plan your day."
-                  : "Create a week plan to start placing tasks on the calendar."}
-              </EmptyHint>
-            )}
-          </SectionCard>
-
           {/* This week / Schedule */}
           <SectionCard
             title="This week"
@@ -610,6 +617,7 @@ export default function DashboardOverview({
             Icon={IconSchedule}
             actionLabel="Open Schedule"
             onAction={go("schedule")}
+            className="order-5 md:order-none"
           >
             {weekPlan ? (
               <div className="space-y-3">
@@ -673,6 +681,7 @@ export default function DashboardOverview({
             Icon={IconTasks}
             actionLabel="Open Tasks"
             onAction={go("tasks")}
+            className="order-6 md:order-none"
           >
             {taskSummary.groups.length ? (
               <div className="space-y-3">
@@ -735,6 +744,7 @@ export default function DashboardOverview({
             Icon={IconHabits}
             actionLabel="Open Habits"
             onAction={go("habits")}
+            className="order-7 md:order-none"
           >
             {habitSummary.rows.length ? (
               <div className="space-y-2">
@@ -786,7 +796,7 @@ export default function DashboardOverview({
             Icon={IconRoutines}
             actionLabel="Open Routines"
             onAction={go("routines")}
-            className="md:col-span-2 xl:col-span-2"
+            className="order-8 md:order-none md:col-span-2"
           >
             {routineTasks.length ? (
               <div className="grid sm:grid-cols-2 gap-4">

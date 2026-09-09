@@ -92,6 +92,7 @@ export default function WeekCalendar({
   routineTasks = [],
   todoTasks = [],
   projectNameMap = {},
+  projectColorMap = {},
   taskColorMap = {},
   getTaskProjectId,
   onAddTask,
@@ -99,6 +100,9 @@ export default function WeekCalendar({
   onDeleteTask,
   onUpdateTask,
   onMoveTask,
+  // Which day columns to render (0 = Monday). The dashboard shows just today.
+  visibleDays = [0, 1, 2, 3, 4, 5, 6],
+  compact = false,
 }) {
   const scrollRef = useRef(null);
   const colRefs = useRef([]);
@@ -404,7 +408,7 @@ export default function WeekCalendar({
   /* ── Rendering helpers ───────────────────────────────── */
 
   const gridCols = {
-    gridTemplateColumns: `${GUTTER_PX}px repeat(7, minmax(0, 1fr))`,
+    gridTemplateColumns: `${GUTTER_PX}px repeat(${visibleDays.length}, minmax(0, 1fr))`,
   };
 
   const toggleTask = (task, dayIdx, block) => {
@@ -615,19 +619,20 @@ export default function WeekCalendar({
     : "";
 
   return (
-    <div className="bg-surface border border-edge rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-surface border border-edge rounded-2xl shadow-sm overflow-hidden flex flex-col h-full min-h-[360px]">
       <div
         ref={scrollRef}
-        className="relative overflow-auto h-[calc(100vh-21rem)] min-h-[420px] select-none"
+        className="relative flex-1 min-h-0 overflow-auto select-none"
       >
-        <div className="min-w-[760px]">
+        <div className={compact ? "" : "min-w-[760px]"}>
           {/* Sticky header + unscheduled strip */}
           <div className="sticky top-0 z-20 bg-surface border-b border-edge">
             <div className="grid" style={gridCols}>
               <div className="px-2 py-2 text-[10px] uppercase tracking-wide text-fg-subtle flex items-end">
                 {weekPlan?.weekStart ? "" : null}
               </div>
-              {DAY_SHORT.map((name, i) => {
+              {visibleDays.map((i) => {
+                const name = DAY_SHORT[i];
                 const isToday = i === todayDow;
                 return (
                   <div
@@ -658,7 +663,7 @@ export default function WeekCalendar({
               <div className="px-2 py-1.5 text-[10px] leading-tight text-fg-subtle flex items-center">
                 No time yet
               </div>
-              {Array.from({ length: 7 }, (_, dayIdx) => {
+              {visibleDays.map((dayIdx) => {
                 const chips = stripByDay[dayIdx] || [];
                 const isOver = dragOverStrip === dayIdx;
                 const addKey = `strip-add-${dayIdx}`;
@@ -697,6 +702,7 @@ export default function WeekCalendar({
                           routineTasks={routineTasks}
                           todoTasks={todoTasks}
                           projectNameMap={projectNameMap}
+                          projectColorMap={projectColorMap}
                           projectId={null}
                           onAdd={(data) => onAddTask?.(dayIdx, data)}
                           onClose={() => setAddingStripDay(null)}
@@ -727,7 +733,7 @@ export default function WeekCalendar({
               )}
             </div>
 
-            {Array.from({ length: 7 }, (_, dayIdx) => {
+            {visibleDays.map((dayIdx) => {
               const blocks = timedByDay[dayIdx] || [];
               const isToday = dayIdx === todayDow;
               const preview =
@@ -804,6 +810,7 @@ export default function WeekCalendar({
           routineTasks={routineTasks}
           todoTasks={todoTasks}
           projectNameMap={projectNameMap}
+          projectColorMap={projectColorMap}
           projectId={null}
           onAdd={(data) =>
             onAddTask?.(selection.day, {
@@ -816,12 +823,6 @@ export default function WeekCalendar({
           anchorRef={selectionAnchorRef}
         />
       ) : null}
-
-      <div className="px-3 py-1.5 border-t border-edge text-[10px] text-fg-subtle flex flex-wrap gap-x-4 gap-y-0.5">
-        <span>Drag a task onto an hour to schedule it, or back to the top strip to clear its time.</span>
-        <span>Click and drag on the grid to pick a time block.</span>
-        <span>Drag a block&apos;s bottom edge to change its length.</span>
-      </div>
     </div>
   );
 }

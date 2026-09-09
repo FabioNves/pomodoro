@@ -153,8 +153,8 @@
   --chart-axis: #9fb0cc;
 }
 
-/* ── Feminine — blush with rose / lavender ── */
-[data-theme="feminine"] {
+/* ── Rose — blush with rose / lavender ── */
+[data-theme="rose"] {
   color-scheme: light;
 
   --bg: #fbf3f6;

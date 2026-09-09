@@ -1,34 +1,43 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { formatTime } from "../utils/timeUtils";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import TimerPanel from "./timer/TimerPanel";
+import { useTimerSettings } from "@/hooks/useTimerSettings";
+import { createSoundKit } from "@/utils/sounds";
 
-const TimerControls = ({ handleSessionCompletion, showNotification }) => {
+// Signed-in timer: focus → (break) → session saved through handleSessionCompletion.
+const TimerControls = ({ handleSessionCompletion, showNotification, extra = null }) => {
+  const { settings, ready } = useTimerSettings();
+  const sounds = useMemo(() => createSoundKit(settings), [settings]);
+  const soundsRef = useRef(sounds);
+  useEffect(() => {
+    soundsRef.current = sounds;
+  }, [sounds]);
+
   const [startFocus, setStartFocus] = useState(false);
-  const [focusTime, setFocusTime] = useState(25);
+  const [focusTime, setFocusTime] = useState(settings.defaultFocus);
   const [focusEnded, setFocusEnded] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [time, setTime] = useState(focusTime * 60);
+  const [time, setTime] = useState(settings.defaultFocus * 60);
   const [startBreak, setStartBreak] = useState(false);
-  const [breakTime, setBreakTime] = useState(5);
+  const [breakTime, setBreakTime] = useState(settings.defaultBreak);
   const [breakEnded, setBreakEnded] = useState(false);
   const [isBreakRunning, setIsBreakRunning] = useState(false);
-  const [bTime, setBTime] = useState(breakTime * 60);
+  const [bTime, setBTime] = useState(settings.defaultBreak * 60);
   const [startTimestamp, setStartTimestamp] = useState(null);
   const [breakStartTimestamp, setBreakStartTimestamp] = useState(null);
-  const [showBreakOptions, setShowBreakOptions] = useState(false); // Track break selection mode
+  const appliedDefaultsRef = useRef(false);
 
-  const alarmSoundRef = useRef(null);
-
+  // Apply the saved defaults once they are read from storage (before a session starts).
   useEffect(() => {
-    // Initialize the alarm sound on the client side
-    if (typeof window !== "undefined") {
-      alarmSoundRef.current = new Audio(
-        new URL("/futuristic_alarm.mp3", window.location.origin)
-      );
+    if (!ready || appliedDefaultsRef.current) return;
+    appliedDefaultsRef.current = true;
+    if (!startFocus && !focusEnded) {
+      setFocusTime(settings.defaultFocus);
+      setBreakTime(settings.defaultBreak);
     }
-  }, []);
+  }, [ready, settings.defaultFocus, settings.defaultBreak, startFocus, focusEnded]);
 
+  // Focus countdown
   useEffect(() => {
     let timer;
     if (isRunning && !focusEnded) {
@@ -39,16 +48,11 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
         if (remaining <= 0) {
           setTime(0);
           setFocusEnded(true);
-          setShowBreakOptions(true); // Show break options when focus ends
           clearInterval(timer);
 
           // Play the alarm first so a notification problem can't prevent it
-          if (alarmSoundRef.current) {
-            alarmSoundRef.current.currentTime = 0;
-            alarmSoundRef.current.play().catch(() => {});
-          }
+          soundsRef.current.alarm();
 
-          // Enhanced notification with action buttons
           if (showNotification) {
             showNotification("🎉 Focus Session Complete!", {
               body: `Great job! You completed ${focusTime} minutes of focused work. What would you like to do next?`,
@@ -69,7 +73,6 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
               onFinishSession: handleFinishSessionFromNotification,
               onClick: () => {
                 window.focus();
-                // Optional: scroll to timer section
                 document
                   .querySelector(".timer-section")
                   ?.scrollIntoView({ behavior: "smooth" });
@@ -78,19 +81,14 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
           }
         } else {
           setTime(remaining);
+          if (remaining <= 10) soundsRef.current.tick();
         }
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [
-    isRunning,
-    focusEnded,
-    focusTime,
-    startTimestamp,
-    showNotification,
-    breakTime,
-  ]);
+  }, [isRunning, focusEnded, focusTime, startTimestamp, showNotification, breakTime]);
 
+  // Break countdown
   useEffect(() => {
     let breakTimer;
     if (isBreakRunning && !breakEnded) {
@@ -101,44 +99,38 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
         if (remaining <= 0) {
           setBTime(0);
           setBreakEnded(true);
-          // Complete reset after break ends
+          // Complete reset after break ends, then save the session
           resetToInitialState();
           handleSessionCompletion(focusTime, breakTime);
-          if (alarmSoundRef.current && !alarmSoundRef.current.paused) {
-            alarmSoundRef.current.pause();
-            alarmSoundRef.current.currentTime = 0;
-          }
-          if (alarmSoundRef.current) alarmSoundRef.current.play();
+          soundsRef.current.stopAlarm();
+          soundsRef.current.alarm();
         } else {
           setBTime(remaining);
+          if (remaining <= 10) soundsRef.current.tick();
         }
       }, 1000);
     }
     return () => clearInterval(breakTimer);
-  }, [
-    isBreakRunning,
-    breakEnded,
-    breakTime,
-    breakStartTimestamp,
-    handleSessionCompletion,
-    focusTime,
-  ]);
+  }, [isBreakRunning, breakEnded, breakTime, breakStartTimestamp, handleSessionCompletion, focusTime]);
+
+  // Auto-start the break when the setting is on
+  useEffect(() => {
+    if (!focusEnded || startBreak || !settings.autoStartBreak || breakTime <= 0)
+      return;
+    setStartBreak(true);
+    setIsBreakRunning(true);
+    setBreakStartTimestamp(Date.now());
+    soundsRef.current.breakStart();
+  }, [focusEnded, startBreak, settings.autoStartBreak, breakTime]);
 
   useEffect(() => {
-    // Only update time when not in an active session AND focus hasn't endedd
-    if (!startFocus && !focusEnded) {
-      setTime(focusTime * 60);
-    }
+    if (!startFocus && !focusEnded) setTime(focusTime * 60);
   }, [focusTime, startFocus, focusEnded]);
 
   useEffect(() => {
-    // Only update bTime when not in an active break session AND break hasn't started
-    if (!startBreak && !breakEnded) {
-      setBTime(breakTime * 60);
-    }
+    if (!startBreak && !breakEnded) setBTime(breakTime * 60);
   }, [breakTime, startBreak, breakEnded]);
 
-  // Helper function to reset all states to initial
   const resetToInitialState = () => {
     setStartFocus(false);
     setFocusEnded(false);
@@ -148,24 +140,26 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
     setIsBreakRunning(false);
     setStartTimestamp(null);
     setBreakStartTimestamp(null);
-    setFocusTime(25);
-    // Note: breakTime is NOT reset so it persists across sessions
-    // This allows users to keep their preferred break duration
-    // Time will be updated by the useEffect when focusTime changes and startFocus is false
+    setFocusTime(settings.defaultFocus);
+    // breakTime is kept so the preferred break length persists across sessions
   };
 
   const handleStart = () => {
+    sounds.start();
     setStartFocus(true);
     setIsRunning(true);
-    setStartTimestamp(Date.now() - (focusTime * 60 - time) * 1000); // Resume from paused time
+    setStartTimestamp(Date.now() - (focusTime * 60 - time) * 1000); // resume from paused time
   };
 
   const handlePause = () => {
+    sounds.pause();
     setIsRunning(false);
     setStartTimestamp(null);
   };
 
   const handleReset = () => {
+    sounds.click();
+    sounds.stopAlarm();
     setIsRunning(false);
     setTime(focusTime * 60);
     setFocusEnded(false);
@@ -174,23 +168,33 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
     setBreakStartTimestamp(null);
     setIsBreakRunning(false);
     setBreakEnded(false);
-    setStartFocus(false); // Reset this so the dropdown appears again
+    setStartFocus(false);
+  };
+
+  const handleStartBreak = () => {
+    sounds.breakStart();
+    sounds.stopAlarm();
+    setStartBreak(true);
+    setIsBreakRunning(true);
+    setBreakStartTimestamp(Date.now() - (breakTime * 60 - bTime) * 1000);
+  };
+
+  const handlePauseBreak = () => {
+    sounds.pause();
+    setIsBreakRunning(false);
+    setBreakStartTimestamp(null);
   };
 
   const handleFinishSession = () => {
+    sounds.click();
+    sounds.stopAlarm();
     const currentFocusTime = focusTime;
     const currentBreakTime = breakTime;
-
-    // Reset all states first
     resetToInitialState();
-
-    // Call the session completion handler
     handleSessionCompletion(currentFocusTime, currentBreakTime);
   };
 
-  // Add state to track if we're in break selection mode
   const handleStartBreakFromNotification = () => {
-    setShowBreakOptions(false);
     setStartBreak(true);
     setIsBreakRunning(true);
     setBreakStartTimestamp(Date.now());
@@ -199,221 +203,36 @@ const TimerControls = ({ handleSessionCompletion, showNotification }) => {
   const handleFinishSessionFromNotification = () => {
     const currentFocusTime = focusTime;
     const currentBreakTime = breakTime;
-
     resetToInitialState();
     handleSessionCompletion(currentFocusTime, currentBreakTime);
   };
 
-  // Determine if we should show dropdowns or static text
-  const showFocusDropdown = !startFocus && !focusEnded; // Only show dropdown when session hasn't started and hasn't ended
-  const showBreakDropdown = !startBreak && !breakEnded && focusEnded; // Only show when break hasn't started but focus has ended
-
   return (
-    <motion.div
-      className="w-full flex flex-col timer-section" // Add class for scrolling
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <div className="w-full h-full flex justify-around items-center">
-        {/* Focus Time Display */}
-        {startFocus && !focusEnded ? (
-          // Show countdown timer during focus
-          <motion.div
-            className="text-5xl font-bold mt-5 bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent"
-            animate={{ scale: [1, 1.02, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            {formatTime(time)}
-          </motion.div>
-        ) : showFocusDropdown ? (
-          // Show dropdown only when session hasn't started
-          <motion.div
-            className="mt-5 selectTime"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <label className="text-fg-muted font-medium">
-              Focus Time:{" "}
-            </label>
-            <select
-              value={focusTime}
-              onChange={(e) => setFocusTime(Number(e.target.value))}
-              className="text-fg bg-surface border border-edge p-2 rounded-sm ml-2 focus:border-focus focus:outline-none transition-colors duration-300"
-            >
-              {[20, 25, 30, 35, 40, 45, 50].map((t) => (
-                <option
-                  key={t}
-                  value={t}
-                  className="text-fg bg-surface"
-                >
-                  {t} min
-                </option>
-              ))}
-            </select>
-          </motion.div>
-        ) : (
-          // Show static text when focus has ended but session not finished
-          <motion.div
-            className="mt-5"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="text-fg-muted font-medium text-center">
-              <span className="text-lg">Focus Time: </span>
-              <span className="text-xl font-bold text-primary">
-                {focusTime} min
-              </span>
-              <div className="text-sm text-fg-muted mt-1">
-                Session completed! 🎉
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Break Time Display */}
-        {startBreak && !breakEnded ? (
-          // Show countdown timer during break
-          <motion.div
-            className="text-5xl font-bold mt-5 text-success"
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 1, repeat: Infinity }}
-          >
-            {formatTime(bTime)}
-          </motion.div>
-        ) : showBreakDropdown ? (
-          // Show dropdown only when focus ended but break hasn't started
-          <motion.div
-            className="mt-3 selectTime"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <label className="text-fg-muted font-medium">Break Time: </label>
-            <select
-              value={breakTime}
-              onChange={(e) => setBreakTime(Number(e.target.value))}
-              className="text-fg bg-surface border border-edge p-2 rounded-md ml-2 focus:border-focus focus:outline-none"
-            >
-              {[0, 5, 10, 15, 20].map((t) => (
-                <option key={t} value={t} className="text-fg bg-surface">
-                  {t} min
-                </option>
-              ))}
-            </select>
-          </motion.div>
-        ) : focusEnded && !showBreakDropdown ? (
-          // Show static text when break is running or session is being finished
-          <motion.div
-            className="mt-3"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="text-fg-muted font-medium text-center">
-              <span className="text-lg">Break Time: </span>
-              <span className="text-xl font-bold text-success">
-                {breakTime} min
-              </span>
-              {startBreak && (
-                <div className="text-sm text-fg-muted mt-1">
-                  Break in progress... ☕
-                </div>
-              )}
-            </div>
-          </motion.div>
-        ) : (
-          // Default break time display when not in focus ended state
-          <motion.div
-            className="mt-3 selectTime"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <label className="text-fg-muted font-medium">
-              Break Time:{" "}
-            </label>
-            <select
-              value={breakTime}
-              onChange={(e) => setBreakTime(Number(e.target.value))}
-              className="text-fg bg-surface border border-edge p-2 rounded-md ml-2 focus:border-focus focus:outline-none transition-colors duration-300"
-            >
-              {[0, 5, 10, 15, 20].map((t) => (
-                <option
-                  key={t}
-                  value={t}
-                  className="text-fg bg-surface"
-                >
-                  {t} min
-                </option>
-              ))}
-            </select>
-          </motion.div>
-        )}
-      </div>
-
-      <div className="w-full flex justify-center gap-4 bg-surface-2 p-4 rounded-md mt-4 transition-colors duration-300">
-        {/* Only show Start/Pause button when focus hasn't ended */}
-        {!focusEnded && (
-          <motion.button
-            className={`${isRunning ? "bg-warning hover:bg-warning-hover text-white" : "bg-accent hover:bg-accent-hover text-accent-fg"} px-8 py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300`}
-            onClick={isRunning ? handlePause : handleStart}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            {isRunning ? "Pause" : "Start"}
-          </motion.button>
-        )}
-
-        {focusEnded && (
-          <motion.div
-            className="flex gap-4"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <motion.button
-              className={`${isBreakRunning ? "bg-warning hover:bg-warning-hover" : "bg-success hover:bg-success-hover"} text-white px-6 py-2 rounded-lg font-medium transition-all duration-200`}
-              onClick={() => {
-                setStartBreak(true);
-                setIsBreakRunning(!isBreakRunning);
-                if (!isBreakRunning) {
-                  setBreakStartTimestamp(
-                    Date.now() - (breakTime * 60 - bTime) * 1000
-                  );
-                } else {
-                  setBreakStartTimestamp(null);
-                }
-              }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {isBreakRunning ? "Pause Break" : "Start Break"}
-            </motion.button>
-
-            <motion.button
-              className="bg-primary hover:bg-primary-hover text-primary-fg px-6 py-2 rounded-lg font-medium transition-all duration-200"
-              onClick={handleFinishSession}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Finish Session
-            </motion.button>
-          </motion.div>
-        )}
-
-        <motion.button
-          className="bg-danger hover:bg-danger-hover text-white px-8 py-2 rounded-lg font-medium transition-all duration-200"
-          onClick={handleReset}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Reset
-        </motion.button>
-      </div>
-    </motion.div>
+    <TimerPanel
+      settings={settings}
+      sounds={sounds}
+      phase={focusEnded ? "break" : "focus"}
+      seconds={focusEnded ? bTime : time}
+      total={focusEnded ? breakTime * 60 : focusTime * 60}
+      isRunning={isRunning}
+      isBreakRunning={isBreakRunning}
+      focusEnded={focusEnded}
+      breakEnded={breakEnded}
+      focusTime={focusTime}
+      breakTime={breakTime}
+      focusLocked={startFocus || focusEnded}
+      breakLocked={startBreak || breakEnded}
+      onFocusTime={setFocusTime}
+      onBreakTime={setBreakTime}
+      onStart={handleStart}
+      onPause={handlePause}
+      onReset={handleReset}
+      onStartBreak={handleStartBreak}
+      onPauseBreak={handlePauseBreak}
+      onFinish={handleFinishSession}
+      finishLabel="Finish session"
+      extra={extra}
+    />
   );
 };
 

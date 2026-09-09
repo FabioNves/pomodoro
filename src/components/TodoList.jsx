@@ -1,6 +1,8 @@
 "use client";
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { generateSessionId } from "@/utils/sessionUtils";
+import Dropdown from "@/components/ui/Dropdown";
+import { projectOptions } from "@/lib/projectColors";
 
 const TodoList = ({
   user,
@@ -197,18 +199,14 @@ const TodoList = ({
 
         <div className="px-2 py-2">
           <div className="px-2 pb-2">
-            <select
-              className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
+            <Dropdown
+              block
               value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-            >
-              <option value="">Select Project</option>
-              {projects.map((project) => (
-                <option key={project._id} value={project._id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+              options={projectOptions(projects)}
+              onChange={(v) => setSelectedProjectId(v)}
+              placeholder="Select project"
+              menuLabel="Project"
+            />
           </div>
 
           <div className="px-2 pb-2 flex gap-2">

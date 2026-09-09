@@ -314,10 +314,10 @@ const Navbar = ({ user, onLogout }) => {
         </motion.nav>
       </div>
 
-      {/* Mobile Sub-navbar with icons */}
-      <div className="fixed top-[58px] left-0 right-0 z-50 md:hidden px-4 pt-1">
-        <div className="max-w-7xl mx-auto bg-surface/80 backdrop-blur-xl rounded-lg border border-edge shadow-md">
-          <div className="flex items-center justify-around px-2 py-1.5">
+      {/* Mobile bottom navigation */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="max-w-7xl mx-auto bg-surface/90 backdrop-blur-xl rounded-xl border border-edge shadow-lg">
+          <div className="flex items-center justify-around px-1 py-1">
             {NAV_ITEMS.map((item) => (
               <MobileNavIcon
                 key={item.href}

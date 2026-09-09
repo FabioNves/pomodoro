@@ -7,6 +7,7 @@ import {
   applyTheme,
   getTheme,
   isValidTheme,
+  normaliseThemeId,
 } from "@/lib/themes";
 
 const ThemeContext = createContext();
@@ -22,7 +23,7 @@ export function ThemeProvider({ children }) {
     try {
       saved = localStorage.getItem(STORAGE_KEY);
     } catch (e) {}
-    const initial = isValidTheme(saved) ? saved : DEFAULT_THEME;
+    const initial = isValidTheme(saved) ? normaliseThemeId(saved) : DEFAULT_THEME;
     setThemeState(initial);
     applyTheme(initial);
     if (initial !== saved) {
@@ -33,7 +34,7 @@ export function ThemeProvider({ children }) {
   }, []);
 
   const setTheme = (id) => {
-    const next = isValidTheme(id) ? id : DEFAULT_THEME;
+    const next = isValidTheme(id) ? normaliseThemeId(id) : DEFAULT_THEME;
     setThemeState(next);
     applyTheme(next);
     try {

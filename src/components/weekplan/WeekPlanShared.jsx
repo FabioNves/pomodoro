@@ -6,6 +6,7 @@
 
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Compute a viewport-aware popover position anchored under an element.
 // Flips above if not enough room below; right-aligns if not enough room right.
@@ -160,11 +161,13 @@ export function AddTaskPopover({
   anchorRef,
   projectId = null,
   projectNameMap = {},
+  projectColorMap = {},
 }) {
   const ref = useRef(null);
   const [mode, setMode] = useState("routine"); // routine | todo | adhoc
   const [adHocName, setAdHocName] = useState("");
   const [adHocTime, setAdHocTime] = useState("");
+  const [collapsed, setCollapsed] = useState({});
   const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
 
   useLayoutEffect(() => {
@@ -176,7 +179,7 @@ export function AddTaskPopover({
       rect.height,
     );
     setPos({ top, left, ready: true });
-  }, [anchorRef, mode]);
+  }, [anchorRef, mode, collapsed]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -193,6 +196,31 @@ export function AddTaskPopover({
       ? String(t.project._id || t.project)
       : String(t.project);
   };
+
+  // Todos grouped by project so each one can be collapsed.
+  const todoGroups = (() => {
+    const byProject = new Map();
+    for (const t of todoTasks) {
+      const pid = todoProjectId(t);
+      const key = pid || "none";
+      if (!byProject.has(key))
+        byProject.set(key, { key, projectId: pid || null, tasks: [] });
+      byProject.get(key).tasks.push(t);
+    }
+    return [...byProject.values()]
+      .map((g) => ({
+        ...g,
+        label: g.projectId ? projectNameMap[g.projectId] || "Project" : "No project",
+        colorClass: g.projectId ? projectColorMap[g.projectId] : "",
+      }))
+      .sort((a, b) =>
+        a.projectId && !b.projectId
+          ? -1
+          : !a.projectId && b.projectId
+            ? 1
+            : a.label.localeCompare(b.label),
+      );
+  })();
 
   return createPortal(
     <div
@@ -285,35 +313,76 @@ export function AddTaskPopover({
           )}
         </div>
       ) : mode === "todo" ? (
-        <div className="space-y-0.5">
-          {todoTasks.length ? (
-            todoTasks.map((t) => {
-              const pid = todoProjectId(t);
-              const projectName = pid ? projectNameMap[pid] : null;
+        <div className="space-y-1">
+          {todoGroups.length ? (
+            todoGroups.map((g) => {
+              const isOpen = !collapsed[g.key];
               return (
-                <button
-                  key={t._id}
-                  type="button"
-                  title={t.title}
-                  className="w-full text-left px-2 py-1.5 rounded-lg text-sm hover:bg-surface-hover transition-colors"
-                  onClick={() => {
-                    onAdd({
-                      taskName: t.title,
-                      estimatedTime: 0,
-                      projectId: pid,
-                    });
-                    onClose();
-                  }}
-                >
-                  <div className="font-medium line-clamp-2 break-words">
-                    {t.title}
-                  </div>
-                  {projectName ? (
-                    <div className="text-[11px] text-fg-subtle truncate">
-                      {projectName}
-                    </div>
-                  ) : null}
-                </button>
+                <div key={g.key}>
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    onClick={() =>
+                      setCollapsed((c) => ({ ...c, [g.key]: !c[g.key] }))
+                    }
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle hover:bg-surface-hover hover:text-fg-muted transition-colors"
+                  >
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className={`w-3.5 h-3.5 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                      aria-hidden="true"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    {g.colorClass ? (
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${g.colorClass}`}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    <span className="flex-1 min-w-0 truncate">{g.label}</span>
+                    <span className="tabular-nums text-fg-subtle/80">
+                      {g.tasks.length}
+                    </span>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isOpen ? (
+                      <motion.div
+                        className="overflow-hidden"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.16, ease: "easeOut" }}
+                      >
+                        {g.tasks.map((t) => (
+                          <button
+                            key={t._id}
+                            type="button"
+                            title={t.title}
+                            className="w-full text-left pl-4 pr-2 py-1.5 rounded-lg text-sm text-fg-muted hover:bg-surface-hover hover:text-fg transition-colors"
+                            onClick={() => {
+                              onAdd({
+                                taskName: t.title,
+                                estimatedTime: 0,
+                                projectId: g.projectId,
+                              });
+                              onClose();
+                            }}
+                          >
+                            <span className="font-medium line-clamp-2 break-words">
+                              {t.title}
+                            </span>
+                          </button>
+                        ))}
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
               );
             })
           ) : (
