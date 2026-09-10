@@ -1,29 +1,41 @@
-import jwt from "jsonwebtoken";
+import { z } from "zod";
 import User from "@/models/User";
 import { connectToDB } from "@/lib/db";
-import { z } from "zod";
-import { validateJsonBody } from "@/utils/apiValidation";
+import { validateJsonBody, jsonError } from "@/utils/apiValidation";
+import {
+  issueHandoffCode,
+  issueSessionToken,
+  publicUser,
+} from "@/lib/authTokens";
 
+// POST /api/auth/google
+// Exchanges a Google credential (ID token) for a PomoDRIVE session.
+// With `handoff: true` (used by /auth/native on behalf of the mobile and
+// desktop apps) it returns a short-lived code instead, which the app trades
+// for a session at /api/auth/handoff.
 export async function POST(req) {
   try {
     const body = await validateJsonBody(
       req,
-      z.object({ googleToken: z.string().trim().min(1).max(4096) })
+      z.object({
+        googleToken: z.string().trim().min(1).max(4096),
+        handoff: z.boolean().optional(),
+      })
     );
     if (!body.ok) return body.response;
 
-    const { googleToken } = body.data;
+    const { googleToken, handoff } = body.data;
 
     // Credential flow only: JWT tokens have 3 parts and start with "eyJ"
     const tokenParts = googleToken.split(".");
     const isJWT = tokenParts.length === 3 && googleToken.startsWith("eyJ");
     if (!isJWT) {
-      return new Response(
-        JSON.stringify({
+      return Response.json(
+        {
           error: "Unsupported token type",
           message:
             "This app only supports Google credential (JWT) sign-in. OAuth access tokens are not accepted.",
-        }),
+        },
         { status: 400 }
       );
     }
@@ -39,20 +51,16 @@ export async function POST(req) {
         picture: decoded.picture,
       };
     } catch (decodeError) {
-      return new Response(JSON.stringify({ error: "Invalid Google token" }), {
-        status: 401,
-      });
+      return jsonError(401, "Invalid Google token");
     }
 
     if (!googleUser || !googleUser.email) {
-      return new Response(JSON.stringify({ error: "Invalid Google token" }), {
-        status: 401,
-      });
+      return jsonError(401, "Invalid Google token");
     }
 
     await connectToDB();
 
-    // 2. Find or create user in your DB
+    // Find or create the user
     let user = await User.findOne({ email: googleUser.email });
 
     if (!user) {
@@ -75,32 +83,16 @@ export async function POST(req) {
       await user.save();
     }
 
-    // 3. Issue your own JWT
-    const token = jwt.sign(
-      { userId: user._id, email: user.email, name: user.name },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    if (handoff) {
+      return Response.json({ handoffCode: issueHandoffCode(user) });
+    }
 
-    return new Response(
-      JSON.stringify({
-        token,
-        user: {
-          _id: user._id.toString(),
-          userId: user._id.toString(),
-          googleSub: user.googleSub || null,
-          email: user.email,
-          name: user.name,
-          imageUrl: user.imageUrl,
-        },
-      }),
-      { status: 200 }
-    );
+    return Response.json({
+      token: issueSessionToken(user),
+      user: publicUser(user),
+    });
   } catch (error) {
     console.error("Error in Google auth:", error);
-    return new Response(
-      JSON.stringify({ error: "Google authentication failed" }),
-      { status: 500 }
-    );
+    return jsonError(500, "Google authentication failed");
   }
 }

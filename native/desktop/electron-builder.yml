@@ -1,0 +1,32 @@
+appId: com.pomodrive.app
+productName: PomoDRIVE
+copyright: Copyright (c) 2026 PomoDRIVE
+directories:
+  output: release
+  buildResources: build
+files:
+  - main.js
+  - preload.js
+  - package.json
+  - www/**/*
+protocols:
+  - name: PomoDRIVE
+    schemes:
+      - pomodrive
+win:
+  target:
+    - nsis
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity
+  icon: build/icon.png
+linux:
+  target:
+    - AppImage
+  category: Utility
+  icon: build/icon.png

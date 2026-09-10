@@ -1,36 +1,17 @@
 "use client";
 import React from "react";
 import { motion } from "framer-motion";
-import { GoogleLogin } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode";
+import SignInButton from "@/components/auth/SignInButton";
 
 const GoogleSignIn = ({ onLoginSuccess }) => {
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      // Decode the Google JWT token
-      const decodedToken = jwtDecode(credentialResponse.credential);
-
-      // Create user data object
-      const userData = {
-        userId: decodedToken.sub,
-        email: decodedToken.email,
-        name: decodedToken.name,
-        picture: decodedToken.picture,
-      };
-
-      // Store the token in localStorage (userId will be set by GoogleAuth backend flow)
-      localStorage.setItem("accessToken", credentialResponse.credential);
-      // DON'T set userId here - it should come from the backend auth flow
-
-      // Call the success handler
-      onLoginSuccess(userData);
-    } catch (error) {
-      console.error("Error handling Google login:", error);
-    }
-  };
-
-  const handleGoogleError = () => {
-    console.error("Google Login Failed");
+  // SignInButton has stored the session; hand the page the user it expects.
+  const handleSignedIn = (backendUser) => {
+    onLoginSuccess({
+      userId: backendUser.userId || backendUser._id,
+      email: backendUser.email,
+      name: backendUser.name,
+      picture: backendUser.imageUrl,
+    });
   };
 
   return (
@@ -52,14 +33,7 @@ const GoogleSignIn = ({ onLoginSuccess }) => {
         whileTap={{ scale: 0.95 }}
         transition={{ type: "spring", stiffness: 400, damping: 17 }}
       >
-        <GoogleLogin
-          onSuccess={handleGoogleSuccess}
-          onError={handleGoogleError}
-          size="large"
-          text="signin_with"
-          shape="rectangular"
-          theme="filled_blue"
-        />
+        <SignInButton onSuccess={handleSignedIn} />
       </motion.div>
 
       <div className="text-center text-sm text-fg-subtle">

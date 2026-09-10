@@ -3,8 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { GoogleLogin } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode";
+import SignInButton from "@/components/auth/SignInButton";
 import { validateStoredToken } from "@/utils/tokenValidator";
 
 /* ── Nav icon components ───────────────────────────────── */
@@ -131,49 +130,11 @@ const Navbar = ({ user, onLogout }) => {
     validateStoredToken();
   }, []);
 
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      console.log("=== Navbar: Google login started ===");
-
-      // Decode the Google JWT token to get user info
-      const decodedToken = jwtDecode(credentialResponse.credential);
-      console.log("Google user:", decodedToken.email);
-
-      // Send the Google credential to backend to exchange for our own JWT
-      const backendResponse = await fetch("/api/auth/google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          googleToken: credentialResponse.credential,
-          // Note: credential flow doesn't provide refresh_token
-        }),
-      });
-
-      if (!backendResponse.ok) {
-        throw new Error("Backend authentication failed");
-      }
-
-      const { token, user: backendUser } = await backendResponse.json();
-
-      // Store our backend JWT and user info
-      localStorage.setItem("accessToken", token);
-      localStorage.setItem("userId", backendUser.userId || backendUser._id);
-      localStorage.setItem("userName", backendUser.name);
-
-      console.log("localStorage after setting:");
-      console.log("- userId:", localStorage.getItem("userId"));
-      console.log("- userName:", localStorage.getItem("userName"));
-
-      // Close modal and refresh page to trigger parent component state update
-      setShowLoginModal(false);
-      window.location.reload();
-    } catch (error) {
-      console.error("Error handling Google login:", error);
-    }
-  };
-
-  const handleGoogleError = () => {
-    console.error("Google Login Failed");
+  // SignInButton has already stored the session; reload so the page picks up
+  // the signed-in state.
+  const handleSignedIn = () => {
+    setShowLoginModal(false);
+    window.location.reload();
   };
 
   const handleLogout = () => {
@@ -358,14 +319,7 @@ const Navbar = ({ user, onLogout }) => {
               </div>
 
               <div className="flex flex-col items-center space-y-4">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                  size="large"
-                  text="signin_with"
-                  shape="rectangular"
-                  theme="filled_blue"
-                />
+                <SignInButton onSuccess={handleSignedIn} />
 
                 <button
                   onClick={() => setShowLoginModal(false)}

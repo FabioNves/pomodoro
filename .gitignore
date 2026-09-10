@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# mobile / desktop app shells (build outputs)
+/dist/
+/.native-build/
+/native/desktop/www/
+/native/desktop/release/
+node_modules/

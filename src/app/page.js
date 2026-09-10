@@ -3,8 +3,8 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
+import SignInButton from "@/components/auth/SignInButton";
 import PublicTimerControls from "../components/PublicTimer1/PublicTimerControls";
 import {
   requestNotificationPermission,
@@ -41,55 +41,14 @@ export default function App() {
     if (hasMounted && user) router.replace("/dashboard");
   }, [hasMounted, user, router]);
 
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      const decodedToken = jwtDecode(credentialResponse.credential);
-
-      console.log("=== PAGE.JS: Google login started ===");
-      console.log("Email:", decodedToken.email);
-
-      // Send the Google credential to backend to exchange for our own JWT
-      const backendResponse = await fetch("/api/auth/google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          googleToken: credentialResponse.credential,
-          // Note: credential flow doesn't provide refresh_token
-        }),
-      });
-
-      if (!backendResponse.ok) {
-        throw new Error("Backend authentication failed");
-      }
-
-      const { token, user: backendUser } = await backendResponse.json();
-
-      console.log("=== PAGE.JS: Setting localStorage ===");
-      console.log("Backend user:", backendUser);
-      console.log("Setting userId to:", backendUser.userId || backendUser._id);
-
-      // Store our backend JWT and user info
-      localStorage.setItem("accessToken", token);
-      localStorage.setItem("userId", backendUser.userId || backendUser._id);
-      localStorage.setItem("userName", backendUser.name);
-
-      console.log("localStorage after setting:");
-      console.log("- userId:", localStorage.getItem("userId"));
-      console.log("- userName:", localStorage.getItem("userName"));
-
-      setUser({
-        userId: backendUser.userId || backendUser._id,
-        email: backendUser.email,
-        name: backendUser.name,
-        picture: backendUser.imageUrl,
-      });
-    } catch (error) {
-      console.error("Error handling Google login:", error);
-    }
-  };
-
-  const handleGoogleError = () => {
-    console.error("Google Login Failed");
+  // SignInButton has already stored the session; just update the page state.
+  const handleSignedIn = (backendUser) => {
+    setUser({
+      userId: backendUser.userId || backendUser._id,
+      email: backendUser.email,
+      name: backendUser.name,
+      picture: backendUser.imageUrl,
+    });
   };
 
   if (!hasMounted) return null;
@@ -187,14 +146,7 @@ export default function App() {
                 whileTap={{ scale: 0.95 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                  size="large"
-                  text="signin_with"
-                  shape="rectangular"
-                  theme="filled_blue"
-                />
+                <SignInButton onSuccess={handleSignedIn} />
               </motion.div>
             </motion.div>
           </div>

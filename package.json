@@ -6,9 +6,22 @@
     "dev": "next dev --turbopack -p 3500",
     "build": "next build",
     "start": "next start -p 3500",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:static": "node scripts/build-web-static.mjs",
+    "mobile:sync": "npm run build:static && cap sync",
+    "mobile:android": "npm run mobile:sync && cap open android",
+    "mobile:ios": "npm run mobile:sync && cap open ios",
+    "desktop:dev": "npm run build:static && npm --prefix native/desktop start",
+    "desktop:smoke": "npm --prefix native/desktop run smoke",
+    "desktop:build": "npm run build:static && npm --prefix native/desktop run dist"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1",
+    "@capacitor/local-notifications": "^8.3.1",
     "@react-oauth/google": "^0.12.1",
     "axios": "^1.8.4",
     "dotenv": "^16.5.0",
@@ -25,6 +38,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/minimatch": "^5.1.2",

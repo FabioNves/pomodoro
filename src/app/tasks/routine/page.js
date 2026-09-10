@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+// /tasks/routine?projectId=<id>
+// Uses a query parameter rather than a dynamic segment so the page can be
+// statically exported into the mobile and desktop apps.
+
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import Navbar from "@/components/Navbar";
 import RoutineTasksView from "@/components/RoutineTasksView";
@@ -20,10 +24,10 @@ function IconBack({ className = "" }) {
   );
 }
 
-export default function RoutineTasksPage() {
-  const params = useParams();
+function RoutineTasksPage() {
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const projectId = params.projectId;
+  const projectId = searchParams.get("projectId") || "";
 
   const [user, setUser] = useState(null);
   const [projectName, setProjectName] = useState("");
@@ -82,19 +86,27 @@ export default function RoutineTasksPage() {
             <IconBack className="w-5 h-5 text-fg-muted" />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-fg">
-              Routine Tasks
-            </h1>
+            <h1 className="text-xl font-bold text-fg">Routine Tasks</h1>
             {projectName ? (
-              <p className="text-sm text-fg-subtle">
-                {projectName}
-              </p>
+              <p className="text-sm text-fg-subtle">{projectName}</p>
             ) : null}
           </div>
         </div>
 
-        <RoutineTasksView projectId={projectId} />
+        {projectId ? (
+          <RoutineTasksView projectId={projectId} />
+        ) : (
+          <p className="text-fg-muted">No project selected.</p>
+        )}
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="w-screen min-h-screen" />}>
+      <RoutineTasksPage />
+    </Suspense>
   );
 }

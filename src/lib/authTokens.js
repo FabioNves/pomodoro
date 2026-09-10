@@ -1,0 +1,53 @@
+// Server-side token helpers shared by the auth routes.
+
+import jwt from "jsonwebtoken";
+
+const SESSION_TTL = "7d";
+const HANDOFF_TTL = "2m";
+const HANDOFF_PURPOSE = "native-handoff";
+
+/** The user shape every sign-in response returns. */
+export function publicUser(user) {
+  return {
+    _id: user._id.toString(),
+    userId: user._id.toString(),
+    googleSub: user.googleSub || null,
+    email: user.email,
+    name: user.name,
+    imageUrl: user.imageUrl,
+  };
+}
+
+/** The bearer token the clients store as accessToken. */
+export function issueSessionToken(user) {
+  return jwt.sign(
+    { userId: user._id, email: user.email, name: user.name },
+    process.env.JWT_SECRET,
+    { expiresIn: SESSION_TTL }
+  );
+}
+
+/**
+ * Native sign-in happens in the system browser on the website, which then
+ * sends the app a deep link. Only this short-lived code travels in that link;
+ * the app exchanges it for a session token over HTTPS.
+ */
+export function issueHandoffCode(user) {
+  return jwt.sign(
+    { userId: user._id, purpose: HANDOFF_PURPOSE },
+    process.env.JWT_SECRET,
+    { expiresIn: HANDOFF_TTL }
+  );
+}
+
+/** Returns the userId for a valid handoff code, or null. */
+export function verifyHandoffCode(code) {
+  try {
+    const payload = jwt.verify(code, process.env.JWT_SECRET);
+    return payload?.purpose === HANDOFF_PURPOSE && payload.userId
+      ? payload.userId
+      : null;
+  } catch {
+    return null;
+  }
+}

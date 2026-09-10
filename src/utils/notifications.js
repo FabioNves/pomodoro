@@ -1,8 +1,27 @@
-// Browser notification helpers shared by the public timer, the timer page
-// and the dashboard.
+// Notification helpers shared by the public timer, the timer page and the
+// dashboard. The website and the desktop app use the browser Notification
+// API; the mobile app uses native local notifications, because Android's
+// WebView has no Notification API at all.
 
-// Notification utilities
+import { getPlatform } from "@/lib/platform";
+
+async function nativeNotifications() {
+  const { LocalNotifications } = await import("@capacitor/local-notifications");
+  return LocalNotifications;
+}
+
 export const requestNotificationPermission = async () => {
+  if (getPlatform() === "capacitor") {
+    try {
+      const LocalNotifications = await nativeNotifications();
+      const { display } = await LocalNotifications.requestPermissions();
+      return display === "granted";
+    } catch (error) {
+      console.error("Notification permission request failed:", error);
+      return false;
+    }
+  }
+
   if ("Notification" in window) {
     const permission = await Notification.requestPermission();
     return permission === "granted";
@@ -10,9 +29,25 @@ export const requestNotificationPermission = async () => {
   return false;
 };
 
+async function showNativeNotification(title, body) {
+  try {
+    const LocalNotifications = await nativeNotifications();
+    await LocalNotifications.schedule({
+      notifications: [{ id: Date.now() % 2147483647, title, body }],
+    });
+  } catch (error) {
+    console.error("Error showing notification:", error);
+  }
+}
+
 export const showNotification = (title, options = {}) => {
+  if (getPlatform() === "capacitor") {
+    showNativeNotification(title, options.body || "");
+    return undefined;
+  }
+
   if (!("Notification" in window) || Notification.permission !== "granted") {
-    return;
+    return undefined;
   }
 
   // `actions` and the callback props are only meaningful for persistent
@@ -20,8 +55,13 @@ export const showNotification = (title, options = {}) => {
   // Notification constructor throws a TypeError, which would abort whatever
   // called us (e.g. the focus-end handler before it can play the alarm), so
   // keep them out of the constructor.
-  const { actions, onClick, onStartBreak, onFinishSession, ...notificationOptions } =
-    options;
+  const {
+    actions,
+    onClick,
+    onStartBreak,
+    onFinishSession,
+    ...notificationOptions
+  } = options;
 
   let notification;
   try {
@@ -37,7 +77,7 @@ export const showNotification = (title, options = {}) => {
     });
   } catch (error) {
     console.error("Error showing notification:", error);
-    return;
+    return undefined;
   }
 
   notification.onclick = function () {
