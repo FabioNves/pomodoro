@@ -46,6 +46,56 @@ lists the few rules that keep it that way.
 5. iOS: `npm run mobile:ios` on a Mac with Xcode. The project is already
    generated under `native/ios`.
 
+## AI news briefing
+
+The **News** tab builds a personalised daily or weekly briefing from real,
+current web sources. Nothing is written from the model's memory:
+
+1. OpenAI turns the user's topics into search queries.
+2. The app, acting as an **MCP client** (`src/lib/mcp`), runs those searches
+   and fetches the best pages through one or more MCP servers. Tools are
+   discovered at runtime, and each capability is routed to whichever
+   configured server does it best: Brave has a real news tool that returns
+   publication dates but cannot fetch a page, Tavily extracts full article
+   text but has no news mode, so configuring both gives you dated news and
+   full-text summaries. Routing is automatic and can be pinned with
+   `MCP_ROUTE_SEARCH` / `MCP_ROUTE_NEWS` / `MCP_ROUTE_FETCH`.
+3. OpenAI ranks, de-duplicates and summarises the retrieved material,
+   referencing sources only by id.
+4. `src/lib/news/validate.js` keeps only stories whose sources resolve to
+   retrieved articles, and the briefing is stored (`Briefing`,
+   `BriefingStory`, `NewsArticle`).
+
+Briefings come in three windows, each with its own retrieval reach, and the
+AI picks the important stories out of whatever the window returns:
+
+| Briefing | Covers | Format |
+| --- | --- | --- |
+| Daily | the past 24 to 48 hours | top stories, worth knowing, trends |
+| Weekly | the past 7 days | plus biggest developments and what you missed |
+| Monthly | the past month | same roundup, selected on lasting significance |
+
+Configuration (all server side, see `.env.example`): `OPENAI_API_KEY`,
+`MCP_SERVER_URL` (or named servers such as `MCP_SERVER_BRAVE_COMMAND`, and
+`MCP_SERVER_COMMAND` for a local stdio server in development) and
+`CRON_SECRET`.
+
+Scheduled briefings: `vercel.json` runs `/api/news/cron` daily at 06:00 UTC,
+which works on every Vercel plan. The route is idempotent and delivers each
+user's most recent due cycle in their own timezone, so on a Pro plan change
+the schedule to `0 * * * *` (hourly) to honour delivery times to the hour.
+Each run serves the longest-overdue users first, only starts a briefing it
+has time to finish, and retries a cycle that failed for a transient reason
+(up to three attempts). Any external scheduler can call the same route with
+`Authorization: Bearer $CRON_SECRET`; `?dryRun=1` lists what is due without
+generating. Trigger it locally with
+`curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3500/api/news/cron`.
+
+The news endpoints authenticate differently from the rest of the API: they
+verify the session JWT (`Authorization: Bearer <accessToken>`) instead of
+trusting the `user-id` header, so a user only ever reaches their own
+preferences, briefings and saved stories.
+
 ## Live reload in the apps
 
 Point a shell at the dev server instead of the bundled files:

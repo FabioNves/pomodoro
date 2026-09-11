@@ -7,6 +7,9 @@ const isStaticExport = process.env.NEXT_OUTPUT === "export";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The news API routes load the MCP SDK at runtime; keeping it external
+  // avoids bundling its transports (child processes, SSE) into the server build.
+  serverExternalPackages: ["@modelcontextprotocol/sdk"],
   turbopack: {
     // The static-export script builds a staged copy whose node_modules is a
     // link back to the repo; Turbopack needs the repo to be its root then.

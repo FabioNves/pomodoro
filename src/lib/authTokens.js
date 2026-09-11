@@ -5,6 +5,10 @@ import jwt from "jsonwebtoken";
 const SESSION_TTL = "7d";
 const HANDOFF_TTL = "2m";
 const HANDOFF_PURPOSE = "native-handoff";
+// Marks a token as a real sign-in session. Routes that need a trustworthy
+// identity (see src/lib/news/auth.js) require this claim, so a token minted
+// anywhere else with the same secret is not accepted as a session.
+export const SESSION_PURPOSE = "session";
 
 /** The user shape every sign-in response returns. */
 export function publicUser(user) {
@@ -21,7 +25,12 @@ export function publicUser(user) {
 /** The bearer token the clients store as accessToken. */
 export function issueSessionToken(user) {
   return jwt.sign(
-    { userId: user._id, email: user.email, name: user.name },
+    {
+      userId: user._id,
+      email: user.email,
+      name: user.name,
+      purpose: SESSION_PURPOSE,
+    },
     process.env.JWT_SECRET,
     { expiresIn: SESSION_TTL }
   );

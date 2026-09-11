@@ -113,12 +113,31 @@ function IconDashboard({ className = "" }) {
   );
 }
 
+function IconNews({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 5h12a2 2 0 012 2v12a2 2 0 002-2V9M4 5v14a2 2 0 002 2h14M8 9h6M8 13h6M8 17h4"
+      />
+    </svg>
+  );
+}
+
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", Icon: IconDashboard },
-  { href: "/timer", label: "Timer", Icon: IconTimer },
-  { href: "/planner", label: "Planner", Icon: IconTasks },
-  { href: "/analytics", label: "Analytics", Icon: IconAnalytics },
-  { href: "/settings", label: "Settings", Icon: IconSettings },
+  { href: "/dashboard", label: "Dashboard", short: "Home", Icon: IconDashboard },
+  { href: "/timer", label: "Timer", short: "Timer", Icon: IconTimer },
+  { href: "/planner", label: "Planner", short: "Plan", Icon: IconTasks },
+  { href: "/analytics", label: "Analytics", short: "Stats", Icon: IconAnalytics },
+  { href: "/news", label: "News", short: "News", Icon: IconNews },
+  { href: "/settings", label: "Settings", short: "Settings", Icon: IconSettings },
 ];
 
 const Navbar = ({ user, onLogout }) => {
@@ -278,12 +297,13 @@ const Navbar = ({ user, onLogout }) => {
       {/* Mobile bottom navigation */}
       <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         <div className="max-w-7xl mx-auto bg-surface/90 backdrop-blur-xl rounded-xl border border-edge shadow-lg">
-          <div className="flex items-center justify-around px-1 py-1">
+          <div className="flex items-center px-0.5 py-1">
             {NAV_ITEMS.map((item) => (
               <MobileNavIcon
                 key={item.href}
                 href={item.href}
                 label={item.label}
+                short={item.short}
                 Icon={item.Icon}
               />
             ))}
@@ -373,7 +393,7 @@ const NavLink = ({ href, label, Icon }) => {
 };
 
 // Mobile icon nav link for sub-navbar
-const MobileNavIcon = ({ href, label, Icon }) => {
+const MobileNavIcon = ({ href, label, short, Icon }) => {
   const pathname = usePathname();
   const isActive =
     href === "/"
@@ -384,14 +404,17 @@ const MobileNavIcon = ({ href, label, Icon }) => {
     <Link
       href={href}
       aria-current={isActive ? "page" : undefined}
-      className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors duration-200 ${
+      aria-label={label}
+      className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 px-0.5 py-1.5 rounded-lg transition-colors duration-200 ${
         isActive
           ? "text-primary font-semibold bg-primary-soft"
           : "text-fg-subtle hover:text-fg-muted"
       }`}
     >
-      <Icon className="w-5 h-5" />
-      <span className="text-[10px] leading-none">{label}</span>
+      <Icon className="w-5 h-5 shrink-0" />
+      <span className="text-[10px] leading-none w-full text-center truncate">
+        {short || label}
+      </span>
     </Link>
   );
 };
