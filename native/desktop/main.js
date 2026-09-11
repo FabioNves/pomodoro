@@ -142,6 +142,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // The sandboxed preload cannot read package.json, so the version is
+      // handed to it as a launch argument.
+      additionalArguments: [`--pomodrive-version=${app.getVersion()}`],
     },
   });
 

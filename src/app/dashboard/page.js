@@ -53,6 +53,10 @@ function loadActiveProject() {
 // Sessions need a label; a project is optional so unassigned work still saves.
 const NO_PROJECT_LABEL = "Unassigned";
 
+// Today plus the next two days, when the calendar card is widened.
+const CALENDAR_EXPANDED_DAYS = 3;
+const CALENDAR_WIDTH_KEY = "dashboardCalendarExpanded";
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -74,12 +78,27 @@ export default function DashboardPage() {
   });
   // What is being worked on: a todo, a routine task, or a typed name.
   const [activeTask, setActiveTask] = useState("");
+  // Calendar card width, remembered per device.
+  const [calendarExpanded, setCalendarExpanded] = useState(false);
+
+  const toggleCalendar = useCallback(() => {
+    setCalendarExpanded((open) => {
+      const next = !open;
+      try {
+        localStorage.setItem(CALENDAR_WIDTH_KEY, next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  }, []);
 
   /* ── auth ─────────────────────────────────────────── */
   useEffect(() => {
     setHasMounted(true);
     requestNotificationPermission();
     setActiveProject(loadActiveProject());
+    try {
+      setCalendarExpanded(localStorage.getItem(CALENDAR_WIDTH_KEY) === "1");
+    } catch {}
 
     const token = localStorage.getItem("accessToken");
     if (token && token.split(".").length === 3) {
@@ -310,15 +329,23 @@ export default function DashboardPage() {
   );
 
   // Today's column of the week calendar, with the same add / drag flow.
+  // Expanded, it also shows the next two days — clamped to the end of the
+  // week, since this calendar holds one week's plan.
   const todayDow = (new Date().getDay() + 6) % 7;
-  const todayTasks = dayTasksForPlan({
-    weekPlan: currentWeekPlan,
-    routineTasks,
-    tasks,
-    dayIdx: todayDow,
-  });
+  const visibleDays = Array.from(
+    { length: calendarExpanded ? CALENDAR_EXPANDED_DAYS : 1 },
+    (_, i) => todayDow + i,
+  ).filter((d) => d <= 6);
+  const canExpandCalendar = todayDow < 6;
   const dayTasks = Array.from({ length: 7 }, (_, d) =>
-    d === todayDow ? todayTasks : [],
+    visibleDays.includes(d)
+      ? dayTasksForPlan({
+          weekPlan: currentWeekPlan,
+          routineTasks,
+          tasks,
+          dayIdx: d,
+        })
+      : [],
   );
   const mondayDate = new Date(monday + "T00:00:00");
   const dayDates = Array.from({ length: 7 }, (_, i) => {
@@ -352,7 +379,7 @@ export default function DashboardPage() {
       onDeleteTask={weekActions.deleteTask}
       onUpdateTask={weekActions.updateTask}
       onMoveTask={weekActions.moveTask}
-      visibleDays={[todayDow]}
+      visibleDays={visibleDays}
       compact
     />
   );
@@ -374,6 +401,10 @@ export default function DashboardPage() {
           palettes={COLOR_PALETTES}
           timerSlot={timerSlot}
           todaySlot={todaySlot}
+          calendarExpanded={calendarExpanded}
+          calendarDayCount={visibleDays.length}
+          canExpandCalendar={canExpandCalendar}
+          onToggleCalendar={toggleCalendar}
           onNavigate={navigate}
         />
       </main>

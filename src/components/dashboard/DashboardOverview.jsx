@@ -55,6 +55,9 @@ const IconRoutines = icon(
   "M4 4v5h5M20 20v-5h-5M20 9A8 8 0 006.3 6.3L4 9m0 6a8 8 0 0013.7 2.7L20 15",
 );
 const IconArrow = icon("M5 12h14M13 6l6 6-6 6");
+// Horizontal expand / collapse, for widening the calendar across more days.
+const IconExpandWide = icon("M3 5v14M21 5v14M7 12h10M7 12l3-3M7 12l3 3M17 12l-3-3M17 12l-3 3");
+const IconCollapseWide = icon("M3 5v14M21 5v14M8 12H5M8 12l-2.5-2.5M8 12l-2.5 2.5M16 12h3M16 12l2.5-2.5M16 12l2.5 2.5");
 const IconClock = icon("M12 8v4l3 2", <circle cx="12" cy="12" r="9" />);
 
 /* ── Building blocks ───────────────────────────────────── */
@@ -68,6 +71,7 @@ function SectionCard({
   children,
   className = "",
   bodyClassName = "px-4 py-3",
+  headerExtra = null,
 }) {
   return (
     <section
@@ -87,14 +91,17 @@ function SectionCard({
             ) : null}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onAction}
-          className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-primary border border-edge hover:bg-primary-soft transition-colors"
-        >
-          {actionLabel}
-          <IconArrow className="w-3.5 h-3.5" />
-        </button>
+        <div className="shrink-0 flex items-center gap-1.5">
+          {headerExtra}
+          <button
+            type="button"
+            onClick={onAction}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-primary border border-edge hover:bg-primary-soft transition-colors"
+          >
+            {actionLabel}
+            <IconArrow className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </header>
       <div className={`flex-1 ${bodyClassName}`}>{children}</div>
     </section>
@@ -166,6 +173,12 @@ export default function DashboardOverview({
   palettes = {},
   timerSlot = null,
   todaySlot = null,
+  // Calendar width: collapsed shows today, expanded shows today plus the
+  // following days that are still in this week.
+  calendarExpanded = false,
+  calendarDayCount = 1,
+  canExpandCalendar = false,
+  onToggleCalendar = null,
   onNavigate,
 }) {
   const go = (key) => () => onNavigate?.(key);
@@ -450,7 +463,11 @@ export default function DashboardOverview({
             Icon={IconTimer}
             actionLabel="Open Timer"
             onAction={go("timer")}
-            className="order-1 md:order-none md:col-span-2"
+            // Gives up width to the calendar when that is expanded, so the two
+            // still fill one row instead of leaving a gap.
+            className={`order-1 md:order-none md:col-span-2 ${
+              calendarExpanded ? "xl:col-span-1" : ""
+            }`}
           >
             {timerSlot || (
               <EmptyHint actionLabel="Open Timer" onAction={go("timer")}>
@@ -461,13 +478,48 @@ export default function DashboardOverview({
 
           {/* Today / Calendar */}
           <SectionCard
-            title="Today"
-            subtitle={`${DAY_SHORT[todayDow]} · hour by hour`}
+            title={calendarExpanded && calendarDayCount > 1 ? "Next days" : "Today"}
+            subtitle={
+              calendarExpanded && calendarDayCount > 1
+                ? `${DAY_SHORT[todayDow]}–${DAY_SHORT[Math.min(6, todayDow + calendarDayCount - 1)]} · hour by hour`
+                : `${DAY_SHORT[todayDow]} · hour by hour`
+            }
             Icon={IconCalendar}
             actionLabel="Open Calendar"
             onAction={go("calendar")}
-            className="order-2 md:order-none"
+            // Always a full row on medium screens, so Analytics below it
+            // starts a row of its own rather than sitting alongside.
+            className={`order-2 md:order-none md:col-span-2 ${
+              calendarExpanded ? "xl:col-span-2" : "xl:col-span-1"
+            }`}
             bodyClassName={todaySlot ? "p-2" : undefined}
+            headerExtra={
+              todaySlot && onToggleCalendar ? (
+                <button
+                  type="button"
+                  onClick={onToggleCalendar}
+                  aria-pressed={calendarExpanded}
+                  title={
+                    calendarExpanded
+                      ? "Show today only"
+                      : canExpandCalendar
+                        ? "Show the next three days"
+                        : "No later days left this week"
+                  }
+                  disabled={!calendarExpanded && !canExpandCalendar}
+                  className="hidden md:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-fg-muted border border-edge hover:bg-surface-hover hover:text-fg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {calendarExpanded ? (
+                    <IconCollapseWide className="w-3.5 h-3.5" />
+                  ) : (
+                    <IconExpandWide className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden lg:inline">
+                    {calendarExpanded ? "Today only" : "3 days"}
+                  </span>
+                </button>
+              ) : null
+            }
           >
             {todaySlot ? (
               <div className="h-[400px]">{todaySlot}</div>
