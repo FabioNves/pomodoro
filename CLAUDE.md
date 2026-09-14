@@ -21,10 +21,70 @@ README.md has the commands.
 - Sign-in uses `src/components/auth/SignInButton.jsx` everywhere. Do not render
   `GoogleLogin` directly outside that file and `/auth/native`.
 - Server-only code stays in `src/app/api`, `src/lib/db.js`,
-  `src/lib/authTokens.js`, `src/lib/mcp`, `src/lib/ai`, `src/lib/news`
-  (except `src/lib/news/client.js` and `schedule.js`), `src/models` and
+  `src/lib/authTokens.js`, `src/lib/sessionAuth.js`, `src/lib/mcp`,
+  `src/lib/ai`, `src/lib/news` (except `src/lib/news/client.js` and
+  `schedule.js`), `src/lib/notebook/server.js`, `src/models` and
   `src/proxy.js`; the static export drops `src/app/api` and `src/proxy.js`.
   Never import those modules from a page or component.
+- Routes that hold private data verify the session JWT with `requireUser()`
+  from `src/lib/sessionAuth.js` rather than trusting the `user-id` header.
+  It accepts only tokens carrying the `purpose: "session"` claim that
+  `issueSessionToken()` sets.
+
+## Notebook
+
+- Data: `NotebookFolder` (nested through `parent`), `NotebookDocument`
+  (a note: `tabs[]` with `parent` for subtabs, up to three levels) and
+  `NotebookSettings` (one per user: the Brain subjects and saved views).
+  Routes live in `src/app/api/notebook/*`; the shared rules (limits, DTOs,
+  tab-tree checks, derived fields) in `src/lib/notebook/server.js`.
+- Tab content is HTML from the editor. The browser sanitises it with the
+  allow-list in `src/lib/notebook/sanitize.js` on load and before save;
+  the server only strips scripts/handlers (`stripDangerousHtml`). Extend
+  the allow-list rather than bypassing it.
+- Saving a tab recomputes `preview`, `wordCount` and `links` (titles
+  written as `[[Note title]]`) in `deriveDocument()`, so lists and the
+  Brain graph never load tab contents. Keep new derived fields there.
+- The suggested subjects every notebook starts with are in
+  `src/lib/notebook/subjects.js`; `ensureSettings()` seeds them once per
+  user. The rest of `src/lib/notebook` (`client.js`, `subjects.js`,
+  `text.js`, `tree.js`, `sanitize.js`) is shared with the browser.
+- The page keeps its state in the query string (`?view=`, `?folder=`,
+  `?doc=`, `?tab=`, `?subject=`) so links and reloads keep their place.
+
+## Projects and milestones
+
+- A planner project (`Project`: name, description, headerColor, template,
+  startDate, endDate) owns `ProjectMilestone` documents (name, description,
+  order, status, startDate, endDate) and `Task` documents; a task may point
+  at one milestone through `Task.milestone` (subtasks always follow their
+  parent). The older `Milestone` model is the timer's session label, not a
+  project milestone.
+- Projects, milestones and tasks all carry an optional `startDate`/`endDate`
+  span (the timeline). A task's `scheduledDate` is something else: the day it
+  sits on in the week plan. Every route rejects an end before its start; the
+  browser helpers are `spanOf()`, `formatDateRange()` and `isInvalidRange()`
+  in `src/lib/milestones.js`.
+- Milestone progress is never stored: `milestoneProgress()` in
+  `src/lib/milestones.js` derives it from the tasks assigned to the milestone
+  (a completed milestone reads 100 %). Statuses live there too.
+- Routes: `src/app/api/project-milestones` (CRUD + `/reorder`),
+  `src/app/api/projects/structure` (adds reviewed milestones and tasks in one
+  request) and `src/app/api/projects/suggest` (AI suggestions, session JWT
+  required, returns nothing that is stored). The planner routes use the same
+  identity headers as `/api/projects` and `/api/tasks`; the browser helper is
+  `apiJson()` in `src/lib/plannerApi.js`.
+- Templates are data in `src/lib/projectTemplates.js` (shared with the
+  browser); AI prompts and schemas in `src/lib/ai/planning.js` (server only).
+  Both only feed the review screen (`StructureReview`): the user selects,
+  edits and reorders before `/api/projects/structure` creates anything.
+- Planner UI lives in `src/components/planner`: the shared `TaskRow`,
+  the project "⋮" modal (`ProjectManageModal`), the creation flow
+  (`NewProjectModal`), the suggestion dialog (`SuggestDialog`) and the Tasks
+  tab views (board column strip, `ProjectPageView`, `TimelineView`: one row
+  per project, a lane per dated milestone, marks for dated tasks; a project
+  without dates spans its contents). The Tasks tab keeps its view in
+  `?view=` and the open project in `?project=`.
 
 ## AI news briefing
 

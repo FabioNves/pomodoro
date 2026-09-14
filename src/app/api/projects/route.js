@@ -1,6 +1,7 @@
 import { connectToDB } from "@/lib/db";
 import Project from "@/models/Project";
 import Task from "@/models/Task";
+import ProjectMilestone from "@/models/ProjectMilestone";
 import { z } from "zod";
 import {
   getIdentityHeaders,
@@ -32,15 +33,37 @@ const objectIdSchema = z
   .trim()
   .regex(/^[0-9a-fA-F]{24}$/, "Invalid id");
 
+const dateSchema = z.union([
+  z.string().datetime({ offset: true }),
+  z.string().date(),
+  z.null(),
+]);
+
 const createProjectSchema = z.object({
   name: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(1000).optional(),
+  template: z.string().trim().max(60).nullable().optional(),
   headerColor: headerColorSchema,
+  startDate: dateSchema.optional(),
+  endDate: dateSchema.optional(),
 });
 
 const patchProjectSchema = z.object({
   id: objectIdSchema,
+  name: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().max(1000).optional(),
   headerColor: headerColorSchema,
+  startDate: dateSchema.optional(),
+  endDate: dateSchema.optional(),
 });
+
+const toDate = (v) => (v ? new Date(v) : null);
+
+/** Null when the span is fine, otherwise the error to return. */
+function invalidSpan(startDate, endDate) {
+  if (!startDate || !endDate) return null;
+  return new Date(endDate) < new Date(startDate) ? "End date is before start date" : null;
+}
 
 const deleteProjectSchema = z.object({
   id: objectIdSchema,
@@ -55,19 +78,24 @@ export async function POST(req) {
     const identityValidation = validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
-    const { name, headerColor } = body.data;
+    const { name, description, template, headerColor, startDate, endDate } = body.data;
     const identity = getIdentityHeaders(req);
-    const identQuery = identityQuery(identityValidation.data);
-
-    await connectToDB();
 
     if (headerColor && !ALLOWED_HEADER_COLORS.has(headerColor)) {
       return Response.json({ error: "Invalid headerColor" }, { status: 400 });
     }
+    const spanError = invalidSpan(startDate, endDate);
+    if (spanError) return Response.json({ error: spanError }, { status: 400 });
+
+    await connectToDB();
 
     const project = await Project.create({
       name,
+      description: description || "",
+      template: template || null,
       ...(headerColor ? { headerColor } : {}),
+      startDate: toDate(startDate),
+      endDate: toDate(endDate),
       ...(identity.userId
         ? { user: identity.userId, isTemporary: false }
         : { sessionId: identity.sessionId, isTemporary: true }),
@@ -89,9 +117,9 @@ export async function PATCH(req) {
     const identityValidation = validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
-    const { id, headerColor } = body.data;
-    const identity = getIdentityHeaders(req);
+    const { id, name, description, headerColor, startDate, endDate } = body.data;
     const identQuery = identityQuery(identityValidation.data);
+    const has = (k) => Object.prototype.hasOwnProperty.call(body.data, k);
 
     if (headerColor && !ALLOWED_HEADER_COLORS.has(headerColor)) {
       return Response.json({ error: "Invalid headerColor" }, { status: 400 });
@@ -99,9 +127,33 @@ export async function PATCH(req) {
 
     await connectToDB();
 
+    if (has("startDate") || has("endDate")) {
+      // Validate the span against the stored dates when only one side changes.
+      const existing = await Project.findOne({ _id: id, ...identQuery }).select({
+        startDate: 1,
+        endDate: 1,
+      });
+      if (!existing) {
+        return Response.json({ error: "Project not found" }, { status: 404 });
+      }
+      const spanError = invalidSpan(
+        has("startDate") ? startDate : existing.startDate,
+        has("endDate") ? endDate : existing.endDate,
+      );
+      if (spanError) return Response.json({ error: spanError }, { status: 400 });
+    }
+
     const updated = await Project.findOneAndUpdate(
       { _id: id, ...identQuery },
-      { $set: { ...(headerColor ? { headerColor } : {}) } },
+      {
+        $set: {
+          ...(headerColor ? { headerColor } : {}),
+          ...(name !== undefined ? { name } : {}),
+          ...(description !== undefined ? { description } : {}),
+          ...(has("startDate") ? { startDate: toDate(startDate) } : {}),
+          ...(has("endDate") ? { endDate: toDate(endDate) } : {}),
+        },
+      },
       { new: true }
     );
 
@@ -154,6 +206,7 @@ export async function DELETE(req) {
     }
 
     await Task.deleteMany({ project: id, ...identQuery });
+    await ProjectMilestone.deleteMany({ project: id, ...identQuery });
     await Project.deleteOne({ _id: id, ...identQuery });
 
     return Response.json({ ok: true });

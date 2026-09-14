@@ -1,5 +1,6 @@
 import { connectToDB } from "@/lib/db";
 import Task from "@/models/Task";
+import ProjectMilestone from "@/models/ProjectMilestone";
 import { z } from "zod";
 import {
   getIdentityHeaders,
@@ -23,23 +24,40 @@ const tasksQuerySchema = z.object({
   projectId: objectIdSchema.optional(),
 });
 
+const dateSchema = z
+  .union([z.string().datetime({ offset: true }), z.string().date(), z.null()])
+  .optional();
+
 const createTaskSchema = z.object({
   title: z.string().trim().min(1).max(200),
   projectId: objectIdSchema,
   parentTaskId: objectIdSchema.optional(),
-  scheduledDate: z
-    .union([z.string().datetime({ offset: true }), z.string().date(), z.null()])
-    .optional(),
+  milestoneId: objectIdSchema.nullable().optional(),
+  scheduledDate: dateSchema,
   scheduledForLater: z.boolean().optional(),
+  // Planned span (the timeline); independent of scheduledDate.
+  startDate: dateSchema,
+  endDate: dateSchema,
 });
 
 const patchTaskSchema = z.object({
   id: objectIdSchema,
+  title: z.string().trim().min(1).max(200).optional(),
   completed: z.boolean().optional(),
-  scheduledDate: z
-    .union([z.string().datetime({ offset: true }), z.string().date(), z.null()])
-    .optional(),
+  // null moves the task to "Unassigned"; subtasks follow their parent.
+  milestoneId: objectIdSchema.nullable().optional(),
+  scheduledDate: dateSchema,
+  startDate: dateSchema,
+  endDate: dateSchema,
 });
+
+const toDate = (v) => (v ? new Date(v) : null);
+
+/** Null when the span is fine, otherwise the error to return. */
+function invalidSpan(startDate, endDate) {
+  if (!startDate || !endDate) return null;
+  return new Date(endDate) < new Date(startDate) ? "End date is before start date" : null;
+}
 
 const deleteTaskSchema = z.object({
   id: objectIdSchema,
@@ -80,12 +98,41 @@ export async function POST(req) {
     const identityValidation = validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
-    const { title, projectId, parentTaskId, scheduledDate, scheduledForLater } =
-      body.data;
+    const {
+      title,
+      projectId,
+      parentTaskId,
+      milestoneId,
+      scheduledDate,
+      scheduledForLater,
+      startDate,
+      endDate,
+    } = body.data;
     const identity = getIdentityHeaders(req);
     const identQuery = identityQuery(identityValidation.data);
 
+    const spanError = invalidSpan(startDate, endDate);
+    if (spanError) return Response.json({ error: spanError }, { status: 400 });
+
     await connectToDB();
+
+    let milestone = null;
+    if (parentTaskId) {
+      const parent = await Task.findOne({ _id: parentTaskId, ...identQuery }).select({
+        milestone: 1,
+      });
+      milestone = parent?.milestone || null;
+    } else if (milestoneId) {
+      const found = await ProjectMilestone.findOne({
+        _id: milestoneId,
+        project: projectId,
+        ...identQuery,
+      }).select({ _id: 1 });
+      if (!found) {
+        return Response.json({ error: "Milestone not found" }, { status: 404 });
+      }
+      milestone = found._id;
+    }
 
     const scopeQuery = {
       ...identQuery,
@@ -105,9 +152,12 @@ export async function POST(req) {
       title,
       project: projectId,
       parentTask: parentTaskId || null,
+      milestone,
       order: nextOrder,
       ...(scheduledDate ? { scheduledDate: new Date(scheduledDate) } : {}),
       ...(typeof scheduledForLater === "boolean" ? { scheduledForLater } : {}),
+      startDate: toDate(startDate),
+      endDate: toDate(endDate),
       ...(identity.userId
         ? { user: identity.userId, isTemporary: false }
         : { sessionId: identity.sessionId, isTemporary: true }),
@@ -129,18 +179,62 @@ export async function PATCH(req) {
     const identityValidation = validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
-    const { id, completed, scheduledDate } = body.data;
-    const identity = getIdentityHeaders(req);
+    const { id, title, completed, scheduledDate, milestoneId, startDate, endDate } =
+      body.data;
     const identQuery = identityQuery(identityValidation.data);
-    const hasScheduledDate = Object.prototype.hasOwnProperty.call(
-      body.data,
-      "scheduledDate"
-    );
-    const scheduledDateSet = hasScheduledDate
-      ? { scheduledDate: scheduledDate ? new Date(scheduledDate) : null }
-      : {};
+    const has = (k) => Object.prototype.hasOwnProperty.call(body.data, k);
+    const scheduledDateSet = {
+      ...(has("scheduledDate")
+        ? { scheduledDate: scheduledDate ? new Date(scheduledDate) : null }
+        : {}),
+      ...(has("startDate") ? { startDate: toDate(startDate) } : {}),
+      ...(has("endDate") ? { endDate: toDate(endDate) } : {}),
+      ...(title !== undefined ? { title } : {}),
+    };
 
     await connectToDB();
+
+    if (has("startDate") || has("endDate")) {
+      const existing = await Task.findOne({ _id: id, ...identQuery }).select({
+        startDate: 1,
+        endDate: 1,
+      });
+      if (!existing) {
+        return Response.json({ error: "Task not found" }, { status: 404 });
+      }
+      const spanError = invalidSpan(
+        has("startDate") ? startDate : existing.startDate,
+        has("endDate") ? endDate : existing.endDate,
+      );
+      if (spanError) return Response.json({ error: spanError }, { status: 400 });
+    }
+
+    const hasMilestone = Object.prototype.hasOwnProperty.call(
+      body.data,
+      "milestoneId"
+    );
+    if (hasMilestone) {
+      const existing = await Task.findOne({ _id: id, ...identQuery });
+      if (!existing) {
+        return Response.json({ error: "Task not found" }, { status: 404 });
+      }
+      if (milestoneId) {
+        const found = await ProjectMilestone.findOne({
+          _id: milestoneId,
+          project: existing.project,
+          ...identQuery,
+        }).select({ _id: 1 });
+        if (!found) {
+          return Response.json({ error: "Milestone not found" }, { status: 404 });
+        }
+      }
+      scheduledDateSet.milestone = milestoneId || null;
+      // Subtasks always sit in their parent's milestone.
+      await Task.updateMany(
+        { ...identQuery, parentTask: id },
+        { $set: { milestone: milestoneId || null } }
+      );
+    }
 
     if (typeof completed === "boolean") {
       const existing = await Task.findOne({ _id: id, ...identQuery });

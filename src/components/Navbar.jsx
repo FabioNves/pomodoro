@@ -131,10 +131,29 @@ function IconNews({ className = "" }) {
   );
 }
 
+function IconNotebook({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 3h11a2 2 0 012 2v14a2 2 0 01-2 2H6a1 1 0 01-1-1V4a1 1 0 011-1zM4 7h2M4 11h2M4 15h2M10 8h5M10 12h4"
+      />
+    </svg>
+  );
+}
+
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", short: "Home", Icon: IconDashboard },
   { href: "/timer", label: "Timer", short: "Timer", Icon: IconTimer },
   { href: "/planner", label: "Planner", short: "Plan", Icon: IconTasks },
+  { href: "/notebook", label: "Notebook", short: "Notes", Icon: IconNotebook },
   { href: "/analytics", label: "Analytics", short: "Stats", Icon: IconAnalytics },
   { href: "/news", label: "News", short: "News", Icon: IconNews },
   { href: "/settings", label: "Settings", short: "Settings", Icon: IconSettings },

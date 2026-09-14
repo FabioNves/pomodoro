@@ -8,672 +8,65 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { createPortal } from "react-dom";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { jwtDecode } from "jwt-decode";
-import { generateSessionId } from "@/utils/sessionUtils";
 import { getMondayOf, weekLabel } from "@/utils/timeUtils";
+import { apiJson } from "@/lib/plannerApi";
+import {
+  IconChevron,
+  IconPlus,
+  IconTrash,
+  IconDotsVertical,
+  isInCurrentWeek,
+  compareTasksByOrder,
+  TaskRow,
+  AddTaskModal,
+} from "@/components/planner/TaskRow";
 import { COLOR_PALETTES } from "@/lib/habitPalettes";
-import { PROJECT_COLORS, getProjectColorMeta } from "@/lib/projectColors";
+import { getProjectColorMeta } from "@/lib/projectColors";
 import WeeklyRoutine from "@/components/WeeklyRoutine";
 import RoutineTasksView from "@/components/RoutineTasksView";
-
-/* ╔══════════════════════════════════════════════════════╗
-   ║  Shared API helpers                                  ║
-   ╚══════════════════════════════════════════════════════╝ */
-
-function getIdentityHeaders() {
-  if (typeof window === "undefined") return {};
-  const userId = localStorage.getItem("userId");
-  if (userId) return { "user-id": userId };
-  return { "session-id": generateSessionId() };
-}
-
-async function apiJson(path, options = {}) {
-  const headers = {
-    ...(options.headers || {}),
-    ...getIdentityHeaders(),
-    "Content-Type": "application/json",
-  };
-  const res = await fetch(path, { ...options, headers });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.error || `Request failed (${res.status})`);
-  }
-  return res.json();
-}
+import MilestoneStrip from "@/components/planner/MilestoneStrip";
+import ProjectManageModal from "@/components/planner/ProjectManageModal";
+import NewProjectModal from "@/components/planner/NewProjectModal";
+import SuggestDialog from "@/components/planner/SuggestDialog";
+import ProjectPageView from "@/components/planner/ProjectPageView";
+import TimelineView from "@/components/planner/TimelineView";
+import { compareMilestones, idOf } from "@/lib/milestones";
 
 /* ╔══════════════════════════════════════════════════════╗
    ║  Shared icons                                        ║
    ╚══════════════════════════════════════════════════════╝ */
 
-function IconChevron({ open, className = "" }) {
-  return (
-    <motion.svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={className}
-      animate={{ rotate: open ? 180 : 0 }}
-      transition={{ duration: 0.15 }}
-      aria-hidden="true"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-    </motion.svg>
-  );
-}
-
-function IconPlus({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={className}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function IconTrash({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-      />
-    </svg>
-  );
-}
-
-function IconDots({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="5" cy="12" r="1.8" />
-      <circle cx="12" cy="12" r="1.8" />
-      <circle cx="19" cy="12" r="1.8" />
-    </svg>
-  );
-}
-
-function IconDotsVertical({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="5" r="1.8" />
-      <circle cx="12" cy="12" r="1.8" />
-      <circle cx="12" cy="19" r="1.8" />
-    </svg>
-  );
-}
-
-function IconCalendar({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path strokeLinecap="round" d="M3 9h18M8 3v4M16 3v4" />
-    </svg>
-  );
-}
-
-/* Format/parse helpers for Task.scheduledDate (stored as ISO Date) */
-function formatDateInput(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function formatDateDisplay(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-/* Monday-based start of the week containing the given date (local time) */
-function startOfWeek(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  const jsDay = d.getDay(); // 0=Sun..6=Sat
-  const offset = jsDay === 0 ? 6 : jsDay - 1; // days since Monday
-  d.setDate(d.getDate() - offset);
-  return d;
-}
-
-function isInCurrentWeek(dateValue) {
-  if (!dateValue) return true; // no date = treat as "this week / unscheduled"
-  const d = new Date(dateValue);
-  if (Number.isNaN(d.getTime())) return true;
-  const start = startOfWeek(new Date());
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7);
-  return d >= start && d < end;
-}
-
 /* ╔══════════════════════════════════════════════════════╗
    ║  TASKS TAB — colors, components, helpers             ║
    ╚══════════════════════════════════════════════════════╝ */
 
-function ProjectOptionsMenu({ project, onDelete, onSetColor }) {
-  return (
-    <motion.div
-      className="w-56 bg-surface border border-edge rounded-lg shadow-lg overflow-hidden"
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-    >
-      <div className="px-3 py-2 text-xs uppercase tracking-wide text-fg-subtle">
-        Header color
-      </div>
-      <div className="px-3 pb-2 grid grid-cols-6 gap-2">
-        {PROJECT_COLORS.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            className={`w-5 h-5 rounded-full ${c.swatchClass} border border-edge hover:scale-105 transition-transform`}
-            aria-label={`Set color to ${c.label}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSetColor(project, c.key);
-            }}
-          />
-        ))}
-      </div>
-      <div className="border-t border-edge" />
-      <button
-        type="button"
-        className="w-full text-left px-3 py-2 text-sm text-danger hover:bg-surface-hover"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(project);
-        }}
-      >
-        Delete project
-      </button>
-    </motion.div>
-  );
-}
-
-function ToggleCircle({ checked, onToggle }) {
-  return (
-    <motion.button
-      type="button"
-      onClick={onToggle}
-      className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
-        checked
-          ? "bg-primary border-primary"
-          : "bg-transparent border-edge"
-      }`}
-      whileTap={{ scale: 0.95 }}
-      aria-pressed={checked}
-      aria-label={checked ? "Mark as not completed" : "Mark as completed"}
-    >
-      {checked ? (
-        <motion.svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="var(--primary-fg)"
-          strokeWidth="3"
-          className="w-3.5 h-3.5"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.2 }}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M5 13l4 4L19 7"
-          />
-        </motion.svg>
-      ) : null}
-    </motion.button>
-  );
-}
-
-function compareTasksByOrder(a, b) {
-  const ao = Number.isFinite(a?.order) ? a.order : 0;
-  const bo = Number.isFinite(b?.order) ? b.order : 0;
-  if (ao !== bo) return ao - bo;
-  const ad = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
-  const bd = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
-  return ad - bd;
-}
-
-function TaskRow({
-  task,
-  subtasks,
-  onToggle,
-  onCreateSubtask,
-  onDeleteTask,
-  onMoveTask,
-  onSetScheduledDate,
-  projectId,
-  depth = 0,
-  scheduledForLater = false,
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [showSubtaskInput, setShowSubtaskInput] = useState(false);
-  const [subtaskTitle, setSubtaskTitle] = useState("");
-  const [showDateInput, setShowDateInput] = useState(false);
-  const [dateDraft, setDateDraft] = useState("");
-
-  const canDrag = depth === 0 && !task.completed && !task.parentTask;
-  const scheduledDateValue = formatDateInput(task.scheduledDate);
-  const scheduledDateDisplay = formatDateDisplay(task.scheduledDate);
-
-  useEffect(() => {
-    if (menuOpen) {
-      const closeMenu = () => setMenuOpen(false);
-      document.addEventListener("click", closeMenu);
-      return () => document.removeEventListener("click", closeMenu);
-    }
-  }, [menuOpen]);
-
-  return (
-    <div>
-      <div
-        className={`group flex items-start gap-2 py-1.5 rounded-md hover:bg-surface-hover transition-colors px-2 ${
-          depth > 0 ? "ml-5" : ""
-        } ${canDrag ? "cursor-grab active:cursor-grabbing" : ""}`}
-        draggable={canDrag}
-        onDragStart={(e) => {
-          if (!canDrag) return;
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", String(task._id));
-        }}
-        onDragOver={(e) => {
-          if (depth !== 0 || task.completed || task.parentTask) return;
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-        }}
-        onDrop={(e) => {
-          if (depth !== 0 || task.completed || task.parentTask) return;
-          e.preventDefault();
-          e.stopPropagation();
-          const draggedId = e.dataTransfer.getData("text/plain");
-          if (!draggedId) return;
-          if (String(draggedId) === String(task._id)) return;
-          onMoveTask?.({
-            taskId: draggedId,
-            toProjectId: projectId,
-            beforeTaskId: task._id,
-            scheduledForLater,
-          });
-        }}
-      >
-        <div className="pt-0.5">
-          <ToggleCircle
-            checked={task.completed}
-            onToggle={() => onToggle(task)}
-          />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div
-            className={`text-sm leading-5 break-words ${
-              task.completed
-                ? "text-fg-subtle line-through"
-                : "text-fg"
-            }`}
-          >
-            {task.title}
-          </div>
-        </div>
-
-        {task.scheduledDate ? (
-          <span
-            className="shrink-0 text-primary self-center"
-            title={`Scheduled for ${scheduledDateDisplay}`}
-            aria-label={`Scheduled for ${scheduledDateDisplay}`}
-          >
-            <IconCalendar className="w-3.5 h-3.5" />
-          </span>
-        ) : null}
-
-        <div className="relative">
-          <button
-            type="button"
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-fg-subtle hover:text-fg p-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen((v) => !v);
-            }}
-            aria-label="Task menu"
-          >
-            <IconDots className="w-4 h-4" />
-          </button>
-
-          <AnimatePresence>
-            {menuOpen ? (
-              <motion.div
-                className="absolute right-0 mt-1 w-40 bg-surface border border-edge rounded-lg shadow-lg overflow-hidden z-20"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-              >
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setShowSubtaskInput(true);
-                  }}
-                >
-                  Create subtask
-                </button>
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setDateDraft(scheduledDateValue);
-                    setShowDateInput(true);
-                  }}
-                >
-                  {task.scheduledDate ? "Change date\u2026" : "Set date\u2026"}
-                </button>
-                {task.scheduledDate ? (
-                  <button
-                    type="button"
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onSetScheduledDate?.(task, null);
-                    }}
-                  >
-                    Clear date
-                  </button>
-                ) : null}
-                <div className="border-t border-edge" />
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-sm text-danger hover:bg-surface-hover"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDeleteTask?.(task);
-                  }}
-                >
-                  Delete task
-                </button>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {showSubtaskInput ? (
-          <motion.div
-            className="ml-8 mt-1 flex gap-2"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-          >
-            <input
-              value={subtaskTitle}
-              onChange={(e) => setSubtaskTitle(e.target.value)}
-              placeholder="New subtask"
-              className="flex-1 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  const title = subtaskTitle.trim();
-                  if (!title) return;
-                  onCreateSubtask(task, title);
-                  setSubtaskTitle("");
-                  setShowSubtaskInput(false);
-                }
-                if (e.key === "Escape") setShowSubtaskInput(false);
-              }}
-              autoFocus
-            />
-            <button
-              type="button"
-              className="px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm"
-              onClick={() => {
-                const title = subtaskTitle.trim();
-                if (!title) return;
-                onCreateSubtask(task, title);
-                setSubtaskTitle("");
-                setShowSubtaskInput(false);
-              }}
-            >
-              Add
-            </button>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showDateInput ? (
-          <motion.div
-            className="ml-8 mt-1 flex gap-2 items-center"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-          >
-            <input
-              type="date"
-              value={dateDraft}
-              onChange={(e) => setDateDraft(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  onSetScheduledDate?.(task, dateDraft || null);
-                  setShowDateInput(false);
-                }
-                if (e.key === "Escape") setShowDateInput(false);
-              }}
-              autoFocus
-            />
-            <button
-              type="button"
-              className="px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm"
-              onClick={() => {
-                onSetScheduledDate?.(task, dateDraft || null);
-                setShowDateInput(false);
-              }}
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              className="px-3 py-2 rounded-lg bg-surface-2 text-fg text-sm"
-              onClick={() => setShowDateInput(false)}
-            >
-              Cancel
-            </button>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
-      {subtasks?.length ? (
-        <div className="mt-0.5">
-          {subtasks.map((st) => (
-            <TaskRow
-              key={st._id}
-              task={st}
-              subtasks={[]}
-              onToggle={onToggle}
-              onCreateSubtask={onCreateSubtask}
-              onDeleteTask={onDeleteTask}
-              onMoveTask={onMoveTask}
-              onSetScheduledDate={onSetScheduledDate}
-              projectId={projectId}
-              depth={depth + 1}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function AddTaskModal({
-  open,
-  projectName,
-  title,
-  setTitle,
-  date,
-  setDate,
-  onCancel,
-  onSubmit,
-}) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => {
-      if (e.key === "Escape") onCancel?.();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
-
-  if (typeof window === "undefined") return null;
-
-  return createPortal(
-    <AnimatePresence>
-      {open ? (
-        <motion.div
-          key="add-task-modal"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) onCancel?.();
-          }}
-        >
-          <motion.div
-            className="w-full max-w-sm bg-surface border border-edge rounded-2xl shadow-xl overflow-hidden"
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-          >
-                <div className="px-5 pt-4 pb-2">
-                  <h3 className="text-base font-semibold text-fg">
-                    New task
-                  </h3>
-                  {projectName ? (
-                    <p className="text-xs text-fg-subtle mt-0.5 truncate">
-                      in {projectName}
-                    </p>
-                  ) : null}
-                </div>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    onSubmit?.();
-                  }}
-                  className="px-5 pb-5 space-y-3"
-                >
-                  <div>
-                    <label className="block text-xs font-medium text-fg-muted mb-1">
-                      Title
-                    </label>
-                    <input
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Task title"
-                      className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none focus:ring-2 focus:ring-focus/40"
-                      autoFocus
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-fg-muted mb-1">
-                      Date <span className="text-fg-subtle">(optional)</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none focus:ring-2 focus:ring-focus/40"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={onCancel}
-                      className="px-3 py-2 rounded-lg bg-surface-2 text-fg text-sm hover:bg-surface-hover"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!title.trim()}
-                      className="px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Add task
-                    </button>
-                  </div>
-                </form>
-          </motion.div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>,
-    document.body,
-  );
-}
-
 function ProjectColumn({
   project,
   tasks,
+  milestones,
   onAddTask,
   onToggleTask,
   onCreateSubtask,
   onDeleteTask,
-  onDeleteProject,
-  onSetProjectColor,
+  onManage,
   onMoveTask,
   onSetScheduledDate,
+  onSetDates,
+  onSetTaskMilestone,
+  onRenameTask,
+  onToggleMilestone,
+  onOpenMilestone,
 }) {
   const [newTitle, setNewTitle] = useState("");
   const [newDate, setNewDate] = useState("");
   const [showInput, setShowInput] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
-  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
-
-  useEffect(() => {
-    if (projectMenuOpen) {
-      const closeMenu = () => setProjectMenuOpen(false);
-      document.addEventListener("click", closeMenu);
-      return () => document.removeEventListener("click", closeMenu);
-    }
-  }, [projectMenuOpen]);
 
   const { thisWeekTasks, laterTasks, completedTopLevel, subtasksByParent } =
     useMemo(() => {
@@ -738,39 +131,27 @@ function ProjectColumn({
           <div className="hidden md:block font-semibold text-fg truncate">
             {project.name}
           </div>
-          <div className="relative">
-            <button
-              type="button"
-              className="text-fg-subtle hover:text-fg p-1"
-              aria-label="Project menu"
-              onClick={(e) => {
-                e.stopPropagation();
-                setProjectMenuOpen((v) => !v);
-              }}
-            >
-              <IconDotsVertical className="w-5 h-5" />
-            </button>
-            <AnimatePresence>
-              {projectMenuOpen ? (
-                <motion.div className="absolute right-0 mt-1 z-30">
-                  <ProjectOptionsMenu
-                    project={project}
-                    onDelete={(p) => {
-                      setProjectMenuOpen(false);
-                      onDeleteProject(p);
-                    }}
-                    onSetColor={(p, color) => {
-                      setProjectMenuOpen(false);
-                      onSetProjectColor(p, color);
-                    }}
-                  />
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-          </div>
+          <button
+            type="button"
+            className="text-fg-subtle hover:text-fg p-1"
+            aria-label="Project menu"
+            onClick={(e) => {
+              e.stopPropagation();
+              onManage(project, "project");
+            }}
+          >
+            <IconDotsVertical className="w-5 h-5" />
+          </button>
         </div>
 
         <div className={`${collapsed ? "hidden md:block" : "block"}`}>
+          <MilestoneStrip
+            milestones={milestones}
+            tasks={tasks}
+            onManage={(tab) => onManage(project, tab)}
+            onToggleComplete={onToggleMilestone}
+            onOpenMilestone={(m) => onOpenMilestone(project, m)}
+          />
           <div className="px-2 py-2">
             <div className="px-2 pb-2">
               <button
@@ -843,6 +224,11 @@ function ProjectColumn({
                     onDeleteTask={onDeleteTask}
                     onMoveTask={onMoveTask}
                     onSetScheduledDate={onSetScheduledDate}
+                    onSetDates={onSetDates}
+                    onSetMilestone={onSetTaskMilestone}
+                    onRenameTask={onRenameTask}
+                    milestones={milestones}
+                    showMilestoneBadge
                     projectId={project._id}
                     scheduledForLater={false}
                   />
@@ -893,6 +279,11 @@ function ProjectColumn({
                     onDeleteTask={onDeleteTask}
                     onMoveTask={onMoveTask}
                     onSetScheduledDate={onSetScheduledDate}
+                    onSetDates={onSetDates}
+                    onSetMilestone={onSetTaskMilestone}
+                    onRenameTask={onRenameTask}
+                    milestones={milestones}
+                    showMilestoneBadge
                     projectId={project._id}
                     scheduledForLater={true}
                   />
@@ -934,6 +325,7 @@ function ProjectColumn({
                               onCreateSubtask(project, parent, title)
                             }
                             onDeleteTask={onDeleteTask}
+                            onRenameTask={onRenameTask}
                           />
                         ))}
                       </div>
@@ -1788,6 +1180,13 @@ const TABS = [
 ];
 const DEFAULT_TAB = "tasks";
 
+const TASK_VIEWS = [
+  { key: "board", label: "Board", hint: "Every project as a column" },
+  { key: "project", label: "Project", hint: "One project: milestones and tasks" },
+  { key: "timeline", label: "Timeline", hint: "Projects, milestones and tasks on a time axis" },
+];
+const DEFAULT_TASK_VIEW = "board";
+
 function PlannerTabs({ active, onChange }) {
   return (
     <div className="px-4 pt-3 pb-3 flex md:justify-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1835,6 +1234,28 @@ function PlannerPageInner() {
     [router, searchParams],
   );
 
+  // Tasks tab views: board (the original columns), project (one project:
+  // info → milestones → tasks) and timeline (one row per project on a time
+  // axis). Kept in ?view= and ?project=.
+  const viewParam = searchParams.get("view");
+  const tasksView = TASK_VIEWS.some((v) => v.key === viewParam)
+    ? viewParam
+    : DEFAULT_TASK_VIEW;
+  const selectedProjectId = searchParams.get("project");
+  const setTasksView = useCallback(
+    (view, projectId) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "tasks");
+      params.set("view", view);
+      if (projectId !== undefined) {
+        if (projectId) params.set("project", String(projectId));
+        else params.delete("project");
+      }
+      router.replace(`/planner?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
   const [user, setUser] = useState(null);
   const mountedRef = useRef(true);
   // Track first successful fetch so we can distinguish "not loaded" from "empty".
@@ -1848,9 +1269,12 @@ function PlannerPageInner() {
   // ── tasks state ───────────────────────────────────────
   const [tasks, setTasks] = useState([]);
   const [projectsOpen, setProjectsOpen] = useState(true);
-  const [creatingProject, setCreatingProject] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [sidebarMenuProjectId, setSidebarMenuProjectId] = useState(null);
+  const [milestones, setMilestones] = useState([]);
+  // Root-mounted dialogs: the project "⋮" modal, the creation flow and the
+  // AI suggestion dialog opened from the project page.
+  const [manage, setManage] = useState(null); // { project, tab }
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [suggest, setSuggest] = useState(null); // { kind, project, milestone }
 
   // ── habits state ──────────────────────────────────────
   const [habits, setHabits] = useState([]);
@@ -1923,6 +1347,15 @@ function PlannerPageInner() {
     }
   }, []);
 
+  const refreshMilestones = useCallback(async () => {
+    try {
+      const data = await apiJson("/api/project-milestones");
+      if (mountedRef.current) setMilestones(data);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   const refreshHabits = useCallback(async () => {
     try {
       const data = await apiJson("/api/habits");
@@ -1964,12 +1397,19 @@ function PlannerPageInner() {
     mountedRef.current = true;
     refreshProjects();
     refreshTasks();
+    refreshMilestones();
     refreshHabits();
     refreshWeekPlans();
     return () => {
       mountedRef.current = false;
     };
-  }, [refreshProjects, refreshTasks, refreshHabits, refreshWeekPlans]);
+  }, [
+    refreshProjects,
+    refreshTasks,
+    refreshMilestones,
+    refreshHabits,
+    refreshWeekPlans,
+  ]);
 
   useEffect(() => {
     refreshEntries();
@@ -2067,14 +1507,6 @@ function PlannerPageInner() {
     [columnsByProject],
   );
 
-  // Sidebar project menu close
-  useEffect(() => {
-    if (!sidebarMenuProjectId) return;
-    const closeMenu = () => setSidebarMenuProjectId(null);
-    document.addEventListener("click", closeMenu);
-    return () => document.removeEventListener("click", closeMenu);
-  }, [sidebarMenuProjectId]);
-
   /* ── tasks callbacks ───────────────────────────────── */
 
   const tasksByProject = useMemo(() => {
@@ -2088,38 +1520,265 @@ function PlannerPageInner() {
     return map;
   }, [tasks]);
 
-  const createProject = useCallback(async (name) => {
-    try {
+  const milestonesByProject = useMemo(() => {
+    const map = new Map();
+    for (const m of milestones) {
+      const pid = idOf(m.project);
+      const list = map.get(pid) || [];
+      list.push(m);
+      map.set(pid, list);
+    }
+    for (const [k, list] of map.entries()) {
+      map.set(k, [...list].sort(compareMilestones));
+    }
+    return map;
+  }, [milestones]);
+
+  /** Add reviewed milestones/tasks to a project (one request). Throws on error. */
+  const addStructure = useCallback(async (projectId, payload) => {
+    const data = await apiJson("/api/projects/structure", {
+      method: "POST",
+      body: JSON.stringify({ projectId, ...payload }),
+    });
+    if (mountedRef.current) {
+      if (data.milestones?.length)
+        setMilestones((prev) => [...prev, ...data.milestones]);
+      if (data.tasks?.length) setTasks((prev) => [...prev, ...data.tasks]);
+    }
+    return data;
+  }, []);
+
+  /** Creation flow: project first, then the reviewed structure. Throws on error. */
+  const createProject = useCallback(
+    async ({
+      name,
+      description,
+      headerColor,
+      template,
+      startDate,
+      endDate,
+      milestones: structure,
+    }) => {
       const created = await apiJson("/api/projects", {
         method: "POST",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          ...(description ? { description } : {}),
+          ...(template ? { template } : {}),
+          ...(headerColor ? { headerColor } : {}),
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        }),
       });
       if (mountedRef.current) setProjects((prev) => [...prev, created]);
+      if (structure?.length) {
+        await addStructure(created._id, { milestones: structure });
+      }
+      return created;
+    },
+    [addStructure],
+  );
+
+  const updateProject = useCallback(async (project, patch) => {
+    if (mountedRef.current) {
+      setProjects((prev) =>
+        prev.map((p) =>
+          String(p._id) === String(project._id) ? { ...p, ...patch } : p,
+        ),
+      );
+    }
+    try {
+      const updated = await apiJson("/api/projects", {
+        method: "PATCH",
+        body: JSON.stringify({ id: project._id, ...patch }),
+      });
+      if (mountedRef.current)
+        setProjects((prev) =>
+          prev.map((p) =>
+            String(p._id) === String(updated._id) ? updated : p,
+          ),
+        );
+    } catch (e) {
+      console.error(e);
+      refreshProjects();
+    }
+  }, [refreshProjects]);
+
+  const addTask = useCallback(
+    async (project, title, scheduledDate, milestoneId = null) => {
+      const normalized =
+        scheduledDate && scheduledDate.length ? scheduledDate : null;
+      const scheduledForLater =
+        normalized && !isInCurrentWeek(normalized) ? true : undefined;
+      try {
+        const created = await apiJson("/api/tasks", {
+          method: "POST",
+          body: JSON.stringify({
+            projectId: project._id,
+            title,
+            ...(milestoneId ? { milestoneId: String(milestoneId) } : {}),
+            ...(normalized ? { scheduledDate: normalized } : {}),
+            ...(scheduledForLater ? { scheduledForLater: true } : {}),
+          }),
+        });
+        if (mountedRef.current) setTasks((prev) => [...prev, created]);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [],
+  );
+
+  const renameTask = useCallback(async (task, title) => {
+    try {
+      const updated = await apiJson("/api/tasks", {
+        method: "PATCH",
+        body: JSON.stringify({ id: task._id, title }),
+      });
+      if (mountedRef.current)
+        setTasks((prev) =>
+          prev.map((t) => (t._id === updated._id ? updated : t)),
+        );
     } catch (e) {
       console.error(e);
     }
   }, []);
 
-  const addTask = useCallback(async (project, title, scheduledDate) => {
-    const normalized =
-      scheduledDate && scheduledDate.length ? scheduledDate : null;
-    const scheduledForLater =
-      normalized && !isInCurrentWeek(normalized) ? true : undefined;
-    try {
-      const created = await apiJson("/api/tasks", {
-        method: "POST",
-        body: JSON.stringify({
-          projectId: project._id,
-          title,
-          ...(normalized ? { scheduledDate: normalized } : {}),
-          ...(scheduledForLater ? { scheduledForLater: true } : {}),
-        }),
-      });
-      if (mountedRef.current) setTasks((prev) => [...prev, created]);
-    } catch (e) {
-      console.error(e);
-    }
+  /** Move a task (and its subtasks) to a milestone, or to "Unassigned" (null). */
+  const setTaskMilestone = useCallback(
+    async (task, milestoneId) => {
+      const next = milestoneId ? String(milestoneId) : null;
+      if ((idOf(task.milestone) || null) === next) return;
+      const taskId = String(task._id);
+      if (mountedRef.current) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            String(t._id) === taskId || idOf(t.parentTask) === taskId
+              ? { ...t, milestone: next }
+              : t,
+          ),
+        );
+      }
+      try {
+        await apiJson("/api/tasks", {
+          method: "PATCH",
+          body: JSON.stringify({ id: task._id, milestoneId: next }),
+        });
+      } catch (e) {
+        console.error(e);
+        refreshTasks();
+      }
+    },
+    [refreshTasks],
+  );
+
+  /* ── milestone callbacks ───────────────────────────── */
+
+  const createMilestone = useCallback(async (projectId, data) => {
+    const created = await apiJson("/api/project-milestones", {
+      method: "POST",
+      body: JSON.stringify({ projectId: String(projectId), ...data }),
+    });
+    if (mountedRef.current) setMilestones((prev) => [...prev, created]);
+    return created;
   }, []);
+
+  const updateMilestone = useCallback(
+    async (milestone, patch) => {
+      const optimistic = { ...patch };
+      if (patch.status === "completed") optimistic.completedAt = new Date().toISOString();
+      else if (patch.status) optimistic.completedAt = null;
+      if (mountedRef.current) {
+        setMilestones((prev) =>
+          prev.map((m) =>
+            String(m._id) === String(milestone._id) ? { ...m, ...optimistic } : m,
+          ),
+        );
+      }
+      try {
+        const updated = await apiJson("/api/project-milestones", {
+          method: "PATCH",
+          body: JSON.stringify({ id: milestone._id, ...patch }),
+        });
+        if (mountedRef.current)
+          setMilestones((prev) =>
+            prev.map((m) => (String(m._id) === String(updated._id) ? updated : m)),
+          );
+      } catch (e) {
+        console.error(e);
+        refreshMilestones();
+      }
+    },
+    [refreshMilestones],
+  );
+
+  const deleteMilestone = useCallback(
+    async (milestone) => {
+      const ok = window.confirm(
+        `Delete milestone "${milestone.name}"? Its tasks are kept and become unassigned.`,
+      );
+      if (!ok) return false;
+      try {
+        await apiJson("/api/project-milestones", {
+          method: "DELETE",
+          body: JSON.stringify({ id: milestone._id }),
+        });
+        if (mountedRef.current) {
+          const mid = String(milestone._id);
+          setMilestones((prev) => prev.filter((m) => String(m._id) !== mid));
+          setTasks((prev) =>
+            prev.map((t) => (idOf(t.milestone) === mid ? { ...t, milestone: null } : t)),
+          );
+        }
+        return true;
+      } catch (e) {
+        console.error(e);
+        refreshMilestones();
+        return false;
+      }
+    },
+    [refreshMilestones],
+  );
+
+  const reorderMilestones = useCallback(
+    async (projectId, orderedIds) => {
+      const orderById = new Map(orderedIds.map((id, i) => [String(id), i]));
+      if (mountedRef.current) {
+        setMilestones((prev) =>
+          prev.map((m) =>
+            orderById.has(String(m._id)) ? { ...m, order: orderById.get(String(m._id)) } : m,
+          ),
+        );
+      }
+      try {
+        await apiJson("/api/project-milestones/reorder", {
+          method: "PATCH",
+          body: JSON.stringify({ projectId: String(projectId), orderedIds }),
+        });
+      } catch (e) {
+        console.error(e);
+        refreshMilestones();
+      }
+    },
+    [refreshMilestones],
+  );
+
+  const toggleMilestoneComplete = useCallback(
+    (milestone) =>
+      updateMilestone(milestone, {
+        status: milestone.status === "completed" ? "active" : "completed",
+      }),
+    [updateMilestone],
+  );
+
+  const openManage = useCallback((project, tab = "project") => {
+    setManage({ project, tab });
+  }, []);
+
+  const openProjectPage = useCallback(
+    (project) => setTasksView("project", project?._id || null),
+    [setTasksView],
+  );
 
   const createSubtask = useCallback(async (project, parentTask, title) => {
     try {
@@ -2202,22 +1861,55 @@ function PlannerPageInner() {
     }
   }, []);
 
+  /** Planned span of a task ({ startDate, endDate } as "YYYY-MM-DD" or null). */
+  const setTaskDates = useCallback(
+    async (task, { startDate, endDate }) => {
+      const patch = {
+        startDate: startDate || null,
+        endDate: endDate || null,
+      };
+      if (mountedRef.current) {
+        setTasks((prev) =>
+          prev.map((t) => (t._id === task._id ? { ...t, ...patch } : t)),
+        );
+      }
+      try {
+        const updated = await apiJson("/api/tasks", {
+          method: "PATCH",
+          body: JSON.stringify({ id: task._id, ...patch }),
+        });
+        if (mountedRef.current)
+          setTasks((prev) =>
+            prev.map((t) => (t._id === updated._id ? updated : t)),
+          );
+      } catch (e) {
+        console.error(e);
+        refreshTasks();
+      }
+    },
+    [refreshTasks],
+  );
+
   const deleteProject = useCallback(async (project) => {
-    const ok = window.confirm(`Delete project "${project.name}"?`);
-    if (!ok) return;
+    const ok = window.confirm(
+      `Delete project "${project.name}"? Its milestones and tasks are deleted too.`,
+    );
+    if (!ok) return false;
     try {
       await apiJson("/api/projects", {
         method: "DELETE",
         body: JSON.stringify({ id: project._id }),
       });
       if (mountedRef.current) {
-        setProjects((prev) => prev.filter((p) => p._id !== project._id));
-        setTasks((prev) =>
-          prev.filter((t) => String(t.project) !== String(project._id)),
-        );
+        const pid = String(project._id);
+        setProjects((prev) => prev.filter((p) => String(p._id) !== pid));
+        setTasks((prev) => prev.filter((t) => String(t.project) !== pid));
+        setMilestones((prev) => prev.filter((m) => idOf(m.project) !== pid));
       }
+      return true;
     } catch (e) {
       console.error(e);
+      return false;
     }
   }, []);
 
@@ -2265,30 +1957,6 @@ function PlannerPageInner() {
     },
     [refreshTasks],
   );
-
-  const setProjectColor = useCallback(async (project, headerColor) => {
-    if (mountedRef.current) {
-      setProjects((prev) =>
-        prev.map((p) =>
-          String(p._id) === String(project._id) ? { ...p, headerColor } : p,
-        ),
-      );
-    }
-    try {
-      const updated = await apiJson("/api/projects", {
-        method: "PATCH",
-        body: JSON.stringify({ id: project._id, headerColor }),
-      });
-      if (mountedRef.current)
-        setProjects((prev) =>
-          prev.map((p) =>
-            String(p._id) === String(updated._id) ? updated : p,
-          ),
-        );
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
 
   const moveTask = useCallback(
     async ({ taskId, toProjectId, beforeTaskId, scheduledForLater }) => {
@@ -2355,6 +2023,9 @@ function PlannerPageInner() {
               ? { projectId: String(pid) }
               : {}),
             ...(isMoved ? { scheduledForLater: targetIsLater } : {}),
+            ...(isMoved && fromProjectId !== targetProjectId
+              ? { milestoneId: null }
+              : {}),
           };
           updates.push(update);
           nextById.set(id, update);
@@ -2373,6 +2044,8 @@ function PlannerPageInner() {
         if (!u) return t;
         const updated = { ...t, order: u.order };
         if (u.projectId) updated.project = u.projectId;
+        if (Object.prototype.hasOwnProperty.call(u, "milestoneId"))
+          updated.milestone = u.milestoneId;
         if (typeof u.scheduledForLater === "boolean")
           updated.scheduledForLater = u.scheduledForLater;
         return updated;
@@ -2827,7 +2500,7 @@ function PlannerPageInner() {
       <button
         type="button"
         className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-surface-hover"
-        onClick={() => setProjectsOpen((v) => (creatingProject ? true : !v))}
+        onClick={() => setProjectsOpen((v) => !v)}
       >
         <span className="font-semibold">Projects</span>
         <IconChevron open={projectsOpen} className="w-4 h-4" />
@@ -2843,55 +2516,42 @@ function PlannerPageInner() {
             <div className="mt-2 space-y-1">
               {projects.map((p) => {
                 const colorMeta = getProjectColorMeta(p.headerColor);
+                const isSelected =
+                  tasksView === "project" &&
+                  String(p._id) === String(selectedProjectId);
                 return (
-                <div
-                  key={p._id}
-                  className="group flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-fg-muted hover:bg-surface-hover"
-                >
                   <div
-                    className={`w-3 h-3 rounded-full shrink-0 ${colorMeta.swatchClass}`}
-                  />
-                  <div className="flex-1 min-w-0 truncate">{p.name}</div>
-                  <div className="relative">
+                    key={p._id}
+                    className={`group flex items-center gap-2 pl-3 pr-1 py-1.5 rounded-lg text-sm ${
+                      isSelected
+                        ? "bg-primary-soft text-primary"
+                        : "text-fg-muted hover:bg-surface-hover"
+                    }`}
+                  >
+                    <div
+                      className={`w-3 h-3 rounded-full shrink-0 ${colorMeta.swatchClass}`}
+                    />
                     <button
                       type="button"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-fg-subtle hover:text-fg p-1"
+                      className="flex-1 min-w-0 truncate text-left py-0.5"
+                      onClick={() => openProjectPage(p)}
+                      title="Open project page"
+                    >
+                      {p.name}
+                    </button>
+                    <button
+                      type="button"
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-fg-subtle hover:text-fg p-1"
                       aria-label="Project menu"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSidebarMenuProjectId((cur) =>
-                          cur === p._id ? null : p._id,
-                        );
+                        openManage(p, "project");
                       }}
                     >
                       <IconDotsVertical className="w-4 h-4" />
                     </button>
-                    <AnimatePresence>
-                      {sidebarMenuProjectId === p._id ? (
-                        <motion.div
-                          className="absolute right-0 mt-1 z-30"
-                          onClick={(e) => e.stopPropagation()}
-                          initial={{ opacity: 0, y: -6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                        >
-                          <ProjectOptionsMenu
-                            project={p}
-                            onDelete={(proj) => {
-                              setSidebarMenuProjectId(null);
-                              deleteProject(proj);
-                            }}
-                            onSetColor={(proj, color) => {
-                              setSidebarMenuProjectId(null);
-                              setProjectColor(proj, color);
-                            }}
-                          />
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
                   </div>
-                </div>
-              );
+                );
               })}
               {!projects.length ? (
                 <div className="px-3 py-2 text-sm text-fg-subtle">
@@ -2901,48 +2561,13 @@ function PlannerPageInner() {
             </div>
 
             <div className="mt-3">
-              {!creatingProject ? (
-                <button
-                  type="button"
-                  className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm font-medium hover:bg-surface-hover"
-                  onClick={() => setCreatingProject(true)}
-                >
-                  + Create new project
-                </button>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <input
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    placeholder="Project name"
-                    className="flex-1 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const name = projectName.trim();
-                        if (!name) return;
-                        createProject(name).catch((err) => console.error(err));
-                        setProjectName("");
-                        setCreatingProject(false);
-                      }
-                      if (e.key === "Escape") setCreatingProject(false);
-                    }}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    className="w-full px-3 py-2 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-sm"
-                    onClick={() => {
-                      const name = projectName.trim();
-                      if (!name) return;
-                      createProject(name).catch((err) => console.error(err));
-                      setProjectName("");
-                      setCreatingProject(false);
-                    }}
-                  >
-                    Add
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm font-medium hover:bg-surface-hover"
+                onClick={() => setNewProjectOpen(true)}
+              >
+                + Create new project
+              </button>
             </div>
           </motion.div>
         ) : null}
@@ -3202,30 +2827,161 @@ function PlannerPageInner() {
      ║  Main renderers (per tab)                          ║
      ╚════════════════════════════════════════════════════╝ */
 
-  const renderTasksMain = () => (
-    <div className="h-full overflow-y-auto">
-      <div className="flex flex-col md:flex-row md:flex-wrap items-stretch md:items-start gap-4 p-4 md:pr-8">
-        {projects.map((p) => (
-          <ProjectColumn
-            key={p._id}
-            project={p}
-            tasks={tasksByProject.get(String(p._id)) || []}
-            onAddTask={addTask}
-            onToggleTask={toggleTask}
-            onCreateSubtask={createSubtask}
-            onDeleteTask={deleteTask}
-            onDeleteProject={deleteProject}
-            onSetProjectColor={setProjectColor}
-            onMoveTask={moveTask}
-            onSetScheduledDate={setTaskScheduledDate}
-          />
-        ))}
+  const selectedProject = useMemo(
+    () =>
+      selectedProjectId
+        ? projects.find((p) => String(p._id) === String(selectedProjectId)) || null
+        : null,
+    [projects, selectedProjectId],
+  );
 
-        {!projects.length ? (
-          <div className="text-fg-muted px-4 py-4">
-            Create a project to start adding tasks.
+  const taskHandlers = {
+    onToggleTask: toggleTask,
+    onCreateSubtask: createSubtask,
+    onDeleteTask: deleteTask,
+    onMoveTask: moveTask,
+    onSetScheduledDate: setTaskScheduledDate,
+    onSetTaskDates: setTaskDates,
+    onSetTaskMilestone: setTaskMilestone,
+    onRenameTask: renameTask,
+    onDropTask: (taskId, milestoneId) => {
+      const task = tasksRef.current.find((t) => String(t._id) === String(taskId));
+      if (task && !task.parentTask) setTaskMilestone(task, milestoneId);
+    },
+  };
+
+  const renderTasksViewSwitcher = () => (
+    <div className="flex items-center gap-2 px-4 pt-3 md:pr-8">
+      <div
+        className="inline-flex gap-0.5 p-0.5 rounded-lg bg-surface border border-edge"
+        role="tablist"
+        aria-label="Tasks view"
+      >
+        {TASK_VIEWS.map((v) => {
+          const isActive = tasksView === v.key;
+          return (
+            <button
+              key={v.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              title={v.hint}
+              onClick={() =>
+                setTasksView(
+                  v.key,
+                  v.key === "project" && !selectedProjectId && projects.length === 1
+                    ? projects[0]._id
+                    : undefined,
+                )
+              }
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                isActive
+                  ? "bg-primary-soft text-primary"
+                  : "text-fg-muted hover:bg-surface-hover"
+              }`}
+            >
+              {v.label}
+            </button>
+          );
+        })}
+      </div>
+      {tasksView === "project" && selectedProject ? (
+        <select
+          value={String(selectedProject._id)}
+          onChange={(e) => setTasksView("project", e.target.value)}
+          className="ml-auto md:hidden max-w-[45%] px-2 py-1 rounded-md bg-surface border border-edge text-xs text-fg outline-none"
+          aria-label="Project"
+        >
+          {projects.map((p) => (
+            <option key={p._id} value={String(p._id)}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      <button
+        type="button"
+        className="ml-auto md:hidden shrink-0 whitespace-nowrap px-2.5 py-1 rounded-md bg-primary text-primary-fg text-xs font-medium"
+        onClick={() => setNewProjectOpen(true)}
+      >
+        + Project
+      </button>
+    </div>
+  );
+
+  const renderTasksMain = () => (
+    <div className="h-full flex flex-col">
+      {renderTasksViewSwitcher()}
+      <div className="flex-1 min-h-0">
+        {tasksView === "board" ? (
+          <div className="h-full overflow-y-auto">
+            <div className="flex flex-col md:flex-row md:flex-wrap items-stretch md:items-start gap-4 p-4 md:pr-8">
+              {projects.map((p) => (
+                <ProjectColumn
+                  key={p._id}
+                  project={p}
+                  tasks={tasksByProject.get(String(p._id)) || []}
+                  milestones={milestonesByProject.get(String(p._id)) || []}
+                  onAddTask={addTask}
+                  onToggleTask={toggleTask}
+                  onCreateSubtask={createSubtask}
+                  onDeleteTask={deleteTask}
+                  onManage={openManage}
+                  onMoveTask={moveTask}
+                  onSetScheduledDate={setTaskScheduledDate}
+                  onSetDates={setTaskDates}
+                  onSetTaskMilestone={setTaskMilestone}
+                  onRenameTask={renameTask}
+                  onToggleMilestone={toggleMilestoneComplete}
+                  onOpenMilestone={(project) => openProjectPage(project)}
+                />
+              ))}
+
+              {!projects.length ? (
+                <div className="text-fg-muted px-4 py-4">
+                  Create a project to start adding tasks.
+                </div>
+              ) : null}
+            </div>
           </div>
-        ) : null}
+        ) : tasksView === "timeline" ? (
+          <TimelineView
+            projects={projects}
+            milestones={milestones}
+            tasks={tasks}
+            onOpenProject={openProjectPage}
+            onOpenMilestone={(project) => project && openProjectPage(project)}
+            onManageProject={(project, tab = "project") => openManage(project, tab)}
+          />
+        ) : (
+          <ProjectPageView
+            project={selectedProject}
+            projects={projects}
+            milestones={
+              selectedProject
+                ? milestonesByProject.get(String(selectedProject._id)) || []
+                : []
+            }
+            tasks={
+              selectedProject
+                ? tasksByProject.get(String(selectedProject._id)) || []
+                : []
+            }
+            handlers={taskHandlers}
+            onSelectProject={openProjectPage}
+            onManage={(tab) => selectedProject && openManage(selectedProject, tab)}
+            onSuggestMilestones={() =>
+              selectedProject &&
+              setSuggest({ kind: "milestones", project: selectedProject })
+            }
+            onSuggestTasks={(milestone) =>
+              selectedProject &&
+              setSuggest({ kind: "tasks", project: selectedProject, milestone })
+            }
+            onAddTask={addTask}
+            onUpdateMilestone={updateMilestone}
+          />
+        )}
       </div>
     </div>
   );
@@ -3728,6 +3484,57 @@ function PlannerPageInner() {
       </AnimatePresence>
 
       {/* Modals — root-mounted so they survive tab switches */}
+      <ProjectManageModal
+        open={Boolean(manage)}
+        project={
+          manage
+            ? projects.find((p) => String(p._id) === String(manage.project._id)) ||
+              manage.project
+            : null
+        }
+        milestones={manage ? milestonesByProject.get(String(manage.project._id)) || [] : []}
+        tasks={manage ? tasksByProject.get(String(manage.project._id)) || [] : []}
+        initialTab={manage?.tab || "project"}
+        onClose={() => setManage(null)}
+        actions={{
+          updateProject,
+          deleteProject,
+          createMilestone,
+          updateMilestone,
+          deleteMilestone,
+          reorderMilestones,
+          setTaskMilestone,
+          addStructure,
+        }}
+      />
+
+      <NewProjectModal
+        open={newProjectOpen}
+        onClose={() => setNewProjectOpen(false)}
+        onCreate={async (data) => {
+          const created = await createProject(data);
+          if (data.milestones?.length) openProjectPage(created);
+        }}
+      />
+
+      <SuggestDialog
+        open={Boolean(suggest)}
+        kind={suggest?.kind || "milestones"}
+        project={suggest?.project || null}
+        milestone={suggest?.milestone || null}
+        milestones={milestones}
+        tasks={tasks}
+        onClose={() => setSuggest(null)}
+        onConfirm={(payload) =>
+          suggest?.kind === "tasks"
+            ? addStructure(suggest.project._id, {
+                milestoneId: suggest.milestone?._id || null,
+                tasks: payload.tasks,
+              })
+            : addStructure(suggest.project._id, { milestones: payload.milestones })
+        }
+      />
+
       <AnimatePresence>
         {editingWeekPlan ? (
           <EditWeekModal

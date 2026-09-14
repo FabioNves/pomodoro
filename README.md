@@ -46,6 +46,58 @@ lists the few rules that keep it that way.
 5. iOS: `npm run mobile:ios` on a Mac with Xcode. The project is already
    generated under `native/ios`.
 
+## Notebook
+
+The **Notebook** tab is a lightweight document editor for your notes:
+
+- Rich text (headings, lists, checklists, colours, links, alignment) with
+  autosave. Each note can have tabs and subtabs, like Google Docs tabs.
+- Folders and subfolders in the sidebar, with drag and drop, plus search
+  across titles, subjects and note contents.
+- Views: **Folders**, **All notes** (filter by subject), **Brain** and any
+  saved views you create (a folder and/or subjects, list or grid, sort).
+- **Brain** is an Obsidian-style graph: subjects are the hubs (a set of
+  suggested subjects is there from the start, add or delete any), notes
+  attach to the subjects they carry, and writing `[[Note title]]` inside a
+  note links it to that note. The links also show under the editor.
+
+Everything is stored per user (`NotebookFolder`, `NotebookDocument`,
+`NotebookSettings`) behind `/api/notebook/*`, which verifies the session
+token like the news routes do.
+
+## Projects, milestones and templates
+
+The Planner's **Tasks** tab has three views (kept in the URL as `?view=`):
+**Board** (the original project columns, now with a milestone strip between
+the project header and its tasks), **Project** (one project: information,
+milestones, then tasks grouped under their milestone plus an *Unassigned*
+section) and **Timeline** (one row per project on a shared time axis: the
+project bar, a lane per dated milestone with its progress, small marks for
+dated tasks, a today line, weeks/months zoom; projects without dates span
+their dated contents, and projects with nothing dated are listed below).
+
+- Projects, milestones and tasks can all have a start date and an end date.
+  Projects get them when created or in the "⋮" modal, milestones in their
+  form or inline, tasks through "Set start/end…" in the task menu. A task's
+  scheduled date (the day it sits on in the week plan) is separate.
+- A project's "⋮" opens a modal with three tabs: the project (name,
+  description, dates, colour, delete), its milestones (add manually or with
+  AI, edit, reorder by drag or buttons, status, dates, complete, delete)
+  and its tasks (move any task between milestones).
+- Milestones have a name, description, order, status (planned, in progress,
+  on hold, completed) and dates; progress is derived from the tasks
+  assigned to them. Deleting a milestone keeps its tasks as unassigned.
+- **Create new project** asks for a name and description, then offers
+  *Start from scratch*, *Use a template* (14 templates in
+  `src/lib/projectTemplates.js`) or *Suggest a structure with AI*. Both the
+  template and the AI output land on a review screen where milestones and
+  tasks can be selected, renamed, reordered, removed or added before
+  anything is created.
+- On the project page, **Suggest milestones** asks what you want to
+  accomplish and proposes milestones; every milestone has **Suggest tasks**.
+  AI suggestions need `OPENAI_API_KEY` and a signed-in user; templates and
+  manual milestones work without either.
+
 ## AI news briefing
 
 The **News** tab builds a personalised daily or weekly briefing from real,

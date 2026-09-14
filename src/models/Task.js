@@ -7,9 +7,18 @@ const taskSchema = new mongoose.Schema({
     ref: "Project",
     required: true,
   },
+  milestone: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ProjectMilestone",
+    default: null,
+  },
   order: { type: Number, default: 0 },
   scheduledForLater: { type: Boolean, default: false },
   scheduledDate: { type: Date, default: null },
+  // Planned span, shown on the timeline (scheduledDate stays the day the
+  // task is placed on in the week plan). Both optional.
+  startDate: { type: Date, default: null },
+  endDate: { type: Date, default: null },
   user: { type: String },
   sessionId: { type: String },
   isTemporary: { type: Boolean, default: false },
