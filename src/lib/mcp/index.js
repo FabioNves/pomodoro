@@ -250,7 +250,15 @@ function errorFromResult(result, tool) {
   };
 }
 
-async function runSearch(kind, query, { maxResults = 10, recencyDays = 7, timeoutMs } = {}) {
+/**
+ * @param {"web"|"news"} kind
+ * @param {string} query
+ * @param {{ maxResults?: number, recencyDays?: number, timeoutMs?: number,
+ *   country?: string, language?: string }} [opts]
+ *   country: ISO 3166-1 alpha-2 code; language: ISO 639-1 code. Each is sent
+ *   only when the tool declares a matching parameter, in the form it accepts.
+ */
+async function runSearch(kind, query, { maxResults = 10, recencyDays = 7, timeoutMs, country = "", language = "" } = {}) {
   const trimmed = String(query || "").trim();
   if (!trimmed) {
     return { ok: false, results: [], tool: null, server: null, error: { code: "bad_request", message: "Empty query" } };
@@ -270,12 +278,16 @@ async function runSearch(kind, query, { maxResults = 10, recencyDays = 7, timeou
   }
 
   const dedicatedNews = news && Boolean(routed.routing.searchNews);
+  // The caller's window is used as given. A web search standing in for news
+  // is already limited to that window; capping it further would cut a
+  // monthly briefing down to its last week.
   const args = buildSearchArgs(target.cap, {
     query: trimmed,
     maxResults,
-    // Without a real news tool, tighten recency so web search behaves like one.
-    recencyDays: news && !dedicatedNews ? Math.min(recencyDays, 7) : recencyDays,
+    recencyDays,
     news: dedicatedNews,
+    country,
+    language,
     extra: getExtraArgs().search,
   });
 

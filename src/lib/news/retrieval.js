@@ -9,6 +9,7 @@
 import NewsArticle from "@/models/NewsArticle";
 import { searchNews, searchWeb, fetchPage } from "@/lib/mcp";
 import { kindMeta, candidateLimitFor } from "@/lib/news/kinds";
+import { hasCountryTld, isNationalOutlet } from "@/lib/news/locales";
 
 export class RetrievalError extends Error {
   constructor(message, code = "retrieval_failed") {
@@ -37,14 +38,21 @@ const LOW_QUALITY = new Map([
   ["indeed.com", -1.2], ["prnewswire.com", -0.2], ["businesswire.com", -0.2], ["globenewswire.com", -0.2],
 ]);
 
-function domainScore(domain) {
+/**
+ * Source quality. In a regional edition the region's established outlets
+ * count as reputable, and a site under the region's own domain gets a small
+ * lift, so Público outranks an unknown aggregator in the Portugal edition.
+ */
+export function domainScore(domain, countries = []) {
   for (const [bad, penalty] of LOW_QUALITY) {
     if (domain === bad || domain.endsWith(`.${bad}`)) return penalty;
   }
+  if (countries.length && isNationalOutlet(domain, countries)) return 0.6;
   if (REPUTABLE.has(domain)) return 0.5;
   for (const good of REPUTABLE) {
     if (domain.endsWith(`.${good}`)) return 0.4;
   }
+  if (countries.length && hasCountryTld(domain, countries)) return 0.25;
   return 0;
 }
 
@@ -106,6 +114,8 @@ function ageDays(date, now) {
  * @param {Set<string>} [params.recentlyShownKeys] urlKeys shown in recent briefings
  * @param {number} [params.deadlineAt]           epoch ms after which no new work starts
  * @param {(msg: string) => void} [params.log]
+ * @param {string[]} [params.countries]          ISO alpha-2 codes of the edition's region
+ * @param {string} [params.language]             ISO 639-1 code of the news to look for
  */
 export async function retrieveCandidates({
   queries,
@@ -115,6 +125,8 @@ export async function retrieveCandidates({
   recentlyShownKeys = new Set(),
   deadlineAt = Date.now() + 200000,
   log = () => {},
+  countries = [],
+  language = "",
 }) {
   const now = Date.now();
   const meta = kindMeta(kind);
@@ -138,10 +150,19 @@ export async function retrieveCandidates({
   /* ── 1. search ─────────────────────────────────────────────────── */
   const searchDeadline = Math.min(deadlineAt, now + 110000);
   const failures = [];
+  // A search can be pinned to one country only. An edition covering a group
+  // of countries names them in its queries instead (the planner does that).
+  const locale = { country: countries.length === 1 ? countries[0] : "", language };
+  const localised = Boolean(locale.country || locale.language);
   const searchTasks = queries.map((q) => async () => {
-    let res = await searchNews(q.query, { maxResults: 10, recencyDays, timeoutMs: 25000 });
+    let res = await searchNews(q.query, { maxResults: 10, recencyDays, timeoutMs: 25000, ...locale });
     if (!res.ok && !["not_configured", "connect_failed", "auth"].includes(res.error?.code)) {
       // Different tool or a transient error: give web search one chance.
+      res = await searchWeb(q.query, { maxResults: 10, recencyDays, timeoutMs: 25000, ...locale });
+    }
+    if (!res.ok && localised && res.error?.code === "tool_error") {
+      // A provider that refuses the region or language for this query still
+      // finds something useful without it; the query text is already local.
       res = await searchWeb(q.query, { maxResults: 10, recencyDays, timeoutMs: 25000 });
     }
     return { q, res };
@@ -250,7 +271,7 @@ export async function retrieveCandidates({
       // Keep the better-known domain as the canonical one. Its metadata
       // travels with it: title, snippet and date must describe the page the
       // stored URL points at, never the duplicate it replaced.
-      if (domainScore(item.domain) > domainScore(target.domain)) {
+      if (domainScore(item.domain, countries) > domainScore(target.domain, countries)) {
         Object.assign(target, {
           url: item.url,
           key: item.key,
@@ -293,7 +314,7 @@ export async function retrieveCandidates({
       score += Math.min(1, Math.max(0, item.mcpScore));
       score += Math.max(0, 0.5 - item.bestRank * 0.05);
       score += age === null ? 0 : age <= 1 ? 0.8 : age <= 3 ? 0.4 : 0;
-      score += domainScore(item.domain);
+      score += domainScore(item.domain, countries);
       // Feedback is about stories, not publishers, so the domain signal is
       // gentle: it only kicks in from the second verdict on the same domain
       // and never outweighs a topic match. The story-level feedback itself is

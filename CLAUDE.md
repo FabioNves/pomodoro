@@ -22,8 +22,9 @@ README.md has the commands.
   `GoogleLogin` directly outside that file and `/auth/native`.
 - Server-only code stays in `src/app/api`, `src/lib/db.js`,
   `src/lib/authTokens.js`, `src/lib/sessionAuth.js`, `src/lib/mcp`,
-  `src/lib/ai`, `src/lib/news` (except `src/lib/news/client.js` and
-  `schedule.js`), `src/lib/notebook/server.js`, `src/models` and
+  `src/lib/ai`, `src/lib/news` (except `src/lib/news/client.js`,
+  `schedule.js`, `kinds.js`, `locales.js` and `topicSuggestions.js`, which
+  are shared with the browser), `src/lib/notebook/server.js`, `src/models` and
   `src/proxy.js`; the static export drops `src/app/api` and `src/proxy.js`.
   Never import those modules from a page or component.
 - Routes that hold private data verify the session JWT with `requireUser()`
@@ -86,6 +87,33 @@ README.md has the commands.
   without dates spans its contents). The Tasks tab keeps its view in
   `?view=` and the open project in `?project=`.
 
+## Routine tasks and the calendar
+
+- A `RoutineTask` says when it happens through `frequencies` (`daily`, weekday
+  keys, `weekly`, `custom`, and the `monthly` flag), `monthly` rules (first
+  Monday of the month, first week, the 15th, last day, …), an optional
+  `startMinute` (time of day) and an optional `startDate`/`endDate` range.
+  `routineOccursOn()` in `src/lib/routineSchedule.js` is the one place that
+  decides whether a routine falls on a date; every display (planner grid,
+  calendar, dashboard) asks it rather than reading `frequencies` itself, and
+  `virtualRoutineTask()` builds the dashed calendar rows it produces.
+- Monthly rules are validated with `isValidMonthlyRule()` on the API and
+  kept in the same shape client side; `RoutineFrequencyPicker` reports
+  `{ frequencies, monthly }` together so the flag and the rules stay in sync.
+- Weeks start on Monday or Sunday, per the device preference in
+  `src/lib/weekSettings.js` (`useWeekSettings()` in components). Never
+  assume Monday: use `getWeekStartOf()`, `dayIndexOf()`, `weekDates()`,
+  `weekDayLabels()` and `weeksOfYear()` from `src/utils/timeUtils.js`, and
+  derive day names from a plan's real dates. A `WeekPlan.weekStart` is the
+  first day of that plan's week (whatever the setting was when it was
+  created); `days[i].dayOfWeek` is the offset from it. The planner sidebar
+  (`WeekPicker`) lists every week of a year and creates a plan on click, so
+  there is no "add week" flow to keep in sync.
+- Auto-scheduled routines with a `startMinute` render as blocks on the week
+  calendar; dropping or ticking one materialises it as a real week task.
+  `WeekCalendar` auto-scrolls while a block is dragged, a range is selected
+  or a block is resized near its top or bottom edge (`createEdgeScroller`).
+
 ## AI news briefing
 
 - Retrieval goes through MCP only (`src/lib/mcp`): servers are named in env
@@ -94,6 +122,29 @@ README.md has the commands.
   not call a search provider's REST API directly from feature code.
 - Briefing kinds and their time windows live in `src/lib/news/kinds.js`. Add
   a window or change a reach there, never inline in retrieval or a prompt.
+- A run is made of **editions**: the reader keeps one list of them
+  (`NewsPreference.editions`), each naming a location or group of locations
+  and the briefings it runs in (`kinds: ["daily","weekly","monthly"]`, a
+  custom schedule runs the daily ones). `editionsForKind()` picks a run's
+  editions; a kind no edition runs in gets a single worldwide one. Each edition plans, searches, summarises and validates on its
+  own, in its own language, and is stored as an entry in `Briefing.editions`
+  with its stories tagged (`BriefingStory.edition/language/outputLanguage/
+  countries`). The run is ready when any edition produced stories.
+- A `NewsTopic` carries `editions`: the edition keys it is followed in, empty
+  for all of them. `topicsForEdition()` in `generate.js` resolves a run's
+  topics per edition, and the implicit worldwide edition ("main") always gets
+  every topic, so scoping can never leave a briefing with nothing to search.
+  Suggested topics are grouped data in `src/lib/news/topicSuggestions.js`
+  (shared with the browser).
+- Countries and languages are data in `src/lib/news/locales.js` (shared with
+  the browser): the code and English name each provider wants, Brave's
+  `search_lang` values, the national outlets that count as reputable in a
+  region. Add a country or an outlet there, not in retrieval or a component.
+- One edition fills most of a 300 s function, so a run spans several
+  invocations: each runs one edition, claims it atomically and asks
+  `/api/news/briefings/continue` (Bearer `CRON_SECRET`) to run the next. A
+  broken chain is picked up by the cron or by the dashboard, which sees
+  `stalled` on the briefing and asks for the next edition itself.
 - The AI layer (`src/lib/ai`) only sees retrieved material and returns
   source ids; `src/lib/news/validate.js` maps ids back to stored articles and
   drops anything unsupported. Keep that split: MCP retrieves, OpenAI

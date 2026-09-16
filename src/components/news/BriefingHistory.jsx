@@ -95,6 +95,12 @@ export default function BriefingHistory({ onOpen, activeId, refreshKey = 0 }) {
                       <p className="text-[11px] text-fg-subtle">
                         {formatDate(b.createdAt, { withTime: true })} · {b.trigger === "scheduled" ? "scheduled" : "generated manually"}
                         {b.status === "ready" ? ` · ${b.storyCount} stor${b.storyCount === 1 ? "y" : "ies"}` : ""}
+                        {b.editionsTotal > 1
+                          ? ` · ${b.status === "generating" ? `${b.editionsDone} of ${b.editionsTotal}` : b.editionsTotal} editions`
+                          : ""}
+                        {b.editionsTotal > 1 && b.languages?.some(Boolean)
+                          ? ` (${b.languages.filter(Boolean).map((l) => l.toUpperCase()).join(" ")})`
+                          : ""}
                       </p>
                     </div>
                     <Chip tone={statusTone(b.status)}>{STATUS_LABEL[b.status] || b.status}</Chip>

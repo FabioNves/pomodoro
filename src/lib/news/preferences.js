@@ -4,25 +4,18 @@
 import { z } from "zod";
 import NewsPreference from "@/models/NewsPreference";
 import NewsTopic from "@/models/NewsTopic";
+import {
+  MAX_EDITIONS,
+  editionKinds,
+  isKnownCountry,
+  isKnownLanguage,
+  newEditionKey,
+  normalizeEditionList,
+} from "@/lib/news/locales";
 
-export const SUGGESTED_TOPICS = [
-  "AI",
-  "AI agents",
-  "OpenAI",
-  "Anthropic",
-  "Next.js",
-  "React",
-  "Startups",
-  "SaaS",
-  "Technology",
-  "Programming",
-  "Productivity",
-  "Finance",
-  "Science",
-  "Gaming",
-];
+export { SUGGESTED_TOPICS, SUGGESTED_TOPIC_GROUPS } from "@/lib/news/topicSuggestions";
 
-export const MAX_TOPICS = 30;
+export const MAX_TOPICS = 60;
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** Normalised form of a topic used for de-duplication ("AI Agents" == "ai agents"). */
@@ -46,6 +39,29 @@ export function isValidTimeZone(tz) {
 }
 
 const dayNumber = z.number().int().min(0).max(6);
+
+const editionInput = z.object({
+  key: z.string().trim().min(1).max(40),
+  countries: z
+    .array(z.string().trim().toUpperCase().refine(isKnownCountry, "Unknown country"))
+    .max(8)
+    .default([]),
+  language: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .refine((v) => v === "" || isKnownLanguage(v), "Unknown language")
+    .default(""),
+  output: z
+    .string()
+    .trim()
+    .refine((v) => v === "source" || isKnownLanguage(v), "Unknown output language")
+    .default("source"),
+  coverage: z.enum(["topics", "top"]).default("topics"),
+  // The briefings this edition runs in. Empty is allowed: the edition is
+  // kept, but no run builds it.
+  kinds: z.array(z.enum(["daily", "weekly", "monthly"])).max(3).default(["daily"]),
+});
 
 export const preferencesUpdateSchema = z
   .object({
@@ -73,14 +89,53 @@ export const preferencesUpdateSchema = z
     briefingLength: z.enum(["short", "medium", "long"]),
     majorNewsOnly: z.boolean(),
     includeWorthKnowing: z.boolean(),
+    language: z.string().trim().toLowerCase().refine(isKnownLanguage, "Unknown language"),
+    editions: z.array(editionInput).max(MAX_EDITIONS),
   })
   .partial()
   .strict();
 
 export const topicNameSchema = z.string().trim().min(1).max(80);
 
+/**
+ * Rewrite editions stored in the first shape (one list per briefing kind)
+ * as the current one (one list, each edition naming its kinds). Done through
+ * the raw collection, because the document no longer fits the schema.
+ * @returns {Promise<boolean>} whether anything was rewritten
+ */
+async function migrateLegacyEditions(userId) {
+  const raw = await NewsPreference.collection.findOne({ user: userId }, { projection: { editions: 1 } });
+  if (!raw || raw.editions === undefined || Array.isArray(raw.editions)) return false;
+  await NewsPreference.collection.updateOne(
+    { _id: raw._id },
+    { $set: { editions: normalizeEditionList(raw.editions) } },
+  );
+  return true;
+}
+
+/**
+ * Editions that cannot have been written by this code.
+ *
+ * Mongoose does not refuse the old shape: it casts `{daily: [...], ...}` into
+ * a single array entry whose fields are all unknown, so the mistake shows up
+ * as an edition without a key rather than as an error. Every edition this app
+ * writes is given one.
+ */
+function looksLegacy(pref) {
+  const editions = pref?.editions;
+  if (!Array.isArray(editions)) return true;
+  return editions.some((e) => !e?.key);
+}
+
 export async function getOrCreatePreferences(userId, { timezoneHint } = {}) {
-  const existing = await NewsPreference.findOne({ user: userId });
+  let existing = await NewsPreference.findOne({ user: userId });
+  if (existing && looksLegacy(existing)) {
+    // Saved before editions became one list: convert it through the raw
+    // collection and read it back, so nothing later saves the bad cast.
+    if (await migrateLegacyEditions(userId)) {
+      existing = await NewsPreference.findOne({ user: userId });
+    }
+  }
   if (existing) return { pref: existing, created: false };
 
   // First use. Two requests can arrive together (the page loads preferences
@@ -103,6 +158,22 @@ export async function getOrCreatePreferences(userId, { timezoneHint } = {}) {
   }
 }
 
+/** Keys identify an edition, so a duplicated one gets a suffix. */
+function uniqueKeys(list) {
+  const seen = new Set();
+  return list.map((edition, index) => {
+    let key = edition.key || newEditionKey();
+    for (let n = 1; seen.has(key); n += 1) key = `${String(edition.key).slice(0, 30)}-${index}-${n}`;
+    seen.add(key);
+    return {
+      ...edition,
+      key,
+      countries: [...new Set(edition.countries)],
+      kinds: editionKinds(edition),
+    };
+  });
+}
+
 /** Apply a validated partial update to a preferences document (in place). */
 export function applyPreferenceUpdate(pref, update) {
   if (update.timezone !== undefined) pref.timezone = update.timezone;
@@ -119,7 +190,20 @@ export function applyPreferenceUpdate(pref, update) {
   for (const key of ["customInterests", "storyCount", "briefingLength", "majorNewsOnly", "includeWorthKnowing"]) {
     if (update[key] !== undefined) pref[key] = update[key];
   }
+  if (update.language !== undefined) pref.language = update.language;
+  if (update.editions) pref.editions = uniqueKeys(update.editions);
   return pref;
+}
+
+function editionsDto(list) {
+  return normalizeEditionList(list).map((e) => ({
+    key: e.key,
+    countries: [...(e.countries || [])],
+    language: e.language || "",
+    output: e.output || "source",
+    coverage: e.coverage === "top" ? "top" : "topics",
+    kinds: editionKinds(e),
+  }));
 }
 
 export function preferencesDto(pref) {
@@ -146,6 +230,8 @@ export function preferencesDto(pref) {
     briefingLength: pref.briefingLength || "medium",
     majorNewsOnly: Boolean(pref.majorNewsOnly),
     includeWorthKnowing: pref.includeWorthKnowing !== false,
+    language: isKnownLanguage(pref.language) ? pref.language : "en",
+    editions: editionsDto(pref.editions),
     updatedAt: pref.updatedAt || null,
   };
 }
@@ -160,12 +246,35 @@ export function topicDto(topic) {
     name: topic.name,
     source: topic.source,
     weight: topic.weight,
+    // Empty means every edition.
+    editions: [...(topic.editions || [])],
     createdAt: topic.createdAt,
   };
 }
 
+/** Edition keys a topic may be limited to, cleaned up. */
+export function cleanTopicEditions(editions) {
+  if (!Array.isArray(editions)) return [];
+  return [...new Set(editions.map((k) => String(k).trim()).filter(Boolean))].slice(0, MAX_EDITIONS);
+}
+
+/** Limit a topic to these editions (empty for every edition). */
+export async function setTopicEditions(userId, id, editions) {
+  const topic = await NewsTopic.findOneAndUpdate(
+    { _id: id, user: userId },
+    { $set: { editions: cleanTopicEditions(editions) } },
+    { new: true },
+  );
+  if (!topic) {
+    const error = new Error("Topic not found");
+    error.status = 404;
+    throw error;
+  }
+  return topic;
+}
+
 /** Create a topic if the user does not already follow it. */
-export async function followTopic(userId, name, { source = "manual" } = {}) {
+export async function followTopic(userId, name, { source = "manual", editions = [] } = {}) {
   const clean = topicNameSchema.parse(name);
   const key = topicKey(clean);
   if (!key) {
@@ -183,7 +292,13 @@ export async function followTopic(userId, name, { source = "manual" } = {}) {
     throw error;
   }
   try {
-    const topic = await NewsTopic.create({ user: userId, name: clean, key, source });
+    const topic = await NewsTopic.create({
+      user: userId,
+      name: clean,
+      key,
+      source,
+      editions: cleanTopicEditions(editions),
+    });
     return { topic, created: true };
   } catch (error) {
     if (error?.code === 11000) {

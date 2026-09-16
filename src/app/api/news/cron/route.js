@@ -1,10 +1,14 @@
-import { timingSafeEqual } from "node:crypto";
 import { connectToDB } from "@/lib/db";
 import NewsPreference from "@/models/NewsPreference";
 import Briefing from "@/models/Briefing";
 import { computeDueCycles } from "@/lib/news/schedule";
 import {
-  generateNow,
+  startBriefing,
+  runNextEdition,
+  continuationChain,
+  triggerContinuation,
+  findResumableBriefings,
+  isInternalRequest,
   markCycleDelivered,
   isTransientFailure,
   GenerationError,
@@ -16,33 +20,25 @@ import {
 // Vercel Cron calls GET /api/news/cron (see vercel.json) with
 // "Authorization: Bearer $CRON_SECRET"; any other scheduler can do the same.
 // Each run looks at every user with a schedule enabled, works out the most
-// recent delivery time in their timezone, and generates the briefings that
-// are due and not yet produced. Runs are idempotent, so the cron may fire
-// hourly (Pro) or once a day (Hobby) and users still get each cycle once.
+// recent delivery time in their timezone, and starts the briefings that are
+// due and not yet produced. Runs are idempotent, so the cron may fire hourly
+// (Pro) or once a day (Hobby) and users still get each cycle once.
 //
-// A run never starts work it cannot finish: each generation is given the time
-// the invocation has left, and anything that does not fit is left for the
-// next run. Cycles that failed for a transient reason are retried; cycles
-// that failed for a configuration reason are not.
+// A briefing with several editions takes several invocations, so the cron
+// only starts each run and hands its first edition to a fresh invocation
+// (POST /api/news/briefings/continue); every edition then hands off the next.
+// If a hand-off cannot be made, the edition runs here while time allows and
+// the rest is picked up by the next cron run. Runs whose hand-off was lost
+// are resumed too. Cycles that failed for a transient reason are retried;
+// cycles that failed for a configuration reason are not.
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 const RUN_BUDGET_MS = 250000;
 const MAX_ATTEMPTS = 3;
 
-function authorized(req) {
-  const secret = (process.env.CRON_SECRET || "").trim();
-  if (!secret) return false;
-  const header = req.headers.get("authorization") || "";
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const actual = Buffer.from(header);
-  // Compare in constant time; differing lengths are rejected outright, which
-  // timingSafeEqual would otherwise throw on.
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
-
 async function runScheduler(req) {
-  if (!authorized(req)) {
+  if (!isInternalRequest(req)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   const url = new URL(req.url);
@@ -50,11 +46,17 @@ async function runScheduler(req) {
   const now = new Date();
   const deadline = Date.now() + RUN_BUDGET_MS;
   const log = (m) => console.log(`[news cron] ${m}`);
+  const chain = continuationChain(req);
 
   try {
     await connectToDB();
     const prefs = await NewsPreference.find({
-      $or: [{ "daily.enabled": true }, { "weekly.enabled": true }, { "custom.enabled": true }],
+      $or: [
+        { "daily.enabled": true },
+        { "weekly.enabled": true },
+        { "monthly.enabled": true },
+        { "custom.enabled": true },
+      ],
     }).lean();
 
     const due = [];
@@ -70,6 +72,16 @@ async function runScheduler(req) {
 
     const results = [];
     let deferred = 0;
+
+    /** Hand a run to a fresh invocation, or run an edition here if that fails. */
+    const drive = async (briefingId) => {
+      if (chain && (await triggerContinuation(briefingId, chain, log))) return "handed_off";
+      const budgetMs = deadline - Date.now();
+      if (budgetMs < MIN_GENERATION_MS) return "waiting";
+      const done = await runNextEdition(briefingId, { log, budgetMs, chain: null });
+      return done?.status || "waiting";
+    };
+
     for (const cycle of due) {
       const entry = { user: cycle.user, kind: cycle.kind, periodKey: cycle.periodKey, scheduledAt: cycle.scheduledAt };
       if (dryRun) {
@@ -78,8 +90,7 @@ async function runScheduler(req) {
       }
 
       // Idempotency: a scheduled briefing for this cycle may already exist
-      // (duplicate cron delivery, or an earlier run). Only a transient
-      // failure is worth another attempt.
+      // (duplicate cron delivery, an earlier run, or a run still going).
       const existing = await Briefing.findOne({
         user: cycle.user,
         kind: cycle.kind,
@@ -90,6 +101,10 @@ async function runScheduler(req) {
         .select({ status: 1, errorCode: 1 })
         .lean();
 
+      if (existing?.status === "generating") {
+        results.push({ ...entry, status: "in_progress", briefingId: String(existing._id) });
+        continue;
+      }
       if (existing) {
         const retryable = existing.status === "failed" && isTransientFailure(existing.errorCode);
         if (!retryable) {
@@ -111,27 +126,20 @@ async function runScheduler(req) {
         }
       }
 
-      // Only start what fits in the time this invocation has left.
-      const budgetMs = deadline - Date.now();
-      if (budgetMs < MIN_GENERATION_MS) {
-        deferred += 1;
-        continue;
-      }
-
       try {
-        const briefing = await generateNow({
+        const briefing = await startBriefing({
           userId: cycle.user,
           kind: cycle.kind,
           trigger: "scheduled",
           periodKey: cycle.periodKey,
-          budgetMs,
-          log,
         });
+        const status = await drive(briefing._id);
+        if (status === "waiting") deferred += 1;
         results.push({
           ...entry,
-          status: briefing.status,
+          status,
           briefingId: String(briefing._id),
-          error: briefing.error || undefined,
+          editions: briefing.editions.length,
         });
       } catch (error) {
         // A manual generation is in flight for this user: leave the cycle for
@@ -146,7 +154,19 @@ async function runScheduler(req) {
       }
     }
 
-    if (deferred) log(`${deferred} cycle(s) deferred to the next run`);
+    // Runs whose chain of hand-offs broke, manual ones included.
+    const resumed = [];
+    if (!dryRun) {
+      const startedHere = new Set(results.map((r) => r.briefingId).filter(Boolean));
+      for (const run of await findResumableBriefings({ limit: 20 })) {
+        if (startedHere.has(String(run._id))) continue;
+        const status = await drive(run._id);
+        resumed.push({ briefingId: String(run._id), user: run.user, status });
+      }
+      if (resumed.length) log(`${resumed.length} stalled run(s) resumed`);
+    }
+
+    if (deferred) log(`${deferred} cycle(s) left for the next run`);
     return Response.json({
       ok: true,
       ranAt: now.toISOString(),
@@ -155,6 +175,7 @@ async function runScheduler(req) {
       due: due.length,
       deferred,
       results,
+      resumed,
     });
   } catch (error) {
     console.error("[news cron] failed", error);

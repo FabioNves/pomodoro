@@ -10,6 +10,13 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateSessionId } from "@/utils/sessionUtils";
 import Dropdown from "@/components/ui/Dropdown";
+import RoutineFrequencyPicker from "@/components/planner/RoutineFrequencyPicker";
+import {
+  clockToMinutes,
+  describeRoutineSchedule,
+  minutesToClock,
+  routineFrequencies,
+} from "@/lib/routineSchedule";
 
 const COLUMN_TYPE_OPTIONS = [
   { value: "text", label: "Text" },
@@ -38,19 +45,6 @@ async function apiJson(path, options = {}) {
   }
   return res.json();
 }
-
-const FREQUENCY_OPTIONS = [
-  { value: "daily", label: "Daily", icon: "🔄", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
-  { value: "weekly", label: "Weekly", icon: "📅", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
-  { value: "mon", label: "Monday", icon: "M", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
-  { value: "tue", label: "Tuesday", icon: "T", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
-  { value: "wed", label: "Wednesday", icon: "W", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
-  { value: "thu", label: "Thursday", icon: "T", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
-  { value: "fri", label: "Friday", icon: "F", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
-  { value: "sat", label: "Saturday", icon: "S", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
-  { value: "sun", label: "Sunday", icon: "S", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
-  { value: "custom", label: "Custom", icon: "✏️", color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
-];
 
 /* ── Icons ─────────────────────────────────────────────── */
 
@@ -85,178 +79,6 @@ function IconChevronDown({ className = "" }) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
     </svg>
-  );
-}
-
-/* ── Frequency Picker (multi-select) ───────────────────── */
-
-const DAY_OPTS = [
-  { value: "mon", label: "Mon" },
-  { value: "tue", label: "Tue" },
-  { value: "wed", label: "Wed" },
-  { value: "thu", label: "Thu" },
-  { value: "fri", label: "Fri" },
-  { value: "sat", label: "Sat" },
-  { value: "sun", label: "Sun" },
-];
-const ALL_DAYS = DAY_OPTS.map((d) => d.value);
-
-function FrequencyPicker({ value, onChange }) {
-  const selected = Array.isArray(value) ? value : [];
-  const isDaily =
-    selected.includes("daily") ||
-    (selected.length === 7 && ALL_DAYS.every((d) => selected.includes(d)));
-  const days = selected.filter((v) => ALL_DAYS.includes(v));
-
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const btnRef = useRef(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e) => {
-      if (
-        ref.current &&
-        !ref.current.contains(e.target) &&
-        btnRef.current &&
-        !btnRef.current.contains(e.target)
-      )
-        setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const handleOpen = () => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left });
-    }
-    setOpen((v) => !v);
-  };
-
-  const toggleDay = (d) => {
-    let next;
-    if (isDaily) {
-      next = ALL_DAYS.filter((x) => x !== d);
-    } else {
-      next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d];
-    }
-    if (ALL_DAYS.every((x) => next.includes(x))) next = ["daily"];
-    onChange(next);
-  };
-
-  const setDaily = () => onChange(["daily"]);
-  const clearAll = () => onChange([]);
-
-  let displayLabel;
-  if (isDaily) {
-    displayLabel = (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary-soft text-primary text-[11px] font-medium">
-        Daily
-      </span>
-    );
-  } else if (days.length === 0) {
-    displayLabel = (
-      <span className="text-xs text-fg-subtle">— pick days —</span>
-    );
-  } else {
-    displayLabel = (
-      <div className="flex flex-wrap gap-1">
-        {DAY_OPTS.filter((o) => days.includes(o.value)).map((o) => (
-          <span
-            key={o.value}
-            className="px-1.5 py-0.5 rounded bg-success-soft text-success text-[10px] font-medium"
-          >
-            {o.label.slice(0, 1)}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium bg-surface-2 border border-edge hover:bg-surface-hover transition-all min-h-[32px]"
-        onClick={handleOpen}
-      >
-        {displayLabel}
-        <IconChevronDown
-          className={`w-3 h-3 transition-transform text-fg-subtle ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {createPortal(
-        <AnimatePresence>
-          {open ? (
-            <motion.div
-              ref={ref}
-              style={{ position: "fixed", top: pos.top, left: pos.left }}
-              className="w-52 bg-surface border border-edge rounded-xl shadow-xl overflow-hidden z-[9999]"
-              initial={{ opacity: 0, y: -6, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.96 }}
-              transition={{ duration: 0.12 }}
-            >
-              <div className="py-1">
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-fg-subtle uppercase tracking-wider">
-                  Frequency
-                </div>
-                <button
-                  type="button"
-                  className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
-                    isDaily
-                      ? "bg-primary-soft text-primary font-medium"
-                      : "text-fg hover:bg-surface-hover"
-                  }`}
-                  onClick={setDaily}
-                >
-                  <span className="w-6 h-6 rounded-md flex items-center justify-center text-xs bg-primary-soft text-primary">
-                    🔄
-                  </span>
-                  <span>Daily</span>
-                </button>
-                <div className="border-t border-edge my-1" />
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-fg-subtle uppercase tracking-wider">
-                  Specific days
-                </div>
-                <div className="px-2 pb-2">
-                  {DAY_OPTS.map((opt) => {
-                    const checked = isDaily || days.includes(opt.value);
-                    return (
-                      <label
-                        key={opt.value}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-surface-hover text-sm text-fg"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleDay(opt.value)}
-                          className="w-4 h-4"
-                        />
-                        <span>{opt.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <div className="border-t border-edge" />
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-xs text-fg-subtle hover:bg-surface-hover"
-                  onClick={clearAll}
-                >
-                  Clear
-                </button>
-              </div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>,
-        document.body,
-      )}
-    </>
   );
 }
 
@@ -871,13 +693,20 @@ export default function RoutineTasksView({ projectId }) {
     }
   }, [projectId]);
 
+  // Debounced per task; edits to different fields made within the delay
+  // are merged into one PATCH rather than the last one winning.
+  const pendingRef = useRef({});
   const saveTask = useCallback((taskId, updates) => {
+    pendingRef.current[taskId] = { ...(pendingRef.current[taskId] || {}), ...updates };
     if (saveTimeoutRef.current[taskId]) clearTimeout(saveTimeoutRef.current[taskId]);
     saveTimeoutRef.current[taskId] = setTimeout(async () => {
+      const body = pendingRef.current[taskId];
+      delete pendingRef.current[taskId];
+      if (!body) return;
       try {
         await apiJson("/api/routine-tasks", {
           method: "PATCH",
-          body: JSON.stringify({ id: taskId, ...updates }),
+          body: JSON.stringify({ id: taskId, ...body }),
         });
       } catch (e) {
         console.error(e);
@@ -1002,9 +831,11 @@ export default function RoutineTasksView({ projectId }) {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485" />
                   </svg>
                 </th>
-                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[140px]">Frequency</th>
+                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[160px]">Frequency</th>
                 <th className="px-2 py-3 text-center font-semibold text-fg-muted w-[60px]" title="Auto-add to schedule">Auto</th>
-                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[100px]">Time (min)</th>
+                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[110px]" title="Time of day the task should happen">Time of day</th>
+                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[100px]" title="How long it takes, in minutes">Duration (min)</th>
+                <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[170px]" title="Only scheduled between these dates">Active</th>
                 <th className="px-4 py-3 text-left font-semibold text-fg-muted min-w-[200px]">Notes</th>
                 {columns.map((col) => (
                   <th
@@ -1066,17 +897,11 @@ export default function RoutineTasksView({ projectId }) {
                     />
                   </td>
                   <td className="px-4 py-2">
-                    <FrequencyPicker
-                      value={
-                        task.frequencies && task.frequencies.length
-                          ? task.frequencies
-                          : task.frequency
-                            ? [task.frequency]
-                            : []
-                      }
-                      onChange={(val) =>
-                        updateTaskLocal(task._id, { frequencies: val })
-                      }
+                    <RoutineFrequencyPicker
+                      value={routineFrequencies(task)}
+                      monthly={task.monthly || []}
+                      summary={describeRoutineSchedule(task)}
+                      onChange={(next) => updateTaskLocal(task._id, next)}
                     />
                     {(task.frequencies || []).includes("custom") ||
                     task.frequency === "custom" ? (
@@ -1102,6 +927,18 @@ export default function RoutineTasksView({ projectId }) {
                   </td>
                   <td className="px-4 py-2">
                     <input
+                      type="time"
+                      value={minutesToClock(task.startMinute)}
+                      onChange={(e) =>
+                        updateTaskLocal(task._id, { startMinute: clockToMinutes(e.target.value) })
+                      }
+                      className="w-full px-2 py-1.5 rounded-md bg-transparent border border-edge text-sm outline-none"
+                      title="Time of day (leave empty for no fixed time)"
+                      aria-label="Time of day"
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
                       type="number"
                       value={task.estimatedTime || ""}
                       onChange={(e) =>
@@ -1111,7 +948,53 @@ export default function RoutineTasksView({ projectId }) {
                       }
                       className="w-full px-2 py-1.5 rounded-md bg-transparent border border-edge text-sm outline-none"
                       min="0"
+                      aria-label="Duration in minutes"
                     />
+                  </td>
+                  <td className="px-4 py-2">
+                    {(() => {
+                      const invalid =
+                        !!task.startDate && !!task.endDate && task.endDate < task.startDate;
+                      // An end before the start is kept on screen but not
+                      // saved; the API would reject it anyway.
+                      const setDates = (patch) => {
+                        const next = { ...task, ...patch };
+                        if (next.startDate && next.endDate && next.endDate < next.startDate) {
+                          setRoutineTasks((prev) =>
+                            prev.map((t) => (t._id === task._id ? { ...t, ...patch } : t)),
+                          );
+                          return;
+                        }
+                        updateTaskLocal(task._id, patch);
+                      };
+                      const dateClass = `flex-1 min-w-0 px-1.5 py-1 rounded-md bg-transparent border text-xs outline-none ${
+                        invalid ? "border-danger" : "border-edge"
+                      }`;
+                      return (
+                        <div className="space-y-1" title={invalid ? "The end date is before the start date" : undefined}>
+                          <label className="flex items-center gap-1.5 text-[10px] text-fg-subtle">
+                            <span className="w-8">From</span>
+                            <input
+                              type="date"
+                              value={task.startDate || ""}
+                              onChange={(e) => setDates({ startDate: e.target.value })}
+                              className={dateClass}
+                              aria-label="Active from"
+                            />
+                          </label>
+                          <label className="flex items-center gap-1.5 text-[10px] text-fg-subtle">
+                            <span className="w-8">Until</span>
+                            <input
+                              type="date"
+                              value={task.endDate || ""}
+                              onChange={(e) => setDates({ endDate: e.target.value })}
+                              className={dateClass}
+                              aria-label="Active until"
+                            />
+                          </label>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-2">
                     <input

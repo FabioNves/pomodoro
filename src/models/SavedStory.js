@@ -17,6 +17,10 @@ const savedStorySchema = new mongoose.Schema(
     publisher: { type: String, default: "" },
     publishedAt: { type: Date, default: null },
     topics: { type: [String], default: [] },
+    // Copied from the story, so saved stories can be grouped by language.
+    language: { type: String, default: "" },
+    outputLanguage: { type: String, default: "" },
+    countries: { type: [String], default: [] },
   },
   { timestamps: true },
 );

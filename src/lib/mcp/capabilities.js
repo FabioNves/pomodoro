@@ -10,6 +10,8 @@
 // `topic` parameter with a "news" value (Tavily), and otherwise falls back
 // to web search with a recency filter (handled in index.js).
 
+import { braveSearchLang, countryByCode } from "@/lib/news/locales";
+
 export const CAPABILITY_NAMES = ["searchWeb", "searchNews", "fetchPage"];
 
 const KNOWN = {
@@ -156,6 +158,45 @@ function pickEnum(prop, candidates) {
   return candidates.find((c) => values.includes(c)) ?? null;
 }
 
+const COUNTRY_KEYS = ["country", "country_code", "countryCode", "gl"];
+const LANGUAGE_KEYS = ["search_lang", "language", "lang", "hl"];
+
+/**
+ * A country in the form this parameter accepts, or null when it cannot take
+ * it. Brave wants the alpha-2 code ("PT"), Tavily the full English name
+ * ("Portugal") and rejects codes; an enum settles it, otherwise the
+ * parameter's description does.
+ */
+function countryArgument(prop, code) {
+  const country = countryByCode(code);
+  if (!country) return null;
+  const values = enumOf(prop);
+  if (values.length) {
+    return (
+      values.find((v) => v.toUpperCase() === country.code) ||
+      values.find((v) => v.toLowerCase() === country.name.toLowerCase()) ||
+      null
+    );
+  }
+  const description = String(prop?.description || "");
+  if (/full country name|country name/i.test(description)) return country.name;
+  return country.code;
+}
+
+/** A language in the form this parameter accepts, or null. */
+function languageArgument(key, prop, language, country) {
+  const lang = String(language || "").toLowerCase();
+  if (!lang) return null;
+  const brave = braveSearchLang(lang, country);
+  const values = enumOf(prop);
+  if (values.length) {
+    const wanted = [brave, lang, `${lang}-${String(country || "").toLowerCase()}`];
+    return values.find((v) => wanted.includes(v.toLowerCase())) || null;
+  }
+  // Brave's own codes ("pt-pt", "jp") only apply to Brave's parameter.
+  return key === "search_lang" ? brave : lang;
+}
+
 function isoDate(daysAgo) {
   const d = new Date(Date.now() - daysAgo * 86400000);
   return d.toISOString().slice(0, 10);
@@ -165,7 +206,7 @@ function isoDate(daysAgo) {
  * Arguments for a search call.
  * @param {ReturnType<typeof resolveCapabilities>["searchWeb"]} cap
  */
-export function buildSearchArgs(cap, { query, maxResults = 10, recencyDays = 7, news = false, extra = {} }) {
+export function buildSearchArgs(cap, { query, maxResults = 10, recencyDays = 7, news = false, country = "", language = "", extra = {} }) {
   const props = cap.props || {};
   const args = {};
 
@@ -205,6 +246,24 @@ export function buildSearchArgs(cap, { query, maxResults = 10, recencyDays = 7, 
   if (news && cap.viaTopic) {
     const topicKey = props.topic ? "topic" : props.category ? "category" : null;
     if (topicKey) args[topicKey] = "news";
+  }
+
+  // Region and language, only through parameters the tool declares.
+  if (country) {
+    const key = firstKey(props, COUNTRY_KEYS);
+    // Tavily ignores (or rejects) a country outside its general topic.
+    const generalOnly = /topic is general/i.test(String(props[key]?.description || ""));
+    if (key && !(generalOnly && args.topic && args.topic !== "general")) {
+      const value = countryArgument(props[key], country);
+      if (value) args[key] = value;
+    }
+  }
+  if (language) {
+    const key = firstKey(props, LANGUAGE_KEYS);
+    if (key) {
+      const value = languageArgument(key, props[key], language, country);
+      if (value) args[key] = value;
+    }
   }
 
   // Keep responses small: the app fetches full pages separately.

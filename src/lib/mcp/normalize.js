@@ -7,6 +7,8 @@
 // "Title: / URL: / Content:" listing) or as structuredContent. All three are
 // handled, and anything that does not carry a valid http(s) URL is dropped.
 
+import { nationalPublisher } from "@/lib/news/locales";
+
 const TRACKING_PARAMS = /^(utm_\w+|fbclid|gclid|dclid|msclkid|mc_cid|mc_eid|igshid|yclid|_ga|_gl|ref|ref_src|ref_url|source|s|si|spm|cmpid|ocid|smid|sr_share|share_type)$/i;
 
 const PUBLISHERS = {
@@ -128,7 +130,34 @@ export function publisherFromDomain(domain) {
     const parent = parts.slice(i).join(".");
     if (PUBLISHERS[parent]) return PUBLISHERS[parent];
   }
-  return domain;
+  // National outlets of the regional editions ("publico.pt" -> "Público").
+  return nationalPublisher(domain) || domain;
+}
+
+// "3 hours ago" in the languages editions search in. Search providers
+// localise relative ages when asked for a non-English market.
+const RELATIVE_UNITS = [
+  [/^(min|minute|minuto|minute|minuti|minuut|minuten|minuto)/i, 60000],
+  [/^(h|hr|hour|hora|heure|ora|ore|stunde|uur)/i, 3600000],
+  [/^(d|day|dia|día|jour|giorn|tag|dag)/i, 86400000],
+  [/^(w|week|semana|semaine|settiman|woche|wek)/i, 7 * 86400000],
+  [/^(mo|month|m[eê]s|mois|mes|monat|maand)/i, 30 * 86400000],
+  [/^(y|year|ano|año|an|ann|jahr|jaar)/i, 365 * 86400000],
+];
+
+function relativeAge(text) {
+  const patterns = [
+    /^(\d+)\s*([a-zà-ÿ]+)\s+(?:ago|atr[aá]s)$/i, // en, pt "3 horas atrás"
+    /^(?:h[aá]|hace|il y a|vor)\s+(\d+)\s*([a-zà-ÿ]+)$/i, // pt, es, fr, de
+    /^(\d+)\s*([a-zà-ÿ]+)\s+(?:fa|geleden)$/i, // it, nl
+  ];
+  for (const pattern of patterns) {
+    const m = text.match(pattern);
+    if (!m) continue;
+    const unit = RELATIVE_UNITS.find(([re]) => re.test(m[2]));
+    if (unit) return plausible(new Date(Date.now() - Number(m[1]) * unit[1]));
+  }
+  return null;
 }
 
 const MIN_YEAR = 2000;
@@ -177,8 +206,10 @@ export function parseDate(value) {
       : n * 365 * 86400000;
     return plausible(new Date(Date.now() - ms));
   }
-  if (/^(today|just now)$/i.test(text)) return plausible(new Date());
-  if (/^yesterday$/i.test(text)) return plausible(new Date(Date.now() - 86400000));
+  const localised = relativeAge(text);
+  if (localised) return localised;
+  if (/^(today|just now|hoje|hoy|aujourd'hui|oggi|heute|vandaag)$/i.test(text)) return plausible(new Date());
+  if (/^(yesterday|ontem|ayer|hier|ieri|gestern|gisteren)$/i.test(text)) return plausible(new Date(Date.now() - 86400000));
   const parsed = new Date(text);
   return plausible(parsed);
 }

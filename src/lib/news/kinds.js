@@ -62,8 +62,14 @@ export function isRoundup(kind) {
   return kindMeta(kind).format === "roundup";
 }
 
-/** How many searches a briefing of this kind is allowed to run. */
-export function maxQueriesFor(kind) {
+/**
+ * How many searches one edition of a briefing of this kind may run. A run
+ * with several editions searches each region separately, so each one gets a
+ * smaller share: seven editions of 16 searches would spend far more than the
+ * reader gains, and would not fit an edition's time limit either.
+ */
+export function maxQueriesFor(kind, editionCount = 1) {
+  if (editionCount > 1) return { daily: 7, custom: 7, weekly: 9, monthly: 11 }[kind] || 7;
   return { daily: 12, custom: 12, weekly: 16, monthly: 20 }[kind] || 12;
 }
 

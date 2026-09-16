@@ -2,48 +2,49 @@
 // the calendar shows (auto-scheduled routine tasks and dated todos). Mirrors
 // the merging done in WeeklyRoutine for the planner.
 
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+import {
+  dateInWeek,
+  routineFrequencies,
+  routineOccursOn,
+  virtualRoutineTask,
+} from "@/lib/routineSchedule";
+
+export { routineFrequencies };
 
 export const idOf = (v) =>
   v == null ? null : typeof v === "object" ? String(v._id || v) : String(v);
 
-export function routineFrequencies(rt) {
-  return Array.isArray(rt.frequencies) && rt.frequencies.length
-    ? rt.frequencies
-    : rt.frequency
-      ? [rt.frequency]
-      : [];
-}
-
-/** Tasks to show for `dayIdx` (0 = Monday) of a plan, including virtuals. */
-export function dayTasksForPlan({ weekPlan, routineTasks = [], tasks = [], dayIdx }) {
+/**
+ * Tasks to show for `dayIdx` (0 = Monday) of a plan, including virtuals.
+ * `weekStart` ("YYYY-MM-DD") defaults to the plan's; without one, routine
+ * tasks are matched on the weekday only (monthly rules and date ranges
+ * need a real date).
+ */
+export function dayTasksForPlan({
+  weekPlan,
+  routineTasks = [],
+  tasks = [],
+  dayIdx,
+  weekStart = weekPlan?.weekStart,
+}) {
   const real = [
     ...(weekPlan?.days?.find((d) => d.dayOfWeek === dayIdx)?.tasks || []),
   ];
   const out = [...real];
+  const date = weekStart ? dateInWeek(weekStart, dayIdx) : null;
 
   // Auto-scheduled routine tasks that fall on this day (unless already added)
-  const dayKey = DAY_KEYS[dayIdx];
   for (const rt of routineTasks) {
     if (!rt.autoSchedule) continue;
-    const f = routineFrequencies(rt);
-    if (!(f.includes("daily") || f.includes(dayKey))) continue;
+    if (!routineOccursOn(rt, date, dayIdx)) continue;
     const already = real.some((t) => idOf(t.routineTask) === String(rt._id));
     if (already) continue;
-    out.unshift({
-      _id: `__auto_${rt._id}_${dayIdx}`,
-      _virtual: true,
-      routineTask: rt._id,
-      project: idOf(rt.project),
-      taskName: rt.title,
-      estimatedTime: rt.estimatedTime || 0,
-      completed: false,
-    });
+    out.unshift(virtualRoutineTask(rt, dayIdx, idOf(rt.project)));
   }
 
   // Todos with a scheduled date on this day (display only)
-  if (weekPlan?.weekStart) {
-    const start = new Date(weekPlan.weekStart + "T00:00:00");
+  if (weekStart) {
+    const start = new Date(weekStart + "T00:00:00");
     const dayStart = new Date(start);
     dayStart.setDate(start.getDate() + dayIdx);
     const dayEnd = new Date(dayStart);

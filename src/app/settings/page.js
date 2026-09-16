@@ -5,6 +5,8 @@ import { jwtDecode } from "jwt-decode";
 import Navbar from "@/components/Navbar";
 import { useTheme } from "@/hooks/useTheme";
 import { useTimerSettings } from "@/hooks/useTimerSettings";
+import { useWeekSettings } from "@/hooks/useWeekSettings";
+import { WEEK_STARTS } from "@/lib/weekSettings";
 import { createSoundKit } from "@/utils/sounds";
 import TimerPreview from "@/components/timer/TimerPreview";
 import {
@@ -136,6 +138,7 @@ export default function SettingsPage() {
   const { theme, setTheme, themes } = useTheme();
   const { settings: timer, update: updateTimer, reset: resetTimer } =
     useTimerSettings();
+  const { settings: week, update: updateWeek } = useWeekSettings();
   // Previews always play, at the chosen volume, even while sound is off.
   const previewKit = useMemo(
     () => createSoundKit({ ...timer, soundEnabled: true, uiSounds: true }),
@@ -493,6 +496,56 @@ export default function SettingsPage() {
                 />
               </SettingRow>
             </div>
+          </div>
+        </div>
+
+        {/* Planner Section */}
+        <div className="bg-surface rounded-lg p-6 border border-edge mb-6 transition-colors duration-300 shadow-md">
+          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2 text-fg">
+            <svg
+              className="w-6 h-6 text-accent"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="5" width="18" height="16" rx="2" />
+              <path d="M3 10h18M8 3v4M16 3v4" />
+            </svg>
+            Planner
+          </h2>
+          <div className="bg-surface-2 p-4 rounded-lg transition-colors duration-300">
+            <SettingRow
+              title="Week starts on"
+              hint="Used by the planner weeks, the calendar and the dashboard. Weeks you already planned keep their dates."
+            >
+              <div
+                role="radiogroup"
+                aria-label="Week starts on"
+                className="inline-flex items-center gap-0.5 bg-surface p-0.5 rounded-lg border border-edge"
+              >
+                {WEEK_STARTS.map((w) => {
+                  const active = week.weekStartsOn === w.id;
+                  return (
+                    <button
+                      key={w.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      title={w.hint}
+                      onClick={() => updateWeek({ weekStartsOn: w.id })}
+                      className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                        active ? "bg-primary-soft text-primary" : "text-fg-muted hover:text-fg"
+                      }`}
+                    >
+                      {w.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </SettingRow>
           </div>
         </div>
 

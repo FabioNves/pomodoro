@@ -1,11 +1,25 @@
 "use client";
 
-// Briefing settings: schedule (daily / weekly / custom days, timezone),
-// content (story count, length, major-only, worth knowing, interests) and
-// the connection status of the MCP server and OpenAI.
+// Briefing settings: schedule (daily / weekly / monthly / custom days,
+// timezone), editions (the locations and languages, and which briefings each
+// one runs in), content (story count, length, major-only, worth knowing,
+// interests) and the connection status of the MCP server and OpenAI.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { browserTimeZone } from "@/lib/news/client";
+import {
+  COUNTRIES,
+  LANGUAGES,
+  MAX_EDITIONS,
+  countryByCode,
+  countryName,
+  editionKinds,
+  editionsForKind,
+  editionsForLanguages,
+  languageName,
+  newEditionKey,
+  normalizeEditionList,
+} from "@/lib/news/locales";
 import {
   ActionButton,
   Banner,
@@ -14,9 +28,11 @@ import {
   IconCheck,
   IconClock,
   IconGlobe,
+  IconPlus,
   IconRefresh,
   IconSettings,
   IconSparkles,
+  IconX,
   SectionTitle,
   SettingRow,
   Spinner,
@@ -29,6 +45,15 @@ const LENGTHS = [
   { id: "medium", name: "Medium", hint: "Two or three sentences" },
   { id: "long", name: "Long", hint: "Fuller detail and context" },
 ];
+
+const KIND_OPTIONS = [
+  { key: "daily", label: "Daily" },
+  { key: "weekly", label: "Weekly" },
+  { key: "monthly", label: "Monthly" },
+];
+
+const SELECT_CLASS =
+  "w-full px-2 py-1.5 rounded-lg bg-surface border border-edge text-sm text-fg focus:border-focus outline-none disabled:opacity-50";
 
 function timeZones() {
   try {
@@ -64,9 +89,184 @@ function Block({ children }) {
   return <div className="bg-surface-2 p-4 rounded-lg space-y-4 transition-colors duration-300">{children}</div>;
 }
 
+function Field({ label, children }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-fg-subtle">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+/** Which briefings an edition runs in. */
+function KindChips({ kinds, onToggle }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {KIND_OPTIONS.map((k) => (
+        <Chip key={k.key} tone={kinds.includes(k.key) ? "primary" : "neutral"} onClick={() => onToggle(k.key)}>
+          {k.label}
+        </Chip>
+      ))}
+    </div>
+  );
+}
+
+/** One edition: where it looks, in which language, and when it runs. */
+function EditionRow({ edition, index, total, userLanguage, onChange, onRemove, onMove }) {
+  const chosen = edition.countries || [];
+  const available = COUNTRIES.filter((c) => !chosen.includes(c.code));
+  const kinds = editionKinds(edition);
+
+  const addCountry = (code) => {
+    if (!code || chosen.includes(code)) return;
+    const patch = { countries: [...chosen, code] };
+    // Picking a country without a language implies the country's own press.
+    if (!edition.language) patch.language = countryByCode(code)?.languages?.[0] || "";
+    onChange(patch);
+  };
+
+  const toggleKind = (kind) =>
+    onChange({ kinds: kinds.includes(kind) ? kinds.filter((k) => k !== kind) : [...kinds, kind] });
+
+  return (
+    <div className="bg-surface border border-edge rounded-xl p-3 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-semibold text-fg">
+          {chosen.length ? chosen.map(countryName).join(", ") : "Worldwide"}
+          <span className="ml-2 text-[11px] font-normal text-fg-subtle">
+            {edition.coverage === "top" ? "top news" : "your topics"}
+            {edition.language ? ` · in ${languageName(edition.language)}` : ""}
+          </span>
+        </p>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => onMove(-1)}
+            disabled={index === 0}
+            className="px-1.5 py-1 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-hover disabled:opacity-30"
+            aria-label="Move edition up"
+            title="Move up"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            onClick={() => onMove(1)}
+            disabled={index === total - 1}
+            className="px-1.5 py-1 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-hover disabled:opacity-30"
+            aria-label="Move edition down"
+            title="Move down"
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1.5 rounded-lg text-fg-subtle hover:text-danger hover:bg-surface-hover transition-colors"
+            aria-label="Remove edition"
+            title="Remove edition"
+          >
+            <IconX className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <Field label="Runs in">
+        <KindChips kinds={kinds} onToggle={toggleKind} />
+        {!kinds.length ? (
+          <p className="text-[11px] text-warning">Not in any briefing yet, so nothing will build this edition.</p>
+        ) : null}
+      </Field>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Field label="Locations">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {chosen.length ? (
+              chosen.map((code) => (
+                <Chip
+                  key={code}
+                  onRemove={() => onChange({ countries: chosen.filter((c) => c !== code) })}
+                  removeLabel={`Remove ${countryName(code)}`}
+                >
+                  {countryName(code)}
+                </Chip>
+              ))
+            ) : (
+              <Chip title="News from anywhere">Worldwide</Chip>
+            )}
+          </div>
+          <select
+            value=""
+            aria-label="Add a country to this edition"
+            onChange={(e) => addCountry(e.target.value)}
+            disabled={chosen.length >= 8}
+            className={SELECT_CLASS}
+          >
+            <option value="">Add a country…</option>
+            {available.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="News language">
+          <select
+            value={edition.language || ""}
+            aria-label="Language of the news to look for"
+            onChange={(e) => onChange({ language: e.target.value })}
+            className={SELECT_CLASS}
+          >
+            <option value="">Any language</option>
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.native} ({l.name})
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Written in">
+          <select
+            value={edition.output || "source"}
+            aria-label="Language this edition is written in"
+            onChange={(e) => onChange({ output: e.target.value })}
+            className={SELECT_CLASS}
+          >
+            <option value="source">
+              {edition.language ? `Its own language (${languageName(edition.language)})` : `Your language (${languageName(userLanguage)})`}
+            </option>
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                Translate to {l.native} ({l.name})
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Covers">
+          <select
+            value={edition.coverage || "topics"}
+            aria-label="What this edition covers"
+            onChange={(e) => onChange({ coverage: e.target.value })}
+            className={SELECT_CLASS}
+          >
+            <option value="topics">Your topics, in this region</option>
+            <option value="top">The region’s most important news</option>
+          </select>
+        </Field>
+      </div>
+    </div>
+  );
+}
+
 export default function NewsSettings({ preferences, onSave, saving, status, statusLoading, onRefreshStatus, nextDelivery }) {
   const [form, setForm] = useState(preferences);
   const [dirty, setDirty] = useState(false);
+  const [quickLanguages, setQuickLanguages] = useState([]);
+  const [quickOutput, setQuickOutput] = useState("source");
+  const [quickKinds, setQuickKinds] = useState(["weekly"]);
   const zones = useMemo(timeZones, []);
 
   useEffect(() => {
@@ -92,6 +292,36 @@ export default function NewsSettings({ preferences, onSave, saving, status, stat
     updateNested("custom", { days });
   };
 
+  const editions = normalizeEditionList(form.editions);
+  const setEditions = (list) => update({ editions: list.slice(0, MAX_EDITIONS) });
+  const patchEdition = (index, patch) => setEditions(editions.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+  const moveEdition = (index, delta) => {
+    const next = [...editions];
+    const target = index + delta;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setEditions(next);
+  };
+  const blankEdition = (kinds) => ({
+    key: newEditionKey(),
+    countries: [],
+    language: "",
+    output: "source",
+    coverage: "topics",
+    kinds,
+  });
+  const addEdition = () => setEditions([...editions, blankEdition(["daily"])]);
+  const addPerLanguage = () => {
+    if (!quickLanguages.length) return;
+    const added = editionsForLanguages(quickLanguages, { output: quickOutput, kinds: quickKinds });
+    // The first editions added keep what a briefing does by default, so a
+    // Portuguese edition never silently replaces the reader's own topics.
+    setEditions(editions.length ? [...editions, ...added] : [blankEdition(quickKinds), ...added]);
+    setQuickLanguages([]);
+  };
+  const toggleQuickKind = (kind) =>
+    setQuickKinds((prev) => (prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind]));
+
   const save = async () => {
     const ok = await onSave({
       timezone: form.timezone,
@@ -104,6 +334,8 @@ export default function NewsSettings({ preferences, onSave, saving, status, stat
       briefingLength: form.briefingLength,
       majorNewsOnly: form.majorNewsOnly,
       includeWorthKnowing: form.includeWorthKnowing,
+      language: form.language,
+      editions,
     });
     if (ok) setDirty(false);
   };
@@ -222,6 +454,120 @@ export default function NewsSettings({ preferences, onSave, saving, status, stat
         </Block>
       </div>
 
+      {/* Editions */}
+      <div className="space-y-3">
+        <SectionTitle Icon={IconGlobe}>Editions</SectionTitle>
+        <Block>
+          <SettingRow title="Your language" hint="Where an edition set to “your language” is written, and the default for translations.">
+            <select
+              value={form.language || "en"}
+              aria-label="Your language"
+              onChange={(e) => update({ language: e.target.value })}
+              className="px-2 py-1.5 rounded-lg bg-surface border border-edge text-sm text-fg focus:border-focus outline-none"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.native} ({l.name})
+                </option>
+              ))}
+            </select>
+          </SettingRow>
+
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-fg">
+                Your editions
+                <span className="ml-2 text-[11px] font-normal text-fg-subtle tabular-nums">
+                  {KIND_OPTIONS.map((k) => `${k.label} ${editionsForKind(editions, k.key).length}`).join(" · ")}
+                </span>
+              </p>
+              <ActionButton size="sm" Icon={IconPlus} onClick={addEdition} disabled={editions.length >= MAX_EDITIONS}>
+                Add edition
+              </ActionButton>
+            </div>
+
+            <p className="text-xs text-fg-muted">
+              Write an edition once and tick the briefings it belongs to: the same Portugal edition can run in your
+              weekly and your monthly. A briefing no edition runs in builds a single worldwide edition about your
+              topics, as it always did. Custom-schedule briefings run the daily editions.
+            </p>
+
+            {editions.length ? (
+              <div className="space-y-2">
+                {editions.map((edition, index) => (
+                  <EditionRow
+                    key={edition.key || index}
+                    edition={edition}
+                    index={index}
+                    total={editions.length}
+                    userLanguage={form.language || "en"}
+                    onChange={(patch) => patchEdition(index, patch)}
+                    onRemove={() => setEditions(editions.filter((_, i) => i !== index))}
+                    onMove={(delta) => moveEdition(index, delta)}
+                  />
+                ))}
+                <button type="button" onClick={() => setEditions([])} className="text-xs text-primary hover:underline">
+                  Remove all editions
+                </button>
+              </div>
+            ) : null}
+
+            <div className="bg-surface border border-edge rounded-xl p-3 space-y-2">
+              <p className="text-sm font-medium text-fg">One edition per language you read</p>
+              <p className="text-xs text-fg-muted">
+                Adds a top-news edition for each language’s main country. Change the country or the briefings
+                afterwards on each row.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {LANGUAGES.map((l) => (
+                  <Chip
+                    key={l.code}
+                    tone={quickLanguages.includes(l.code) ? "primary" : "neutral"}
+                    onClick={() =>
+                      setQuickLanguages((prev) => (prev.includes(l.code) ? prev.filter((c) => c !== l.code) : [...prev, l.code]))
+                    }
+                  >
+                    {l.native}
+                  </Chip>
+                ))}
+              </div>
+              <Field label="Run them in">
+                <KindChips kinds={quickKinds} onToggle={toggleQuickKind} />
+              </Field>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={quickOutput}
+                  aria-label="Language the new editions are written in"
+                  onChange={(e) => setQuickOutput(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg bg-surface-2 border border-edge text-sm text-fg focus:border-focus outline-none"
+                >
+                  <option value="source">Each in its own language</option>
+                  {LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      All translated to {l.native}
+                    </option>
+                  ))}
+                </select>
+                <ActionButton
+                  size="sm"
+                  tone="primary"
+                  Icon={IconPlus}
+                  onClick={addPerLanguage}
+                  disabled={!quickLanguages.length || !quickKinds.length}
+                >
+                  Add {quickLanguages.length || ""} edition{quickLanguages.length === 1 ? "" : "s"}
+                </ActionButton>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-fg-subtle">
+              Each edition is its own search pass and its own AI summary: roughly one to two minutes and a handful of
+              searches each, and they arrive one at a time. Up to {MAX_EDITIONS} editions.
+            </p>
+          </div>
+        </Block>
+      </div>
+
       {/* Content */}
       <div className="space-y-3">
         <SectionTitle Icon={IconSparkles}>Content</SectionTitle>
@@ -240,6 +586,7 @@ export default function NewsSettings({ preferences, onSave, saving, status, stat
               className="w-full accent-primary"
               aria-label="Number of stories"
             />
+            <p className="text-[11px] text-fg-subtle">Per edition.</p>
           </div>
           <div>
             <p className="text-sm font-medium text-fg mb-2">Briefing length</p>

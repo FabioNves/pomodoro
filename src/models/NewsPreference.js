@@ -11,6 +11,30 @@ const scheduleSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// One edition: a location or group of locations, the language to search in,
+// the language to write it in, and which briefings it runs in. A briefing
+// run builds one section per edition (see src/lib/news/generate.js).
+const editionSchema = new mongoose.Schema(
+  {
+    key: { type: String, required: true },
+    // ISO 3166-1 alpha-2 codes; empty means worldwide.
+    countries: { type: [String], default: [] },
+    // ISO 639-1 code of the news to look for; empty means any language.
+    language: { type: String, default: "" },
+    // "source" keeps the edition in the language its news is in; a language
+    // code translates the edition into that language.
+    output: { type: String, default: "source" },
+    // "topics": the reader's topics within this region. "top": the region's
+    // most important news, whatever the reader follows.
+    coverage: { type: String, enum: ["topics", "top"], default: "topics" },
+    // The briefings this one edition runs in: any of "daily", "weekly" and
+    // "monthly" (a custom schedule runs the daily ones). Empty keeps the
+    // edition without ever building it.
+    kinds: { type: [String], default: ["daily"] },
+  },
+  { _id: false },
+);
+
 const newsPreferenceSchema = new mongoose.Schema(
   {
     user: { type: String, required: true, unique: true, index: true },
@@ -64,6 +88,14 @@ const newsPreferenceSchema = new mongoose.Schema(
     },
     majorNewsOnly: { type: Boolean, default: false },
     includeWorthKnowing: { type: Boolean, default: true },
+
+    // The reader's own language: where translating editions are written by
+    // default.
+    language: { type: String, default: "en" },
+    // Every edition the reader keeps, each naming the briefings it runs in.
+    // A kind with no editions builds a single worldwide edition covering the
+    // reader's topics, which is what a briefing was before editions existed.
+    editions: { type: [editionSchema], default: [] },
 
     // Period keys of the last scheduled generation per kind, so the
     // scheduler never produces the same cycle twice.

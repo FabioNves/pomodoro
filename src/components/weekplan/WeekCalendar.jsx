@@ -24,6 +24,8 @@ import {
   minutesToTime,
   taskDuration,
 } from "./WeekPlanShared";
+import { dayShortName, weekDates, weekDayLabels } from "@/utils/timeUtils";
+import { useWeekSettings } from "@/hooks/useWeekSettings";
 
 const HOUR_PX = 48; // height of one hour row
 const SNAP = 15; // minutes
@@ -32,13 +34,65 @@ const MIN_BLOCK = 15;
 const CLICK_BLOCK = 60; // plain click (no drag) selects this many minutes
 const INITIAL_SCROLL_HOUR = 7;
 const GUTTER_PX = 56;
-const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const snapTo = (m) => Math.round(m / SNAP) * SNAP;
 const floorTo = (m) => Math.floor(m / SNAP) * SNAP;
 const yToMinute = (y) => (y / HOUR_PX) * 60;
 const minuteToY = (m) => (m / 60) * HOUR_PX;
+
+// Auto-scroll while dragging, selecting or resizing near the top or bottom
+// edge of the scroll area.
+const EDGE_PX = 56; // distance from the edge where scrolling starts
+const MAX_SCROLL_STEP = 16; // px per frame right at the edge
+
+/**
+ * Scrolls the element returned by `getEl` while the pointer sits within
+ * EDGE_PX of its top or bottom edge, faster the closer it gets. `onTick`
+ * re-runs the caller's position logic with the last pointer Y each frame,
+ * because no new pointer event fires while the content moves under a
+ * still pointer (HTML5 drag fires dragover periodically on its own).
+ */
+function createEdgeScroller(getEl) {
+  let raf = 0;
+  let speed = 0;
+  let lastY = 0;
+  let tick = null;
+  const loop = () => {
+    const el = getEl();
+    if (!el || !speed) {
+      raf = 0;
+      return;
+    }
+    const before = el.scrollTop;
+    el.scrollTop = before + speed;
+    if (el.scrollTop !== before && tick) tick(lastY);
+    raf = requestAnimationFrame(loop);
+  };
+  return {
+    update(clientY, onTick = null) {
+      const el = getEl();
+      if (!el) return;
+      lastY = clientY;
+      tick = onTick;
+      const rect = el.getBoundingClientRect();
+      let next = 0;
+      if (clientY < rect.top + EDGE_PX) {
+        next = -Math.ceil(((rect.top + EDGE_PX - clientY) / EDGE_PX) * MAX_SCROLL_STEP);
+      } else if (clientY > rect.bottom - EDGE_PX) {
+        next = Math.ceil(((clientY - (rect.bottom - EDGE_PX)) / EDGE_PX) * MAX_SCROLL_STEP);
+      }
+      speed = clamp(next, -MAX_SCROLL_STEP, MAX_SCROLL_STEP);
+      if (speed && !raf) raf = requestAnimationFrame(loop);
+    },
+    stop() {
+      speed = 0;
+      tick = null;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    },
+  };
+}
 
 function routineIdOf(task) {
   if (!task?.routineTask) return null;
@@ -106,6 +160,17 @@ export default function WeekCalendar({
 }) {
   const scrollRef = useRef(null);
   const colRefs = useRef([]);
+
+  // Day names come from the week's real dates (a plan may start on Monday
+  // or Sunday); without a plan yet, from the "week starts on" setting.
+  const { settings: weekSettings } = useWeekSettings();
+  const dayNames = useMemo(
+    () =>
+      weekPlan?.weekStart
+        ? weekDates(weekPlan.weekStart).map(dayShortName)
+        : weekDayLabels(weekSettings.weekStartsOn),
+    [weekPlan?.weekStart, weekSettings.weekStartsOn],
+  );
   const selectionAnchorRef = useRef(null);
   const addBtnRefs = useRef({});
   const editBtnRefs = useRef({});
@@ -122,6 +187,13 @@ export default function WeekCalendar({
   // Resizing a block from its bottom edge.
   const resizeRef = useRef(null);
   const [resizing, setResizing] = useState(null); // { taskId, duration }
+
+  // Edge auto-scroll shared by drag, range selection and resizing.
+  const edgeScrollRef = useRef(null);
+  if (!edgeScrollRef.current) {
+    edgeScrollRef.current = createEdgeScroller(() => scrollRef.current);
+  }
+  useEffect(() => () => edgeScrollRef.current?.stop(), []);
 
   const [addingStripDay, setAddingStripDay] = useState(null);
   const [editingKey, setEditingKey] = useState(null);
@@ -152,8 +224,10 @@ export default function WeekCalendar({
     () =>
       Array.from({ length: 7 }, (_, d) => {
         const entries = [];
+        // Auto-scheduled routines with a time of day render as (dashed)
+        // blocks too; dropping or ticking one materialises it.
         for (const task of dayTasks[d] || []) {
-          if (task.startMinute == null || task._virtual) continue;
+          if (task.startMinute == null) continue;
           const start = clamp(Number(task.startMinute) || 0, 0, DAY_MINUTES - MIN_BLOCK);
           const dur =
             resizing && String(resizing.taskId) === String(task._id)
@@ -170,9 +244,7 @@ export default function WeekCalendar({
   const stripByDay = useMemo(
     () =>
       Array.from({ length: 7 }, (_, d) =>
-        (dayTasks[d] || []).filter(
-          (t) => t.startMinute == null || t._virtual,
-        ),
+        (dayTasks[d] || []).filter((t) => t.startMinute == null),
       ),
     [dayTasks],
   );
@@ -192,6 +264,7 @@ export default function WeekCalendar({
 
   const clearDrag = () => {
     dragInfoRef.current = null;
+    edgeScrollRef.current?.stop();
     setDragPreview(null);
     setDragOverStrip(null);
   };
@@ -323,21 +396,26 @@ export default function WeekCalendar({
     selRef.current = { day: dayIdx, anchor, moved: false };
     setSelection({ day: dayIdx, start: anchor, end: anchor + SNAP, done: false });
 
-    const onMove = (ev) => {
+    const applyMove = (clientY) => {
       const s = selRef.current;
       if (!s) return;
       const r = colRefs.current[s.day]?.getBoundingClientRect();
       if (!r) return;
-      const m = clamp(snapTo(yToMinute(ev.clientY - r.top)), 0, DAY_MINUTES);
+      const m = clamp(snapTo(yToMinute(clientY - r.top)), 0, DAY_MINUTES);
       if (m !== s.anchor) s.moved = true;
       let start = Math.min(s.anchor, m);
       let end = Math.max(s.anchor, m);
       if (end - start < SNAP) end = start + SNAP;
       setSelection({ day: s.day, start, end, done: false });
     };
+    const onMove = (ev) => {
+      applyMove(ev.clientY);
+      edgeScrollRef.current?.update(ev.clientY, applyMove);
+    };
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      edgeScrollRef.current?.stop();
       endSelectionListeners.current = null;
       const s = selRef.current;
       selRef.current = null;
@@ -377,10 +455,13 @@ export default function WeekCalendar({
       duration: initial,
     };
     setResizing({ taskId: task._id, duration: initial });
-    const onMove = (ev) => {
+    // Pointer travel plus whatever the grid auto-scrolled underneath it.
+    const scrollTop0 = scrollRef.current?.scrollTop ?? 0;
+    const applyResize = (clientY) => {
       const r = resizeRef.current;
       if (!r) return;
-      const delta = yToMinute(ev.clientY - r.y0);
+      const scrolled = (scrollRef.current?.scrollTop ?? 0) - scrollTop0;
+      const delta = yToMinute(clientY + scrolled - r.y0);
       const dur = clamp(
         snapTo(r.initial + delta),
         MIN_BLOCK,
@@ -391,9 +472,14 @@ export default function WeekCalendar({
         cur && cur.duration === dur ? cur : { taskId: r.task._id, duration: dur },
       );
     };
+    const onMove = (ev) => {
+      applyResize(ev.clientY);
+      edgeScrollRef.current?.update(ev.clientY, applyResize);
+    };
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      edgeScrollRef.current?.stop();
       const r = resizeRef.current;
       resizeRef.current = null;
       setResizing(null);
@@ -601,7 +687,7 @@ export default function WeekCalendar({
             ) : null}
           </div>
         </div>
-        {!task.completed ? (
+        {!task.completed && !task._virtual ? (
           <div
             className="absolute left-0 right-0 bottom-0 h-2 cursor-ns-resize"
             draggable={false}
@@ -623,6 +709,14 @@ export default function WeekCalendar({
       <div
         ref={scrollRef}
         className="relative flex-1 min-h-0 overflow-auto select-none"
+        // Dragging a block near the top or bottom edge scrolls the grid.
+        onDragOver={(e) => {
+          if (dragInfoRef.current) edgeScrollRef.current?.update(e.clientY);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) edgeScrollRef.current?.stop();
+        }}
+        onDrop={() => edgeScrollRef.current?.stop()}
       >
         <div className={compact ? "" : "min-w-[760px]"}>
           {/* Sticky header + unscheduled strip */}
@@ -632,7 +726,7 @@ export default function WeekCalendar({
                 {weekPlan?.weekStart ? "" : null}
               </div>
               {visibleDays.map((i) => {
-                const name = DAY_SHORT[i];
+                const name = dayNames[i];
                 const isToday = i === todayDow;
                 return (
                   <div

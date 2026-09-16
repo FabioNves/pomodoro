@@ -20,6 +20,37 @@ const groupedItemSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// One edition of a briefing run, with its own status and content. Its
+// stories point back to it through BriefingStory.edition. The location and
+// language settings are copied from the reader's preferences when the run
+// starts, so editing them mid-run cannot change a run in flight.
+const editionRunSchema = new mongoose.Schema(
+  {
+    key: { type: String, required: true },
+    countries: { type: [String], default: [] },
+    language: { type: String, default: "" },
+    outputLanguage: { type: String, default: "en" },
+    coverage: { type: String, enum: ["topics", "top"], default: "topics" },
+    status: {
+      type: String,
+      enum: ["pending", "generating", "ready", "empty", "failed"],
+      default: "pending",
+    },
+    intro: { type: String, default: "" },
+    note: { type: String, default: "" },
+    highlights: { type: [groupedItemSchema], default: [] },
+    trends: { type: [groupedItemSchema], default: [] },
+    storyCount: { type: Number, default: 0 },
+    error: { type: String, default: "" },
+    errorCode: { type: String, default: "" },
+    // Same fields as the briefing's own stats, kept per edition.
+    stats: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+    startedAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const briefingSchema = new mongoose.Schema(
   {
     user: { type: String, required: true, index: true },
@@ -66,6 +97,13 @@ const briefingSchema = new mongoose.Schema(
     error: { type: String, default: "" },
     errorCode: { type: String, default: "" },
 
+    // One entry per edition. The briefing stays "generating" until every
+    // edition has finished, and is ready when at least one produced stories.
+    editions: { type: [editionRunSchema], default: [] },
+    // Touched whenever an edition starts or finishes. A run whose heartbeat
+    // has gone quiet has lost its function and can be resumed or failed.
+    heartbeatAt: { type: Date, default: null },
+
     startedAt: { type: Date, default: Date.now },
     completedAt: { type: Date, default: null },
   },
@@ -80,6 +118,8 @@ briefingSchema.index(
   { user: 1, status: 1 },
   { unique: true, partialFilterExpression: { status: "generating" } },
 );
+// Finding runs whose hand-off to the next edition was lost.
+briefingSchema.index({ status: 1, heartbeatAt: 1 });
 
 export default mongoose.models.Briefing ||
   mongoose.model("Briefing", briefingSchema);

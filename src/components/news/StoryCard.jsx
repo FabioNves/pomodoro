@@ -6,6 +6,7 @@
 import React, { useState } from "react";
 import { openExternal } from "@/lib/platform";
 import AskStoryPanel from "@/components/news/AskStoryPanel";
+import { languageName } from "@/lib/news/locales";
 import {
   Chip,
   IconBookmark,
@@ -75,6 +76,9 @@ export default function StoryCard({
             {story.publishedAt ? <span>· {formatDate(story.publishedAt)}</span> : <span>· date not provided</span>}
             {story.section === "worthKnowing" ? <span className="text-accent">· Worth knowing</span> : null}
             {story.section === "missed" ? <span className="text-accent">· You may have missed</span> : null}
+            {story.language && story.outputLanguage && story.language !== story.outputLanguage ? (
+              <span title="Summarised from sources in another language">· translated from {languageName(story.language)}</span>
+            ) : null}
           </p>
           <h3 className="mt-1 text-base sm:text-lg font-semibold text-fg leading-snug">
             <a

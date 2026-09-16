@@ -6,15 +6,14 @@
 // in and receives navigation requests through `onNavigate(key)`.
 
 import React, { useMemo, useState } from "react";
-import { toYMD } from "@/utils/timeUtils";
+import { toYMD, dayIndexOf, weekDayLabels } from "@/utils/timeUtils";
+import { useWeekSettings } from "@/hooks/useWeekSettings";
+import { routineOccursOn } from "@/lib/routineSchedule";
 import {
   minutesToTime,
   taskDuration,
   formatMinutes,
 } from "@/components/weekplan/WeekPlanShared";
-
-const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 /* ── Icons ─────────────────────────────────────────────── */
 
@@ -185,8 +184,12 @@ export default function DashboardOverview({
 
   // Fixed for the life of the dashboard so derived data stays stable.
   const [now] = useState(() => new Date());
+  // Week order (Monday- or Sunday-first) follows the Settings preference.
+  const { settings: weekSettings } = useWeekSettings();
+  const weekStartsOn = weekSettings.weekStartsOn;
+  const dayLabels = useMemo(() => weekDayLabels(weekStartsOn), [weekStartsOn]);
   const todayYMD = toYMD(now);
-  const todayDow = (now.getDay() + 6) % 7; // 0 = Monday
+  const todayDow = dayIndexOf(now, weekStartsOn); // 0 = first day of the week
   const hour = now.getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -235,7 +238,7 @@ export default function DashboardOverview({
         monthSessions += 1;
       }
       if (d >= monday && d < nextMonday) {
-        const i = (d.getDay() + 6) % 7;
+        const i = dayIndexOf(d, weekStartsOn);
         days[i].minutes += m;
         days[i].sessions += 1;
         weekMinutes += m;
@@ -259,7 +262,7 @@ export default function DashboardOverview({
       totalMinutes,
       totalSessions: sessions.length,
     };
-  }, [sessions, now, todayDow, todayYMD]);
+  }, [sessions, now, todayDow, todayYMD, weekStartsOn]);
 
   /* Tasks */
   const taskSummary = useMemo(() => {
@@ -347,17 +350,8 @@ export default function DashboardOverview({
 
   /* Routines */
   const routineSummary = useMemo(() => {
-    const todayKey = DAY_KEYS[todayDow];
-    const freqsOf = (rt) =>
-      Array.isArray(rt.frequencies) && rt.frequencies.length
-        ? rt.frequencies
-        : rt.frequency
-          ? [rt.frequency]
-          : [];
-    const today = routineTasks.filter((rt) => {
-      const f = freqsOf(rt);
-      return f.includes("daily") || f.includes(todayKey);
-    });
+    // Weekday pattern, monthly rules and active date range, against today.
+    const today = routineTasks.filter((rt) => routineOccursOn(rt, now));
     const byProject = new Map();
     for (const rt of routineTasks) {
       const pid = idOf(rt.project) || "none";
@@ -369,7 +363,7 @@ export default function DashboardOverview({
     const auto = routineTasks.filter((rt) => rt.autoSchedule).length;
     const todayMinutes = today.reduce((s, rt) => s + (rt.estimatedTime || 0), 0);
     return { today, groups, auto, todayMinutes };
-  }, [routineTasks, projectName, todayDow]);
+  }, [routineTasks, projectName, now]);
 
   const nextLabel = weekSummary.next
     ? `${minutesToTime(weekSummary.next.start)} · ${weekSummary.next.task.taskName}`
@@ -481,8 +475,8 @@ export default function DashboardOverview({
             title={calendarExpanded && calendarDayCount > 1 ? "Next days" : "Today"}
             subtitle={
               calendarExpanded && calendarDayCount > 1
-                ? `${DAY_SHORT[todayDow]}–${DAY_SHORT[Math.min(6, todayDow + calendarDayCount - 1)]} · hour by hour`
-                : `${DAY_SHORT[todayDow]} · hour by hour`
+                ? `${dayLabels[todayDow]}–${dayLabels[Math.min(6, todayDow + calendarDayCount - 1)]} · hour by hour`
+                : `${dayLabels[todayDow]} · hour by hour`
             }
             Icon={IconCalendar}
             actionLabel="Open Calendar"
@@ -597,7 +591,7 @@ export default function DashboardOverview({
                       <div
                         key={d.d}
                         className="text-center"
-                        title={`${DAY_SHORT[d.d]}: ${formatMinutes(d.minutes)} in ${d.sessions} session${d.sessions === 1 ? "" : "s"}`}
+                        title={`${dayLabels[d.d]}: ${formatMinutes(d.minutes)} in ${d.sessions} session${d.sessions === 1 ? "" : "s"}`}
                       >
                         <div className="h-16 rounded-md bg-surface-2 border border-edge relative overflow-hidden">
                           <div
@@ -612,7 +606,7 @@ export default function DashboardOverview({
                             isToday ? "text-primary" : "text-fg-subtle"
                           }`}
                         >
-                          {DAY_SHORT[d.d]}
+                          {dayLabels[d.d]}
                         </div>
                       </div>
                     );
@@ -684,7 +678,7 @@ export default function DashboardOverview({
                             isToday ? "text-primary" : "text-fg-subtle"
                           }`}
                         >
-                          {DAY_SHORT[d.d]}
+                          {dayLabels[d.d]}
                         </div>
                         <div className="mt-1 h-14 rounded-md bg-surface-2 border border-edge relative overflow-hidden">
                           <div
@@ -899,7 +893,7 @@ export default function DashboardOverview({
                     </ul>
                   ) : (
                     <p className="text-xs text-fg-subtle">
-                      No routines fall on {DAY_SHORT[todayDow]}.
+                      No routines fall on {dayLabels[todayDow]}.
                     </p>
                   )}
                 </div>

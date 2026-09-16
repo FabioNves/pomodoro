@@ -10,6 +10,10 @@ const newsTopicSchema = new mongoose.Schema(
     // "manual": typed in settings; "story": followed from a briefing story.
     source: { type: String, enum: ["manual", "story"], default: "manual" },
     weight: { type: Number, default: 1, min: 0.1, max: 5 },
+    // Keys of the editions this topic is followed in (NewsPreference
+    // .editions[].key). Empty means every edition, which is what a topic was
+    // before editions existed.
+    editions: { type: [String], default: [] },
   },
   { timestamps: true },
 );

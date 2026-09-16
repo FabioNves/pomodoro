@@ -13,7 +13,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { jwtDecode } from "jwt-decode";
-import { getMondayOf, weekLabel } from "@/utils/timeUtils";
+import { getWeekStartOf, weekLabel } from "@/utils/timeUtils";
+import { useWeekSettings } from "@/hooks/useWeekSettings";
+import WeekPicker from "@/components/planner/WeekPicker";
 import { apiJson } from "@/lib/plannerApi";
 import {
   IconChevron,
@@ -1258,6 +1260,9 @@ function PlannerPageInner() {
 
   const [user, setUser] = useState(null);
   const mountedRef = useRef(true);
+  // Which day a week starts on (Settings); planner weeks follow it.
+  const { settings: weekSettings } = useWeekSettings();
+  const weekStartsOn = weekSettings.weekStartsOn;
   // Track first successful fetch so we can distinguish "not loaded" from "empty".
   const projectsLoadedRef = useRef(false);
   const weekPlansLoadedRef = useRef(false);
@@ -1433,10 +1438,10 @@ function PlannerPageInner() {
     if (!isDesktop && (activeTab !== "calendar" || weekAutoSelectedRef.current))
       return;
     weekAutoSelectedRef.current = true;
-    const monday = getMondayOf(new Date());
-    const current = weekPlans.find((wp) => wp.weekStart === monday);
+    const thisWeek = getWeekStartOf(new Date(), weekStartsOn);
+    const current = weekPlans.find((wp) => wp.weekStart === thisWeek);
     setSelectedWeekPlanId((current || weekPlans[0])._id);
-  }, [weekPlans, selectedWeekPlanId, activeTab]);
+  }, [weekPlans, selectedWeekPlanId, activeTab, weekStartsOn]);
 
   // Close the phone drawer once the user picked a week or a section.
   useEffect(() => {
@@ -2158,47 +2163,41 @@ function PlannerPageInner() {
     }
   }, []);
 
-  // Create the next not-yet-added week: the Monday after the latest existing
-  // week (or the current week's Monday if none), named by its ISO week number,
-  // pre-filled with all projects.
-  const addWeek = useCallback(() => {
-    const latest = weekPlans[0]?.weekStart; // API sorts weekStart desc
-    let monday;
-    if (latest) {
-      const d = new Date(`${latest}T00:00:00`);
-      d.setDate(d.getDate() + 7);
-      monday = getMondayOf(d);
-    } else {
-      monday = getMondayOf(new Date());
-    }
-    if (weekPlans.some((wp) => wp.weekStart === monday)) {
-      const existing = weekPlans.find((wp) => wp.weekStart === monday);
-      setSelectedWeekPlanId(existing._id);
-      return;
-    }
-    createWeekPlan({
-      name: weekLabel(monday),
-      weekStart: monday,
-      projects: projects.map((p) => p._id),
-    });
-  }, [weekPlans, projects, createWeekPlan]);
+  // Start planning a week that has no plan yet (the sidebar lists every
+  // week of the year, past and future, so nothing is added by hand). Named
+  // by its week number and pre-filled with all projects; returns the plan.
+  const createWeekFor = useCallback(
+    async (weekStart) => {
+      const existing = weekPlans.find((wp) => wp.weekStart === weekStart);
+      if (existing) {
+        setSelectedWeekPlanId(existing._id);
+        return existing;
+      }
+      return createWeekPlan({
+        name: weekLabel(weekStart),
+        weekStart,
+        projects: projects.map((p) => p._id),
+      });
+    },
+    [weekPlans, projects, createWeekPlan],
+  );
 
   // Auto-create the current week on load if it doesn't exist yet.
   useEffect(() => {
     if (autoWeekCreatedRef.current) return;
     if (!weekPlansLoadedRef.current || !projectsLoadedRef.current) return;
-    const monday = getMondayOf(new Date());
-    if (weekPlans.some((wp) => wp.weekStart === monday)) {
+    const thisWeek = getWeekStartOf(new Date(), weekStartsOn);
+    if (weekPlans.some((wp) => wp.weekStart === thisWeek)) {
       autoWeekCreatedRef.current = true;
       return;
     }
     autoWeekCreatedRef.current = true;
     createWeekPlan({
-      name: weekLabel(monday),
-      weekStart: monday,
+      name: weekLabel(thisWeek),
+      weekStart: thisWeek,
       projects: projects.map((p) => p._id),
     });
-  }, [weekPlans, projects, createWeekPlan]);
+  }, [weekPlans, projects, createWeekPlan, weekStartsOn]);
 
   const deleteWeekPlan = useCallback(
     async (plan) => {
@@ -2761,65 +2760,21 @@ function PlannerPageInner() {
     );
   };
 
+  // Every week of the chosen year, past and future; a week without a plan is
+  // created the moment it is picked.
   const renderScheduleSidebar = () => (
     <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3 overflow-hidden">
       <div className="px-2 py-2 font-semibold text-fg">
         Weekly Routines
       </div>
-      <div className="space-y-1 mt-1">
-        {weekPlans.map((wp) => {
-          const isActive = selectedWeekPlanId === wp._id;
-          const start = new Date(wp.weekStart + "T00:00:00");
-          const end = new Date(start);
-          end.setDate(end.getDate() + 6);
-          const fmt = (d) =>
-            `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-          return (
-            <div
-              key={wp._id}
-              className={`group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
-                isActive
-                  ? "bg-primary-soft text-primary font-medium"
-                  : "text-fg-muted hover:bg-surface-hover"
-              }`}
-              onClick={() => setSelectedWeekPlanId(wp._id)}
-            >
-              <div className="w-3 h-3 rounded-full shrink-0 bg-primary" />
-              <div className="flex-1 min-w-0">
-                <div className="truncate">{weekLabel(wp.weekStart)}</div>
-                <div className="text-[10px] text-fg-subtle">
-                  {fmt(start)} – {fmt(end)}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-fg-subtle hover:text-danger p-0.5"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteWeekPlan(wp);
-                }}
-                aria-label="Delete week plan"
-              >
-                <IconTrash className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          );
-        })}
-        {!weekPlans.length ? (
-          <div className="px-3 py-2 text-sm text-fg-subtle">
-            No weekly routines yet
-          </div>
-        ) : null}
-      </div>
-
-      <button
-        type="button"
-        className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm font-medium hover:bg-surface-hover transition-colors"
-        onClick={addWeek}
-      >
-        <IconPlus className="w-4 h-4" />
-        Add Week
-      </button>
+      <WeekPicker
+        weekPlans={weekPlans}
+        selectedId={selectedWeekPlanId}
+        onSelect={(wp) => setSelectedWeekPlanId(wp._id)}
+        onCreate={createWeekFor}
+        onDelete={deleteWeekPlan}
+        weekStartsOn={weekStartsOn}
+      />
     </div>
   );
 
@@ -3282,56 +3237,14 @@ function PlannerPageInner() {
             <div className="px-2 py-2 font-semibold text-fg">
               Weekly Routines
             </div>
-            <div className="space-y-1 mt-1">
-              {weekPlans.map((wp) => {
-                const start = new Date(wp.weekStart + "T00:00:00");
-                const end = new Date(start);
-                end.setDate(end.getDate() + 6);
-                const fmt = (d) =>
-                  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-                return (
-                  <div
-                    key={wp._id}
-                    className="group flex items-center gap-2 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors text-fg-muted hover:bg-surface-hover"
-                    onClick={() => setSelectedWeekPlanId(wp._id)}
-                  >
-                    <div className="w-3 h-3 rounded-full shrink-0 bg-primary" />
-                    <div className="flex-1 min-w-0">
-                      <div className="truncate">{weekLabel(wp.weekStart)}</div>
-                      <div className="text-[10px] text-fg-subtle">
-                        {fmt(start)} – {fmt(end)}
-                      </div>
-                    </div>
-                    <svg
-                      className="w-4 h-4 text-fg-subtle"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                );
-              })}
-              {!weekPlans.length ? (
-                <div className="px-3 py-2 text-sm text-fg-subtle">
-                  No weekly routines yet
-                </div>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm font-medium hover:bg-surface-hover transition-colors"
-              onClick={addWeek}
-            >
-              <IconPlus className="w-4 h-4" />
-              Add Week
-            </button>
+            <WeekPicker
+              weekPlans={weekPlans}
+              selectedId={selectedWeekPlanId}
+              onSelect={(wp) => setSelectedWeekPlanId(wp._id)}
+              onCreate={createWeekFor}
+              weekStartsOn={weekStartsOn}
+              variant="mobile"
+            />
           </div>
         </div>
       ) : null}

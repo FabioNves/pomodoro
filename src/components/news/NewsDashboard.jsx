@@ -4,12 +4,19 @@
 // topics and settings, with "generate now" and refresh. Data comes from
 // /api/news/*; the tab and briefing kind live in the query string so links
 // and reloads keep their place.
+//
+// A run builds one edition at a time, each in its own server invocation, so
+// polling continues while editions arrive. If the hand-off between
+// invocations is lost, the run reports itself stalled and this screen asks
+// the server to continue it.
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { newsApi, browserTimeZone } from "@/lib/news/client";
+import { editionsForKind } from "@/lib/news/locales";
 import BriefingView from "@/components/news/BriefingView";
+import GenerateMenu from "@/components/news/GenerateMenu";
 import BriefingHistory from "@/components/news/BriefingHistory";
 import SavedStories from "@/components/news/SavedStories";
 import TopicsManager from "@/components/news/TopicsManager";
@@ -22,7 +29,6 @@ import {
   IconNews,
   IconRefresh,
   IconSettings,
-  IconSparkles,
   IconTag,
 } from "@/components/news/newsUi";
 
@@ -39,7 +45,13 @@ const KINDS = [
   { key: "monthly", label: "Monthly" },
 ];
 const POLL_MS = 3000;
-const POLL_MAX = 140; // 7 minutes
+// A single edition takes a couple of minutes; a run of several takes that
+// many times longer, so the poll budget grows with the number of editions.
+const POLL_BASE = 140; // 7 minutes
+const POLL_PER_EDITION = 80; // 4 more minutes each
+// Asking the server to resume the same run more often than this would only
+// pile up invocations that all find the run already claimed.
+const RESUME_EVERY_MS = 45000;
 
 export default function NewsDashboard() {
   const router = useRouter();
@@ -79,6 +91,7 @@ export default function NewsDashboard() {
   const [savedKey, setSavedKey] = useState(0);
   const pollRef = useRef(null);
   const mountedRef = useRef(true);
+  const resumeRef = useRef({ id: null, at: 0 });
   // Bumped whenever polling is cancelled or a newer load starts, so a reply
   // that arrives late cannot overwrite what the user is looking at now.
   const pollIdRef = useRef(0);
@@ -99,6 +112,18 @@ export default function NewsDashboard() {
     setGenerating(false);
   }, []);
 
+  /** Ask the server to run the next edition of a run that has stopped. */
+  const resumeRun = useCallback(async (summary) => {
+    const last = resumeRef.current;
+    if (last.id === summary.id && Date.now() - last.at < RESUME_EVERY_MS) return;
+    resumeRef.current = { id: summary.id, at: Date.now() };
+    try {
+      await newsApi("/api/news/briefings/continue", { method: "POST", body: { id: summary.id } });
+    } catch {
+      // The next poll sees whether it moved; a failed nudge is not worth a toast.
+    }
+  }, []);
+
   /* ── polling while a briefing is generating ─────────── */
   const pollBriefing = useCallback(
     (id) => {
@@ -108,6 +133,7 @@ export default function NewsDashboard() {
       setGenerating(true);
       let attempts = 0;
       let failures = 0;
+      let limit = POLL_BASE;
       const tick = async () => {
         if (!current()) return;
         attempts += 1;
@@ -115,13 +141,18 @@ export default function NewsDashboard() {
           const data = await newsApi(`/api/news/briefings?id=${encodeURIComponent(id)}`);
           if (!current()) return;
           setBriefing(data.briefing);
+          const total = data.briefing.editionsTotal || 1;
+          limit = POLL_BASE + Math.max(0, total - 1) * POLL_PER_EDITION;
           if (data.briefing.status !== "generating") {
             stopPolling();
             setHistoryKey((k) => k + 1);
+            const failed = total > 1 ? total - (data.briefing.editionsDone || 0) : 0;
             if (data.briefing.status === "ready") toast.success("Your briefing is ready.");
             else if (data.briefing.status === "failed") toast.error("The briefing could not be generated.");
+            else if (failed) toast("Some editions found nothing to report.");
             return;
           }
+          if (data.briefing.stalled) resumeRun(data.briefing);
         } catch (e) {
           if (!current()) return;
           failures += 1;
@@ -131,7 +162,7 @@ export default function NewsDashboard() {
             return;
           }
         }
-        if (attempts >= POLL_MAX) {
+        if (attempts >= limit) {
           stopPolling();
           toast.error("Generation is taking longer than expected. Check History in a minute.");
           return;
@@ -140,7 +171,7 @@ export default function NewsDashboard() {
       };
       tick();
     },
-    [stopPolling],
+    [stopPolling, resumeRun],
   );
 
   /* ── loaders ────────────────────────────────────────── */
@@ -239,19 +270,31 @@ export default function NewsDashboard() {
   }, [tab]);
 
   /* ── actions ────────────────────────────────────────── */
-  const generate = async () => {
+  /**
+   * @param {string[]|null} editionKeys the editions to build, or null for all
+   *   of them. Handlers pass their click event, so only a real array counts.
+   */
+  const generate = async (editionKeys = null) => {
     if (generating) return;
-    if (!topics.length && preferences && !preferences.includeWorthKnowing && !preferences.customInterests) {
+    const keys = Array.isArray(editionKeys) ? editionKeys.filter(Boolean) : null;
+    const all = editionsForKind(preferences?.editions, kind);
+    const chosen = keys?.length ? all.filter((e) => keys.includes(e.key)) : all;
+    // An edition covering a region's top news needs no topics of its own.
+    const regionEditions = chosen.some((e) => e.coverage === "top");
+    if (!topics.length && preferences && !regionEditions && !preferences.includeWorthKnowing && !preferences.customInterests) {
       toast.error("Add at least one topic first.");
       setParams({ tab: "topics" });
       return;
     }
     setGenerating(true);
     try {
-      const data = await newsApi("/api/news/briefings/generate", { method: "POST", body: { kind } });
+      const data = await newsApi("/api/news/briefings/generate", {
+        method: "POST",
+        body: { kind, ...(keys?.length ? { editionKeys: keys } : {}) },
+      });
       if (!mountedRef.current) return;
       loadIdRef.current += 1; // this briefing wins over any load in flight
-      setBriefing({ ...data.briefing, sections: { top: [], worthKnowing: [], missed: [] } });
+      setBriefing({ ...data.briefing, sections: { top: [], worthKnowing: [], missed: [] }, editions: [] });
       setParams({ tab: "briefing", briefing: null });
       pollBriefing(data.briefing.id);
     } catch (e) {
@@ -266,14 +309,23 @@ export default function NewsDashboard() {
     }
   };
 
+  /** Update one story wherever it appears: the run's sections and its editions. */
   const patchStory = (storyId, patch) => {
-    setBriefing((b) => {
-      if (!b?.sections) return b;
-      const sections = {};
-      for (const [key, list] of Object.entries(b.sections)) {
-        sections[key] = list.map((s) => (s.id === storyId ? { ...s, ...patch } : s));
+    const patchSections = (sections) => {
+      if (!sections) return sections;
+      const next = {};
+      for (const [key, list] of Object.entries(sections)) {
+        next[key] = list.map((s) => (s.id === storyId ? { ...s, ...patch } : s));
       }
-      return { ...b, sections };
+      return next;
+    };
+    setBriefing((b) => {
+      if (!b) return b;
+      return {
+        ...b,
+        sections: patchSections(b.sections),
+        editions: b.editions?.map((e) => ({ ...e, sections: patchSections(e.sections) })),
+      };
     });
   };
 
@@ -300,10 +352,14 @@ export default function NewsDashboard() {
     }
   };
 
-  const addTopic = async (name, source = "manual") => {
+  const addTopic = async (name, source = "manual", editions = null) => {
     setBusy(true);
     try {
-      const data = await newsApi("/api/news/topics", { method: "POST", body: { name, source } });
+      const keys = Array.isArray(editions) ? editions.filter(Boolean) : [];
+      const data = await newsApi("/api/news/topics", {
+        method: "POST",
+        body: { name, source, ...(keys.length ? { editions: keys } : {}) },
+      });
       setTopics((prev) => (prev.some((t) => t.id === data.topic.id) ? prev : [...prev, data.topic]));
       toast.success(data.created ? `Following “${data.topic.name}”.` : `Already following “${data.topic.name}”.`);
       return true;
@@ -312,6 +368,18 @@ export default function NewsDashboard() {
       return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Which editions a topic is followed in; an empty list means all. */
+  const setTopicEditions = async (topic, editions) => {
+    const previous = topics;
+    setTopics((prev) => prev.map((t) => (t.id === topic.id ? { ...t, editions } : t)));
+    try {
+      await newsApi("/api/news/topics", { method: "PATCH", body: { id: topic.id, editions } });
+    } catch (e) {
+      setTopics(previous);
+      toast.error(e.message || "Could not update the topic.");
     }
   };
 
@@ -346,6 +414,7 @@ export default function NewsDashboard() {
   const followedTopics = new Set(topics.map((t) => t.name.toLowerCase()));
   const mcpProblem = status?.mcp && !status.mcp.connected;
   const aiProblem = status?.ai && !status.ai.configured;
+  const kindEditions = editionsForKind(preferences?.editions, kind);
 
   return (
     <div className="container mx-auto px-4 pb-12 max-w-4xl">
@@ -382,9 +451,7 @@ export default function NewsDashboard() {
           >
             Refresh
           </ActionButton>
-          <ActionButton tone="primary" Icon={IconSparkles} onClick={generate} busy={generating} title={`Generate a ${kind} briefing now`}>
-            Generate now
-          </ActionButton>
+          <GenerateMenu editions={kindEditions} kind={kind} busy={generating} onGenerate={generate} />
         </div>
       </div>
 
@@ -468,7 +535,15 @@ export default function NewsDashboard() {
         {tab === "saved" ? <SavedStories refreshKey={savedKey} onChanged={(storyId, saved) => patchStory(storyId, { saved })} /> : null}
 
         {tab === "topics" ? (
-          <TopicsManager topics={topics} suggested={suggested} onAdd={(name) => addTopic(name, "manual")} onRemove={removeTopic} busy={busy} />
+          <TopicsManager
+            topics={topics}
+            suggested={suggested}
+            editions={preferences?.editions || []}
+            onAdd={(name, editionKeys) => addTopic(name, "manual", editionKeys)}
+            onRemove={removeTopic}
+            onSetEditions={setTopicEditions}
+            busy={busy}
+          />
         ) : null}
 
         {tab === "settings" ? (

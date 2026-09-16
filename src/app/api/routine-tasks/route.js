@@ -8,6 +8,12 @@ import {
   validateSearchParams,
   jsonError,
 } from "@/utils/apiValidation";
+import {
+  DAY_KEYS,
+  MAX_MONTHLY_RULES,
+  YMD_RE,
+  isValidMonthlyRule,
+} from "@/lib/routineSchedule";
 
 function identityQuery({ userId, sessionId }) {
   if (userId) return { user: userId };
@@ -24,105 +30,83 @@ const querySchema = z.object({
   projectId: objectIdSchema,
 });
 
-const createSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  projectId: objectIdSchema,
-  frequency: z
-    .enum([
-      "daily",
-      "weekly",
-      "mon",
-      "tue",
-      "wed",
-      "thu",
-      "fri",
-      "sat",
-      "sun",
-      "custom",
-    ])
-    .optional(),
-  frequencies: z
-    .array(
-      z.enum([
-        "daily",
-        "weekly",
-        "mon",
-        "tue",
-        "wed",
-        "thu",
-        "fri",
-        "sat",
-        "sun",
-        "custom",
-      ]),
-    )
-    .optional(),
+const frequencyValue = z.enum([
+  "daily",
+  "weekly",
+  ...DAY_KEYS,
+  "custom",
+  "monthly",
+]);
+
+// One monthly pattern: first Monday (weekday), first week (week) or the
+// 15th / last day (day). See src/lib/routineSchedule.js.
+const monthlyRule = z
+  .object({
+    type: z.enum(["weekday", "week", "day"]),
+    nth: z.number().int().min(-1).max(4).optional(),
+    weekday: z.enum(DAY_KEYS).optional().nullable(),
+    day: z.number().int().min(-1).max(31).optional(),
+  })
+  .refine(isValidMonthlyRule, { message: "Invalid monthly rule" })
+  .transform((rule) => {
+    if (rule.type === "day") return { type: "day", day: rule.day };
+    if (rule.type === "weekday") return { type: "weekday", nth: rule.nth, weekday: rule.weekday };
+    return { type: "week", nth: rule.nth, ...(rule.weekday ? { weekday: rule.weekday } : {}) };
+  });
+
+// "" clears a date; null is accepted for the same purpose.
+const ymd = z
+  .union([z.literal(""), z.string().regex(YMD_RE, "Use YYYY-MM-DD")])
+  .nullable()
+  .transform((v) => v || "");
+
+const customFields = z
+  .array(
+    z.object({
+      column: objectIdSchema,
+      value: z.any(),
+    }),
+  )
+  .optional();
+
+const editableFields = {
+  title: z.string().trim().min(1).max(200).optional(),
+  frequency: frequencyValue.optional(),
+  frequencies: z.array(frequencyValue).max(12).optional(),
+  monthly: z.array(monthlyRule).max(MAX_MONTHLY_RULES).optional(),
   autoSchedule: z.boolean().optional(),
   frequencyCustom: z.string().max(200).optional(),
+  startMinute: z.number().int().min(0).max(1439).nullable().optional(),
+  startDate: ymd.optional(),
+  endDate: ymd.optional(),
   estimatedTime: z.number().min(0).max(9999).optional(),
   notes: z.string().max(2000).optional(),
   color: z.string().max(20).optional(),
-  customFields: z
-    .array(
-      z.object({
-        column: objectIdSchema,
-        value: z.any(),
-      }),
-    )
-    .optional(),
+  customFields,
+};
+
+const createSchema = z.object({
+  ...editableFields,
+  title: z.string().trim().min(1).max(200),
+  projectId: objectIdSchema,
 });
 
 const patchSchema = z.object({
+  ...editableFields,
   id: objectIdSchema,
-  title: z.string().trim().min(1).max(200).optional(),
-  frequency: z
-    .enum([
-      "daily",
-      "weekly",
-      "mon",
-      "tue",
-      "wed",
-      "thu",
-      "fri",
-      "sat",
-      "sun",
-      "custom",
-    ])
-    .optional(),
-  frequencies: z
-    .array(
-      z.enum([
-        "daily",
-        "weekly",
-        "mon",
-        "tue",
-        "wed",
-        "thu",
-        "fri",
-        "sat",
-        "sun",
-        "custom",
-      ]),
-    )
-    .optional(),
-  autoSchedule: z.boolean().optional(),
-  frequencyCustom: z.string().max(200).optional(),
-  estimatedTime: z.number().min(0).max(9999).optional(),
-  notes: z.string().max(2000).optional(),
-  color: z.string().max(20).optional(),
-  customFields: z
-    .array(
-      z.object({
-        column: objectIdSchema,
-        value: z.any(),
-      }),
-    )
-    .optional(),
 });
 
 const deleteSchema = z.object({
   id: objectIdSchema,
 });
+
+/** The active range must not end before it starts (either bound may be empty). */
+function rangeError(startDate, endDate) {
+  if (startDate && endDate && endDate < startDate) {
+    return jsonError(400, "The end date is before the start date");
+  }
+  return null;
+}
 
 export async function GET(req) {
   try {
@@ -154,6 +138,9 @@ export async function POST(req) {
     const ident = validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
+    const bad = rangeError(body.data.startDate, body.data.endDate);
+    if (bad) return bad;
+
     const identity = getIdentityHeaders(req);
     const identQuery = identityQuery(ident.data);
 
@@ -174,10 +161,15 @@ export async function POST(req) {
       project: body.data.projectId,
       frequency: body.data.frequency || "daily",
       frequencies: body.data.frequencies || [],
+      monthly: body.data.monthly || [],
       autoSchedule: body.data.autoSchedule || false,
       frequencyCustom: body.data.frequencyCustom || "",
+      startMinute: body.data.startMinute ?? null,
+      startDate: body.data.startDate || "",
+      endDate: body.data.endDate || "",
       estimatedTime: body.data.estimatedTime || 0,
       notes: body.data.notes || "",
+      color: body.data.color || "",
       customFields: body.data.customFields || [],
       order: nextOrder,
       ...(identity.userId
@@ -204,11 +196,20 @@ export async function PATCH(req) {
 
     await connectToDB();
 
-    const task = await RoutineTask.findOneAndUpdate(
-      { _id: id, ...identityQuery(ident.data) },
-      { $set: updates },
-      { new: true },
-    );
+    const filter = { _id: id, ...identityQuery(ident.data) };
+
+    // Check the date range against what is stored when only one bound is sent.
+    if (updates.startDate !== undefined || updates.endDate !== undefined) {
+      const current = await RoutineTask.findOne(filter).select({ startDate: 1, endDate: 1 });
+      if (!current) return jsonError(404, "Routine task not found");
+      const bad = rangeError(
+        updates.startDate !== undefined ? updates.startDate : current.startDate,
+        updates.endDate !== undefined ? updates.endDate : current.endDate,
+      );
+      if (bad) return bad;
+    }
+
+    const task = await RoutineTask.findOneAndUpdate(filter, { $set: updates }, { new: true });
 
     if (!task) return jsonError(404, "Routine task not found");
 

@@ -48,9 +48,20 @@ const briefingStorySchema = new mongoose.Schema(
     publisher: { type: String, default: "" },
     publishedAt: { type: Date, default: null },
     sources: { type: [storySourceSchema], default: [] },
+
+    // The edition of the run this story belongs to (Briefing.editions.key),
+    // the language its news was found in, the language it is written in, and
+    // the countries that edition covered. Empty on stories from before
+    // editions existed.
+    edition: { type: String, default: "" },
+    language: { type: String, default: "" },
+    outputLanguage: { type: String, default: "" },
+    countries: { type: [String], default: [] },
   },
   { timestamps: true },
 );
+
+briefingStorySchema.index({ briefing: 1, edition: 1, rank: 1 });
 
 export default mongoose.models.BriefingStory ||
   mongoose.model("BriefingStory", briefingStorySchema);

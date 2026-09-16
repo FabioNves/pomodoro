@@ -8,7 +8,7 @@ import React, {
   useEffect,
 } from "react";
 import { AnimatePresence } from "framer-motion";
-import { weekLabel } from "@/utils/timeUtils";
+import { dayLongName, weekDates, weekLabel } from "@/utils/timeUtils";
 import {
   formatMinutes,
   minutesToTime,
@@ -22,8 +22,14 @@ import {
 } from "./weekplan/WeekPlanShared";
 import WeekCalendar from "./weekplan/WeekCalendar";
 import { getProjectColorMeta } from "@/lib/projectColors";
+import {
+  dateInWeek,
+  routineOccursOn,
+  virtualRoutineTask,
+} from "@/lib/routineSchedule";
 
-const DAY_NAMES = [
+// Fallback only; day names normally come from the plan's real dates.
+const DEFAULT_DAY_NAMES = [
   "Monday",
   "Tuesday",
   "Wednesday",
@@ -32,8 +38,6 @@ const DAY_NAMES = [
   "Saturday",
   "Sunday",
 ];
-const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 
 /* ── Main WeeklyRoutine Component ──────────────────────── */
@@ -63,6 +67,12 @@ export default function WeeklyRoutine({
   const editBtnRefs = useRef({});
 
   const days = weekPlan?.days || [];
+
+  // Day names from the week's real dates (weeks may start on Monday or Sunday).
+  const dayNames = useMemo(
+    () => (weekPlan?.weekStart ? weekDates(weekPlan.weekStart).map(dayLongName) : DEFAULT_DAY_NAMES),
+    [weekPlan?.weekStart],
+  );
 
   // Build a map of routineTask._id → { manualColor, conditionalColor }
   const taskColorMap = useMemo(() => {
@@ -241,20 +251,17 @@ export default function WeeklyRoutine({
     }
     // Inject virtual auto-scheduled routine tasks (display-only).
     // Skip days where a real task already references the same routine task.
+    // Weekday patterns, monthly rules and the active date range are all
+    // decided by routineOccursOn() against the week's real dates.
     for (const rt of routineTasks) {
       if (!rt.autoSchedule) continue;
-      const freqs =
-        Array.isArray(rt.frequencies) && rt.frequencies.length
-          ? rt.frequencies
-          : rt.frequency
-            ? [rt.frequency]
-            : [];
-      if (!freqs.length) continue;
-      const dayIdxs = freqs.includes("daily")
-        ? [0, 1, 2, 3, 4, 5, 6]
-        : freqs
-            .map((f) => DAY_KEYS.indexOf(f))
-            .filter((i) => i >= 0);
+      const dayIdxs = [0, 1, 2, 3, 4, 5, 6].filter((dayIdx) =>
+        routineOccursOn(
+          rt,
+          weekPlan?.weekStart ? dateInWeek(weekPlan.weekStart, dayIdx) : null,
+          dayIdx,
+        ),
+      );
       if (!dayIdxs.length) continue;
       const pid =
         typeof rt.project === "object"
@@ -276,14 +283,7 @@ export default function WeeklyRoutine({
           return id === String(rt._id);
         });
         if (already) continue;
-        arr.unshift({
-          _id: `__auto_${rt._id}_${dayIdx}`,
-          _virtual: true,
-          routineTask: rt._id,
-          taskName: rt.title,
-          estimatedTime: rt.estimatedTime || 0,
-          completed: false,
-        });
+        arr.unshift(virtualRoutineTask(rt, dayIdx, pid));
       }
     }
     // Inject dated Task entries (display-only; cannot be edited or dragged here).
@@ -307,7 +307,7 @@ export default function WeeklyRoutine({
       });
     }
     return map;
-  }, [days, projectSections, getTaskProjectId, routineTasks, datedTasksInWeek]);
+  }, [days, projectSections, getTaskProjectId, routineTasks, datedTasksInWeek, weekPlan?.weekStart]);
 
   // Flat list of displayed tasks per day (includes virtuals) — for totals/mobile.
   const dayDisplayTasks = useMemo(() => {
@@ -695,7 +695,7 @@ export default function WeeklyRoutine({
                 <th className="px-2 py-2 text-left text-xs font-semibold text-accent-fg bg-accent border-r border-accent-hover w-[60px] rounded-tl-2xl">
                   {weekLabel(weekPlan.weekStart)}
                 </th>
-                {DAY_NAMES.map((name, i) => {
+                {dayNames.map((name, i) => {
                   const isToday = i === todayDow;
                   const dTasks = dayDisplayTasks[i] || [];
                   const completedCount = dTasks.filter((t) => t.completed).length;
@@ -770,7 +770,7 @@ export default function WeeklyRoutine({
                           <td className="px-2 py-1 text-xs text-fg-subtle border-r border-edge font-medium">
                             {rowIdx + 1}
                           </td>
-                          {DAY_NAMES.map((_, dayIdx) => {
+                          {dayNames.map((_, dayIdx) => {
                             const dayTasks = byDay[dayIdx] || [];
                             const task = dayTasks[rowIdx];
 
@@ -870,7 +870,7 @@ export default function WeeklyRoutine({
                   <td className="px-2 py-1 text-xs text-fg-subtle border-r border-edge font-medium">
                     1
                   </td>
-                  {DAY_NAMES.map((_, dayIdx) => {
+                  {dayNames.map((_, dayIdx) => {
                     const addKey = `desktop-empty-${dayIdx}`;
                     const cellKey = `cell-empty-${dayIdx}`;
                     const dropHandlers = makeCellDropHandlers(
@@ -927,7 +927,7 @@ export default function WeeklyRoutine({
                 <td className="px-2 py-2 text-xs font-bold text-fg-muted border-r border-edge">
                   Total
                 </td>
-                {DAY_NAMES.map((_, dayIdx) => {
+                {dayNames.map((_, dayIdx) => {
                   const dTasks = dayDisplayTasks[dayIdx] || [];
                   const totalMin = dTasks.reduce(
                     (s, t) => s + (t.estimatedTime || 0),
@@ -976,7 +976,7 @@ export default function WeeklyRoutine({
 
       {/* Mobile: stacked day cards */}
       <div className="md:hidden space-y-3">
-        {DAY_NAMES.map((name, dayIdx) => {
+        {dayNames.map((name, dayIdx) => {
           const tasks = dayDisplayTasks[dayIdx] || [];
           const totalMin = tasks.reduce(
             (s, t) => s + (t.estimatedTime || 0),

@@ -22,7 +22,8 @@ import {
   makeProjectResolver,
   idOf,
 } from "@/lib/weekPlanView";
-import { getMondayOf, weekLabel } from "@/utils/timeUtils";
+import { getWeekStartOf, dayIndexOf, weekLabel } from "@/utils/timeUtils";
+import { useWeekSettings } from "@/hooks/useWeekSettings";
 import {
   requestNotificationPermission,
   showNotification,
@@ -168,9 +169,11 @@ export default function DashboardPage() {
 
   // This week's plan drives the today column; the summary falls back to the
   // most recent plan when this week has none yet.
-  const monday = getMondayOf(new Date());
+  const { settings: weekSettings } = useWeekSettings();
+  const weekStartsOn = weekSettings.weekStartsOn;
+  const weekStart = getWeekStartOf(new Date(), weekStartsOn);
   const currentWeekPlan =
-    weekPlans.find((wp) => wp.weekStart === monday) || null;
+    weekPlans.find((wp) => wp.weekStart === weekStart) || null;
   const weekPlan = currentWeekPlan || weekPlans[0] || null;
 
   const setPlan = useCallback((updated) => {
@@ -188,8 +191,8 @@ export default function DashboardPage() {
       const created = await apiJson("/api/week-plans", {
         method: "POST",
         body: JSON.stringify({
-          name: weekLabel(monday),
-          weekStart: monday,
+          name: weekLabel(weekStart),
+          weekStart: weekStart,
           projects: projects.map((p) => p._id),
         }),
       });
@@ -200,7 +203,7 @@ export default function DashboardPage() {
       toast.error("Could not create this week's plan.");
       return null;
     }
-  }, [monday, projects, setPlan]);
+  }, [weekStart, projects, setPlan]);
 
   const weekActions = useWeekPlanTasks({
     plan: currentWeekPlan,
@@ -331,7 +334,7 @@ export default function DashboardPage() {
   // Today's column of the week calendar, with the same add / drag flow.
   // Expanded, it also shows the next two days — clamped to the end of the
   // week, since this calendar holds one week's plan.
-  const todayDow = (new Date().getDay() + 6) % 7;
+  const todayDow = dayIndexOf(new Date(), weekStartsOn);
   const visibleDays = Array.from(
     { length: calendarExpanded ? CALENDAR_EXPANDED_DAYS : 1 },
     (_, i) => todayDow + i,
@@ -344,12 +347,15 @@ export default function DashboardPage() {
           routineTasks,
           tasks,
           dayIdx: d,
+          // Real dates even without a plan yet, so monthly routines and
+          // date ranges still apply.
+          weekStart: weekStart,
         })
       : [],
   );
-  const mondayDate = new Date(monday + "T00:00:00");
+  const weekStartDate = new Date(weekStart + "T00:00:00");
   const dayDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(mondayDate);
+    const d = new Date(weekStartDate);
     d.setDate(d.getDate() + i);
     return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
@@ -364,7 +370,7 @@ export default function DashboardPage() {
   );
   const todaySlot = (
     <WeekCalendar
-      weekPlan={currentWeekPlan || { weekStart: monday, days: [] }}
+      weekPlan={currentWeekPlan || { weekStart: weekStart, days: [] }}
       dayTasks={dayTasks}
       dayDates={dayDates}
       todayDow={todayDow}
