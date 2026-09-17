@@ -1036,7 +1036,7 @@ export default function RoutineTasksView({ projectId }) {
             onClick={addRoutineTask}
           >
             <IconPlus className="w-4 h-4" />
-            Add routine task
+            Add cycle
           </button>
         </div>
       </div>

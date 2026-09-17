@@ -75,7 +75,7 @@ export async function POST(req) {
     const body = await validateJsonBody(req, createProjectSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const { name, description, template, headerColor, startDate, endDate } = body.data;
@@ -114,7 +114,7 @@ export async function PATCH(req) {
     const body = await validateJsonBody(req, patchProjectSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const { id, name, description, headerColor, startDate, endDate } = body.data;
@@ -171,7 +171,7 @@ export async function PATCH(req) {
 // GET /api/projects
 export async function GET(req) {
   try {
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const identQuery = identityQuery(identityValidation.data);
@@ -192,7 +192,7 @@ export async function DELETE(req) {
     const body = await validateJsonBody(req, deleteProjectSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const { id } = body.data;

@@ -9,6 +9,7 @@ import YearlyChart from "@/components/YearlyChart";
 import YearlyStats from "@/components/YearlyStats";
 import { motion } from "framer-motion";
 import { jwtDecode } from "jwt-decode";
+import { LockedScreen } from "@/components/access/Gate";
 
 const getCurrentMonth = () => {
   return new Date().getMonth();
@@ -293,6 +294,7 @@ const Analytics = () => {
   return (
     <div className="w-screen min-h-screen flex flex-col justify-start items-center gap-4 overflow-y-auto transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
+      <LockedScreen feature="analytics" title="Analytics" description="Weekly, monthly and yearly focus statistics.">
       <h1 className="text-3xl font-bold py-4 bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent">
         Analytics Dashboard
       </h1>
@@ -431,6 +433,7 @@ const Analytics = () => {
           <YearlyStats yearlyStats={yearlyStats} />
         </motion.div>
       )}
+      </LockedScreen>
     </div>
   );
 };

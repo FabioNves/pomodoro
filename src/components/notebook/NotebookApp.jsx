@@ -1,9 +1,11 @@
 "use client";
 
 // The notebook screen: sidebar (views + folder tree) next to either the
-// selected view (Folders, All notes, a saved view, the Brain graph) or the
-// open note. Data comes from /api/notebook/*; the view, folder, note and tab
-// live in the query string so links and reloads keep their place.
+// selected view (Folders, All notes, a saved view, the Brain graph, Quotes,
+// Saved posts) or the open note. Data comes from /api/notebook/*; the view,
+// folder, note and tab live in the query string so links and reloads keep
+// their place. Quotes and Saved posts load their own lists, so this screen
+// only tracks how many there are for the sidebar.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -16,6 +18,8 @@ import { buildFolderIndex, buildLinkIndex, tabChildren } from "@/lib/notebook/tr
 import NotebookSidebar from "@/components/notebook/NotebookSidebar";
 import NotesView from "@/components/notebook/NotesView";
 import BrainView from "@/components/notebook/BrainView";
+import QuotesView from "@/components/notebook/QuotesView";
+import PostsView from "@/components/notebook/PostsView";
 import DocumentEditor from "@/components/notebook/DocumentEditor";
 import ViewEditor from "@/components/notebook/ViewEditor";
 import {
@@ -54,6 +58,7 @@ export default function NotebookApp() {
   const [docs, setDocs] = useState([]);
   const [settings, setSettings] = useState({ subjects: [], views: [] });
   const [suggested, setSuggested] = useState([]);
+  const [counts, setCounts] = useState({ quotes: 0, posts: 0 });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [openDoc, setOpenDoc] = useState(null);
@@ -124,6 +129,7 @@ export default function NotebookApp() {
       setDocs(data.documents);
       setSettings(data.settings);
       setSuggested(data.suggestedSubjects || []);
+      setCounts(data.counts || { quotes: 0, posts: 0 });
     } catch (e) {
       if (!mountedRef.current) return;
       setLoadError(e.message || "Could not load your notebook.");
@@ -172,10 +178,24 @@ export default function NotebookApp() {
     ? settings.views.find((v) => v.id === viewParam.slice(2)) || null
     : null;
   const mode =
-    viewParam === "brain" ? "brain" : viewParam === "notes" ? "notes" : customView ? "custom" : "folders";
+    viewParam === "brain"
+      ? "brain"
+      : viewParam === "quotes"
+        ? "quotes"
+        : viewParam === "posts"
+          ? "posts"
+          : viewParam === "notes"
+            ? "notes"
+            : customView
+              ? "custom"
+              : "folders";
   const activeViewKey = mode === "custom" ? `v:${customView.id}` : mode;
   const activeTabId =
     openDoc && openDoc.tabs.some((t) => t.id === tabParam) ? tabParam : openDoc?.tabs[0]?.id || null;
+
+  // Stable, so the two self-loading views never see a new callback.
+  const setQuoteCount = useCallback((quotes) => setCounts((c) => ({ ...c, quotes })), []);
+  const setPostCount = useCallback((posts) => setCounts((c) => ({ ...c, posts })), []);
 
   /* ── navigation ──────────────────────────────────────── */
 
@@ -497,6 +517,7 @@ export default function NotebookApp() {
   const sidebarProps = {
     views: settings.views,
     activeViewKey,
+    counts,
     onSelectView: selectView,
     onNewView: () => setViewEditor({}),
     onEditView: (view) => setViewEditor({ view }),
@@ -510,7 +531,11 @@ export default function NotebookApp() {
     onSearch: (value) => {
       setSearch(value);
       if (value && docId) setParams({ doc: null, tab: null });
-      if (value && mode === "brain") setParams({ view: null, doc: null, tab: null });
+      // The graph, the quotes and the posts have no note list to filter, so
+      // typing in the box takes the user back to the notes.
+      if (value && (mode === "brain" || mode === "quotes" || mode === "posts")) {
+        setParams({ view: null, doc: null, tab: null });
+      }
     },
     onOpenDoc: openDocById,
     onOpenFolder: openFolder,
@@ -561,6 +586,10 @@ export default function NotebookApp() {
       ) : (
         <Loading label={openLoading ? "Opening note…" : "Loading…"} />
       );
+  } else if (mode === "quotes") {
+    content = <QuotesView onCountChange={setQuoteCount} />;
+  } else if (mode === "posts") {
+    content = <PostsView onCountChange={setPostCount} />;
   } else if (mode === "brain") {
     content = (
       <BrainView
@@ -616,13 +645,15 @@ export default function NotebookApp() {
             Notebook
           </h1>
           <p className="hidden sm:block text-xs text-fg-muted mt-0.5">
-            Notes with tabs, folders, saved views and a Brain graph of your subjects.
+            Notes with tabs, folders, saved views, a Brain graph, your quotes and your saved posts.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <ActionButton tone="primary" Icon={IconNotePlus} onClick={newNoteHere} disabled={loading || !!loadError}>
-            New note
-          </ActionButton>
+          {mode === "quotes" || mode === "posts" ? null : (
+            <ActionButton tone="primary" Icon={IconNotePlus} onClick={newNoteHere} disabled={loading || !!loadError}>
+              New note
+            </ActionButton>
+          )}
           <button
             type="button"
             className="md:hidden p-2 rounded-lg border border-edge text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors"

@@ -59,7 +59,7 @@ export async function POST(req) {
     const body = await validateJsonBody(req, addTaskSchema);
     if (!body.ok) return body.response;
 
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     await connectToDB();
@@ -104,7 +104,7 @@ export async function PATCH(req) {
     const body = await validateJsonBody(req, patchTaskSchema);
     if (!body.ok) return body.response;
 
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     await connectToDB();
@@ -149,7 +149,7 @@ export async function DELETE(req) {
     const body = await validateJsonBody(req, deleteTaskSchema);
     if (!body.ok) return body.response;
 
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     await connectToDB();

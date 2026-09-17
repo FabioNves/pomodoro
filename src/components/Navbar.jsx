@@ -5,23 +5,12 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import SignInButton from "@/components/auth/SignInButton";
 import { validateStoredToken } from "@/utils/tokenValidator";
+import { useAccess } from "@/lib/access/client";
+import { IconLock } from "@/components/access/Gate";
+import TimerBadge from "@/components/timer/TimerBadge";
+import UserMenu from "@/components/nav/UserMenu";
 
 /* ── Nav icon components ───────────────────────────────── */
-
-function IconTimer({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={className}
-    >
-      <circle cx="12" cy="13" r="8" />
-      <path strokeLinecap="round" d="M12 9v4l2.5 2.5M12 5V3M10 3h4" />
-    </svg>
-  );
-}
 
 function IconTasks({ className = "" }) {
   return (
@@ -73,25 +62,6 @@ function IconAnalytics({ className = "" }) {
         strokeLinejoin="round"
         d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
       />
-    </svg>
-  );
-}
-
-function IconSettings({ className = "" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={className}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-      />
-      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
@@ -149,19 +119,27 @@ function IconNotebook({ className = "" }) {
   );
 }
 
+// The screens of the app. Settings, the admin page and the view-as switcher
+// are not here: they belong to the account, so they live in UserMenu. Nor is
+// the timer, which lives on the dashboard with TimerBadge showing a running
+// session from every page.
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", short: "Home", Icon: IconDashboard },
-  { href: "/timer", label: "Timer", short: "Timer", Icon: IconTimer },
-  { href: "/planner", label: "Planner", short: "Plan", Icon: IconTasks },
-  { href: "/notebook", label: "Notebook", short: "Notes", Icon: IconNotebook },
-  { href: "/analytics", label: "Analytics", short: "Stats", Icon: IconAnalytics },
-  { href: "/news", label: "News", short: "News", Icon: IconNews },
-  { href: "/settings", label: "Settings", short: "Settings", Icon: IconSettings },
+  { href: "/planner", label: "Planner", short: "Plan", Icon: IconTasks, feature: "planner" },
+  { href: "/notebook", label: "Notebook", short: "Notes", Icon: IconNotebook, feature: "notebook" },
+  { href: "/analytics", label: "Analytics", short: "Stats", Icon: IconAnalytics, feature: "analytics" },
+  { href: "/news", label: "News", short: "News", Icon: IconNews, feature: "news_briefing" },
 ];
 
 const Navbar = ({ user, onLogout }) => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const pathname = usePathname();
+  const access = useAccess();
+  const isLocked = (item) => Boolean(item.feature && access.feature(item.feature)?.locked);
+  // Pricing is for anyone not on Premium yet: signed out, or signed in on a
+  // free plan. Signed in it waits for the real role, rather than flashing at
+  // a paying user while /api/me is still in flight.
+  const showPricing = user ? Boolean(access.me) && access.role !== "premium" && access.role !== "admin" : true;
 
   // Validate token on component mount
   useEffect(() => {
@@ -222,38 +200,26 @@ const Navbar = ({ user, onLogout }) => {
                   href={item.href}
                   label={item.label}
                   Icon={item.Icon}
+                  locked={isLocked(item)}
                 />
               ))}
             </div>
 
-            {/* Auth Section - Right */}
-            <div className="flex items-center space-x-3">
+            {/* Account, pricing and the running session */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {showPricing ? (
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center px-3 py-1.5 rounded-lg border border-accent/40 bg-accent-soft text-accent text-xs font-semibold hover:bg-accent hover:text-accent-fg transition-colors"
+                  data-testid="pricing-link"
+                >
+                  Pricing
+                </Link>
+              ) : null}
               {user ? (
-                <div className="flex items-center space-x-3">
-                  <motion.div
-                    className="hidden sm:flex items-center gap-2 bg-primary-soft px-2.5 py-1 rounded-lg border border-edge"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    <div className="w-6 h-6 bg-gradient-to-br from-gradient-start to-gradient-end rounded-full flex items-center justify-center shadow-md shadow-primary/25">
-                      <span className="text-primary-fg text-[11px] font-semibold">
-                        {user.name?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="text-fg text-xs font-semibold">
-                      {user.name}
-                    </span>
-                  </motion.div>
-                  {/* Desktop logout (mobile logout lives in burger menu) */}
-                  <motion.button
-                    onClick={handleLogout}
-                    className="hidden md:inline-flex px-3.5 py-1.5 bg-danger hover:bg-danger-hover text-white text-sm font-semibold rounded-lg shadow-md shadow-danger/25 transition-all duration-200"
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Logout
-                  </motion.button>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <TimerBadge />
+                  <UserMenu user={user} onLogout={handleLogout} showPricing={showPricing} />
                 </div>
               ) : (
                 <motion.button
@@ -270,43 +236,22 @@ const Navbar = ({ user, onLogout }) => {
               )}
             </div>
 
-            {/* Mobile Auth Button */}
-            <div className="md:hidden">
+            {/* Phones, signed out: the account menu covers everything else. */}
+            <div className={`md:hidden items-center gap-2 ${user ? "hidden" : "flex"}`}>
               <button
                 type="button"
-                aria-label={user ? "Logout" : "Login"}
-                onClick={user ? handleLogout : handleLogin}
+                aria-label="Login"
+                onClick={handleLogin}
                 className="text-fg-muted hover:text-fg transition-colors"
               >
-                {user ? (
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-                    />
-                  </svg>
-                )}
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
+                  />
+                </svg>
               </button>
             </div>
           </div>
@@ -324,6 +269,7 @@ const Navbar = ({ user, onLogout }) => {
                 label={item.label}
                 short={item.short}
                 Icon={item.Icon}
+                locked={isLocked(item)}
               />
             ))}
           </div>
@@ -380,7 +326,7 @@ const Navbar = ({ user, onLogout }) => {
 };
 
 // NavLink Component for desktop navigation items
-const NavLink = ({ href, label, Icon }) => {
+const NavLink = ({ href, label, Icon, locked = false }) => {
   const pathname = usePathname();
   const isActive =
     href === "/"
@@ -388,7 +334,7 @@ const NavLink = ({ href, label, Icon }) => {
       : pathname === href || pathname?.startsWith(`${href}/`);
 
   return (
-    <Link href={href} aria-current={isActive ? "page" : undefined}>
+    <Link href={href} aria-current={isActive ? "page" : undefined} title={locked ? "Available on Premium" : undefined}>
       <motion.span
         className={`relative flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors duration-200 cursor-pointer group rounded-md ${
           isActive
@@ -401,6 +347,7 @@ const NavLink = ({ href, label, Icon }) => {
       >
         <Icon className="w-4 h-4" />
         {label}
+        {locked ? <IconLock className="w-3 h-3 text-fg-subtle" /> : null}
         <motion.span
           className={`absolute inset-0 bg-primary-soft rounded-lg -z-10 transition-opacity ${
             isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -412,7 +359,7 @@ const NavLink = ({ href, label, Icon }) => {
 };
 
 // Mobile icon nav link for sub-navbar
-const MobileNavIcon = ({ href, label, short, Icon }) => {
+const MobileNavIcon = ({ href, label, short, Icon, locked = false }) => {
   const pathname = usePathname();
   const isActive =
     href === "/"
@@ -430,7 +377,12 @@ const MobileNavIcon = ({ href, label, short, Icon }) => {
           : "text-fg-subtle hover:text-fg-muted"
       }`}
     >
-      <Icon className="w-5 h-5 shrink-0" />
+      <span className="relative">
+        <Icon className="w-5 h-5 shrink-0" />
+        {locked ? (
+          <IconLock className="absolute -top-1 -right-1.5 w-2.5 h-2.5 text-fg-subtle" />
+        ) : null}
+      </span>
       <span className="text-[10px] leading-none w-full text-center truncate">
         {short || label}
       </span>

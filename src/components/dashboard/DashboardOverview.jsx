@@ -9,6 +9,9 @@ import React, { useMemo, useState } from "react";
 import { toYMD, dayIndexOf, weekDayLabels } from "@/utils/timeUtils";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
 import { routineOccursOn } from "@/lib/routineSchedule";
+import { DEFAULT_QUOTES } from "@/lib/notebook/quotes";
+import QuoteSlotMachine from "@/components/quotes/QuoteSlotMachine";
+import { useDashboardSettings } from "@/hooks/useDashboardSettings";
 import {
   minutesToTime,
   taskDuration,
@@ -169,6 +172,9 @@ export default function DashboardOverview({
   weekPlan = null,
   routineTasks = [],
   sessions = [],
+  // Active quotes from the notebook; the slot machine falls back to a few
+  // well-known ones while the notebook has none.
+  quotes = [],
   palettes = {},
   timerSlot = null,
   todaySlot = null,
@@ -180,6 +186,7 @@ export default function DashboardOverview({
   onToggleCalendar = null,
   onNavigate,
 }) {
+  const { settings: dashboard } = useDashboardSettings();
   const go = (key) => () => onNavigate?.(key);
 
   // Fixed for the life of the dashboard so derived data stays stable.
@@ -365,11 +372,17 @@ export default function DashboardOverview({
     return { today, groups, auto, todayMinutes };
   }, [routineTasks, projectName, now]);
 
+  // Everything that had a time today has been worked through. Rather than
+  // saying so in a line nobody needs, the day ends on a quote.
+  const dayDone = loaded && !weekSummary.next && weekSummary.timed.length > 0;
   const nextLabel = weekSummary.next
     ? `${minutesToTime(weekSummary.next.start)} · ${weekSummary.next.task.taskName}`
-    : weekSummary.timed.length
-      ? "All blocks done for today"
-      : "Nothing scheduled yet";
+    : "Nothing scheduled yet";
+  // The quotes are here every day, not only once the blocks are done; with
+  // none of your own they are the built-in ones, with an offer to add some.
+  // Turn the whole thing off under Settings > Dashboard.
+  const slotQuotes = quotes.length ? quotes : DEFAULT_QUOTES;
+  const showQuotes = dashboard.showQuotes && slotQuotes.length > 0;
 
   return (
     <div className="p-4 md:p-6">
@@ -383,17 +396,28 @@ export default function DashboardOverview({
             </h2>
             <p className="text-sm text-fg-muted">{dateLabel}</p>
           </div>
-          <p className="text-xs text-fg-subtle flex items-center gap-1.5">
-            <IconClock className="w-3.5 h-3.5" />
-            {loaded ? (
-              <>
-                Up next: <span className="text-fg-muted">{nextLabel}</span>
-              </>
-            ) : (
-              "Loading your day…"
-            )}
-          </p>
+          {dayDone ? null : (
+            <p className="text-xs text-fg-subtle flex items-center gap-1.5">
+              <IconClock className="w-3.5 h-3.5" />
+              {loaded ? (
+                <>
+                  Up next: <span className="text-fg-muted">{nextLabel}</span>
+                </>
+              ) : (
+                "Loading your day…"
+              )}
+            </p>
+          )}
         </div>
+
+        {showQuotes ? (
+          <QuoteSlotMachine
+            quotes={slotQuotes}
+            caption={dayDone ? `Every block done today · ${weekSummary.timed.length} of them` : ""}
+            onManage={() => onNavigate?.("quotes")}
+            manageLabel={quotes.length ? "Manage quotes" : "Add your own"}
+          />
+        ) : null}
 
         {/* One grid for everything so phones can put the timer and today's
             calendar first (order-*) while larger screens keep the DOM order. */}
@@ -837,10 +861,10 @@ export default function DashboardOverview({
 
           {/* Routines */}
           <SectionCard
-            title="Routines"
-            subtitle={`${routineTasks.length} routine task${routineTasks.length === 1 ? "" : "s"} · ${routineSummary.auto} auto-scheduled`}
+            title="Cycles"
+            subtitle={`${routineTasks.length} cycle${routineTasks.length === 1 ? "" : "s"} · ${routineSummary.auto} auto-scheduled`}
             Icon={IconRoutines}
-            actionLabel="Open Routines"
+            actionLabel="Open Cycles"
             onAction={go("routines")}
             className="order-8 md:order-none md:col-span-2"
           >
@@ -922,8 +946,8 @@ export default function DashboardOverview({
                 </div>
               </div>
             ) : (
-              <EmptyHint actionLabel="Add a routine" onAction={go("routines")}>
-                Routine tasks repeat on the days you choose and can auto-fill
+              <EmptyHint actionLabel="Add a cycle" onAction={go("routines")}>
+                Cycles repeat on the days you choose and can auto-fill
                 your schedule.
               </EmptyHint>
             )}

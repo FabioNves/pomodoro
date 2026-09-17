@@ -2,35 +2,42 @@ import { connectToDB } from "@/lib/db";
 import { jsonError } from "@/utils/apiValidation";
 import { requireUser } from "@/lib/news/auth";
 import { getMcpStatus } from "@/lib/mcp";
-import { isOpenAiConfigured, getAiConfig } from "@/lib/ai";
+import { isOpenAiConfigured } from "@/lib/ai";
 import { getOrCreatePreferences } from "@/lib/news/preferences";
 import { nextDelivery } from "@/lib/news/schedule";
+import { connectionStatus } from "@/lib/access/connections";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 // GET /api/news/status
-// Connection health for the settings page: is an MCP server configured and
-// reachable, which tools were detected, is OpenAI configured, is the cron
-// secret set. Requires a signed-in user; never returns secrets.
+// What the news screen needs to know about the server: the next scheduled
+// delivery and whether briefings can be generated at all. Only the admin
+// gets the connection details (servers, tools, models, scheduler); the
+// canonical place for those is /api/admin/connections.
 export async function GET(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
 
   try {
+    if (auth.role === "admin") {
+      const [status, prefResult] = await Promise.all([
+        connectionStatus(),
+        connectToDB().then(() => getOrCreatePreferences(auth.userId)),
+      ]);
+      return Response.json({ ...status, nextDelivery: nextDelivery(prefResult.pref) });
+    }
+
     const mcpPromise = getMcpStatus();
     const timeout = new Promise((resolve) =>
-      setTimeout(() => resolve({ configured: true, connected: false, error: "Timed out while contacting the MCP server." }), 15000),
+      setTimeout(() => resolve({ configured: true, connected: false }), 15000),
     );
     const [mcp, prefResult] = await Promise.all([
       Promise.race([mcpPromise, timeout]),
       connectToDB().then(() => getOrCreatePreferences(auth.userId)),
     ]);
-    const { model } = getAiConfig();
     return Response.json({
-      mcp,
-      ai: { configured: isOpenAiConfigured(), model },
-      scheduler: { configured: Boolean((process.env.CRON_SECRET || "").trim()) },
+      available: Boolean(mcp?.connected) && isOpenAiConfigured(),
       nextDelivery: nextDelivery(prefResult.pref),
     });
   } catch (error) {

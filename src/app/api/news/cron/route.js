@@ -2,6 +2,7 @@ import { connectToDB } from "@/lib/db";
 import NewsPreference from "@/models/NewsPreference";
 import Briefing from "@/models/Briefing";
 import { computeDueCycles } from "@/lib/news/schedule";
+import { userCanUse } from "@/lib/access/server";
 import {
   startBriefing,
   runNextEdition,
@@ -73,6 +74,16 @@ async function runScheduler(req) {
     const results = [];
     let deferred = 0;
 
+    // A schedule only runs for users whose plan includes the briefing
+    // (feature registry); the cycle stays due and is served once it does.
+    const included = new Map();
+    const planIncludes = async (userId) => {
+      if (!included.has(userId)) {
+        included.set(userId, await userCanUse(userId, "news_briefing").catch(() => false));
+      }
+      return included.get(userId);
+    };
+
     /** Hand a run to a fresh invocation, or run an edition here if that fails. */
     const drive = async (briefingId) => {
       if (chain && (await triggerContinuation(briefingId, chain, log))) return "handed_off";
@@ -84,6 +95,10 @@ async function runScheduler(req) {
 
     for (const cycle of due) {
       const entry = { user: cycle.user, kind: cycle.kind, periodKey: cycle.periodKey, scheduledAt: cycle.scheduledAt };
+      if (!(await planIncludes(cycle.user))) {
+        results.push({ ...entry, status: "not_in_plan" });
+        continue;
+      }
       if (dryRun) {
         results.push({ ...entry, status: "due" });
         continue;

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { jwtDecode } from "jwt-decode";
 import SignInButton from "@/components/auth/SignInButton";
@@ -86,6 +87,17 @@ export default function App() {
         </div>
 
         <div className="relative z-10">
+          {/* The welcome page has no navbar, so pricing gets its own way in. */}
+          <div className="absolute right-4 top-0 z-20">
+            <Link
+              href="/pricing"
+              className="inline-flex items-center px-3 py-1.5 rounded-lg border border-accent/40 bg-accent-soft text-accent text-xs font-semibold hover:bg-accent hover:text-accent-fg transition-colors"
+              data-testid="pricing-link"
+            >
+              Plans and pricing
+            </Link>
+          </div>
+
           {/* Header Section */}
           <div className="text-center max-w-4xl mx-auto pt-10 px-4">
             {/* Logo */}

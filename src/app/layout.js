@@ -6,6 +6,9 @@ import { Toaster } from "react-hot-toast";
 import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
 import NativeBridge from "../components/NativeBridge";
 import UpdateBanner from "../components/UpdateBanner";
+import ViewAsBar from "../components/access/ViewAsBar";
+import { AccessProvider } from "../lib/access/client";
+import { TimerProvider } from "../components/timer/TimerProvider";
 import { ThemeProvider } from "../hooks/useTheme";
 import {
   THEME_IDS,
@@ -145,10 +148,15 @@ export default function RootLayout({ children }) {
           >
             <ServiceWorkerRegistration />
             <NativeBridge />
-            <div className="app-bg w-screen min-h-screen text-fg pt-[4.5rem] md:pt-[4.75rem] pb-[5.25rem] md:pb-0 transition-colors duration-300">
-              <UpdateBanner />
-              {children}
-            </div>
+            <AccessProvider>
+              <TimerProvider>
+                <div className="app-bg w-screen min-h-screen text-fg pt-[4.5rem] md:pt-[4.75rem] pb-[5.25rem] md:pb-0 transition-colors duration-300">
+                  <UpdateBanner />
+                  <ViewAsBar />
+                  {children}
+                </div>
+              </TimerProvider>
+            </AccessProvider>
           </GoogleOAuthProvider>
           <Toaster
             position="top-right"

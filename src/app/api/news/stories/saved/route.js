@@ -10,7 +10,7 @@ const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid id");
 
 // GET /api/news/stories/saved
 export async function GET(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
   try {
     await connectToDB();
@@ -24,7 +24,7 @@ export async function GET(req) {
 
 // POST /api/news/stories/saved  { storyId }
 export async function POST(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(req, z.object({ storyId: objectId }));
   if (!body.ok) return body.response;
@@ -60,7 +60,7 @@ export async function POST(req) {
 
 // DELETE /api/news/stories/saved  { storyId }
 export async function DELETE(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(req, z.object({ storyId: objectId }));
   if (!body.ok) return body.response;

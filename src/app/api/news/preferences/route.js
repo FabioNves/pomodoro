@@ -15,7 +15,7 @@ import { nextDelivery } from "@/lib/news/schedule";
 // Returns (and on first use creates) the user's briefing preferences. The
 // optional tz hint seeds the timezone from the browser the first time.
 export async function GET(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
 
   const params = validateSearchParams(req, z.object({ tz: z.string().max(64).optional() }));
@@ -38,7 +38,7 @@ export async function GET(req) {
 
 // PUT /api/news/preferences  { timezone?, daily?, weekly?, custom?, ... }
 export async function PUT(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
 
   const body = await validateJsonBody(req, preferencesUpdateSchema);

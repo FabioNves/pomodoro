@@ -24,7 +24,7 @@ export async function POST(req) {
   const internal = isInternalRequest(req);
   let userId = null;
   if (!internal) {
-    const auth = requireUser(req);
+    const auth = await requireUser(req);
     if (!auth.ok) return auth.response;
     userId = auth.userId;
   }

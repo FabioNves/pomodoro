@@ -14,6 +14,8 @@ import {
   IconNote,
   IconNotePlus,
   IconPlus,
+  IconPosts,
+  IconQuote,
   IconSearch,
   IconTrash,
   IconViews,
@@ -23,8 +25,10 @@ import {
 
 const BUILT_IN_VIEWS = [
   { key: "folders", label: "Folders", Icon: IconFolder },
-  { key: "notes", label: "All notes", Icon: IconNote },
+  { key: "notes", label: "All notes", Icon: IconNote, count: "notes" },
   { key: "brain", label: "Brain", Icon: IconBrain },
+  { key: "quotes", label: "Quotes", Icon: IconQuote, count: "quotes" },
+  { key: "posts", label: "Saved posts", Icon: IconPosts, count: "posts" },
 ];
 
 function SectionHeader({ label, children }) {
@@ -86,6 +90,7 @@ function ViewRow({ active, Icon, label, count, onClick, menu = null }) {
 export default function NotebookSidebar({
   views,
   activeViewKey,
+  counts = { quotes: 0, posts: 0 },
   onSelectView,
   onNewView,
   onEditView,
@@ -163,7 +168,7 @@ export default function NotebookSidebar({
                 active={activeViewKey === v.key && !openDocId}
                 Icon={v.Icon}
                 label={v.label}
-                count={v.key === "notes" ? docs.length : undefined}
+                count={v.count === "notes" ? docs.length : v.count ? counts[v.count] : undefined}
                 onClick={() => onSelectView(v.key)}
               />
             ))}

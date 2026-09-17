@@ -4,10 +4,8 @@ import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import PomodoroTimer from "@/components/PomodoroTimer";
 import Navbar from "@/components/Navbar";
-import {
-  requestNotificationPermission,
-  showNotification,
-} from "@/utils/notifications";
+import { LockedScreen } from "@/components/access/Gate";
+import { requestNotificationPermission } from "@/utils/notifications";
 
 export default function TimerPage() {
   const [user, setUser] = useState(null);
@@ -44,7 +42,9 @@ export default function TimerPage() {
     <div className="min-h-screen transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pb-8">
-        <PomodoroTimer showNotification={showNotification} />
+        <LockedScreen feature="timer" title="Timer" description="Focus and break sessions with your projects.">
+          <PomodoroTimer />
+        </LockedScreen>
       </main>
       <footer className="flex justify-center items-center h-8 bg-surface/60 text-fg-muted backdrop-blur-sm transition-colors duration-300">
         <p>&copy; 2026 PomoDRIVE App</p>

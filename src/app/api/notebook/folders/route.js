@@ -20,7 +20,7 @@ const folderName = z.string().trim().min(1).max(LIMITS.folderName);
 
 // POST /api/notebook/folders  { name, parent? }
 export async function POST(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(
     req,
@@ -48,7 +48,7 @@ export async function POST(req) {
 
 // PATCH /api/notebook/folders  { id, name?, parent?, order? }
 export async function PATCH(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(
     req,
@@ -89,7 +89,7 @@ export async function PATCH(req) {
 // Deletes the folder and its subfolders. Notes inside are not deleted: they
 // move to the deleted folder's parent (or the top level).
 export async function DELETE(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(req, z.object({ id: objectId }));
   if (!body.ok) return body.response;

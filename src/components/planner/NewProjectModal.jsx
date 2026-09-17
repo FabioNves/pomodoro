@@ -17,6 +17,7 @@ import { PROJECT_COLORS } from "@/lib/projectColors";
 import { PROJECT_TEMPLATES, TEMPLATE_CATEGORIES } from "@/lib/projectTemplates";
 import { apiJson, isSignedIn } from "@/lib/plannerApi";
 import { isInvalidRange } from "@/lib/milestones";
+import { Locked } from "@/components/access/Gate";
 
 const inputClass =
   "w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm outline-none focus:ring-2 focus:ring-focus/40";
@@ -328,18 +329,20 @@ export default function NewProjectModal({ open, onClose, onCreate }) {
               }}
               disabled={busy}
             />
-            <ChoiceCard
-              icon="✨"
-              title="Suggest with AI"
-              text="Describe the goal and get milestones with tasks to review."
-              badge={signedIn ? null : "Sign in"}
-              onClick={() => {
-                setSource("ai");
-                setGoal((g) => g || description);
-                setStep("ai");
-              }}
-              disabled={busy}
-            />
+            <Locked feature="ai_project_planning" layout="block">
+              <ChoiceCard
+                icon="✨"
+                title="Suggest with AI"
+                text="Describe the goal and get milestones with tasks to review."
+                badge={signedIn ? null : "Sign in"}
+                onClick={() => {
+                  setSource("ai");
+                  setGoal((g) => g || description);
+                  setStep("ai");
+                }}
+                disabled={busy}
+              />
+            </Locked>
           </div>
         ) : null}
 

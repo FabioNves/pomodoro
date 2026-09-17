@@ -24,6 +24,7 @@ import {
   toDateInput,
 } from "@/lib/milestones";
 import { compareTasksByOrder } from "@/components/planner/TaskRow";
+import { Locked } from "@/components/access/Gate";
 
 const TABS = [
   { key: "project", label: "Project" },
@@ -318,14 +319,16 @@ function MilestonesTab({ project, milestones, tasks, actions, onSuggestMilestone
         >
           + Add milestone
         </button>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-soft text-primary text-sm font-medium hover:bg-surface-hover"
-          onClick={onSuggestMilestones}
-        >
-          <IconSparkle className="w-4 h-4" />
-          Suggest milestones
-        </button>
+        <Locked feature="ai_project_planning">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-soft text-primary text-sm font-medium hover:bg-surface-hover"
+            onClick={onSuggestMilestones}
+          >
+            <IconSparkle className="w-4 h-4" />
+            Suggest milestones
+          </button>
+        </Locked>
       </div>
 
       {adding ? (
@@ -465,14 +468,16 @@ function MilestonesTab({ project, milestones, tasks, actions, onSuggestMilestone
                       >
                         Edit
                       </button>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-primary hover:bg-surface-hover"
-                        onClick={() => onSuggestTasks(m)}
-                      >
-                        <IconSparkle className="w-3.5 h-3.5" />
-                        Suggest tasks
-                      </button>
+                      <Locked feature="ai_project_planning">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-primary hover:bg-surface-hover"
+                          onClick={() => onSuggestTasks(m)}
+                        >
+                          <IconSparkle className="w-3.5 h-3.5" />
+                          Suggest tasks
+                        </button>
+                      </Locked>
                       <button
                         type="button"
                         className="px-2 py-1 rounded-md text-xs text-fg-muted hover:bg-surface-hover hover:text-fg disabled:opacity-30"
@@ -564,14 +569,16 @@ function TasksTab({ milestones, tasks, actions, onSuggestTasks }) {
             <span className="text-[11px] text-fg-subtle">({s.tasks.length})</span>
             <div className="flex-1 h-px bg-edge" />
             {s.milestone ? (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary-hover"
-                onClick={() => onSuggestTasks(s.milestone)}
-              >
-                <IconSparkle className="w-3 h-3" />
-                Suggest tasks
-              </button>
+              <Locked feature="ai_project_planning">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary-hover"
+                  onClick={() => onSuggestTasks(s.milestone)}
+                >
+                  <IconSparkle className="w-3 h-3" />
+                  Suggest tasks
+                </button>
+              </Locked>
             ) : null}
           </div>
           {s.tasks.length ? (

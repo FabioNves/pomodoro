@@ -54,7 +54,7 @@ function aiErrorResponse(error) {
 
 // POST /api/projects/suggest
 export async function POST(req) {
-  const auth = requireUser(req, { signInMessage: "Sign in to use AI suggestions." });
+  const auth = await requireUser(req, { signInMessage: "Sign in to use AI suggestions.", feature: "ai_project_planning" });
   if (!auth.ok) return auth.response;
 
   const body = await validateJsonBody(req, suggestSchema);

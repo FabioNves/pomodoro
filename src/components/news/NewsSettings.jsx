@@ -6,7 +6,10 @@
 // interests) and the connection status of the MCP server and OpenAI.
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { browserTimeZone } from "@/lib/news/client";
+import { useAccess } from "@/lib/access/client";
+import ConnectionStatus from "@/components/admin/ConnectionStatus";
 import {
   COUNTRIES,
   LANGUAGES,
@@ -262,6 +265,10 @@ function EditionRow({ edition, index, total, userLanguage, onChange, onRemove, o
 }
 
 export default function NewsSettings({ preferences, onSave, saving, status, statusLoading, onRefreshStatus, nextDelivery }) {
+  const access = useAccess();
+  // Only the admin's own view carries the connection report; a preview
+  // shows the settings exactly as that role sees them.
+  const showConnection = access.isAdmin && !access.previewing;
   const [form, setForm] = useState(preferences);
   const [dirty, setDirty] = useState(false);
   const [quickLanguages, setQuickLanguages] = useState([]);
@@ -339,9 +346,6 @@ export default function NewsSettings({ preferences, onSave, saving, status, stat
     });
     if (ok) setDirty(false);
   };
-
-  const mcp = status?.mcp;
-  const servers = mcp?.servers || [];
 
   return (
     <div className="space-y-6">
@@ -638,102 +642,23 @@ export default function NewsSettings({ preferences, onSave, saving, status, stat
         {dirty ? <span className="text-xs text-fg-subtle">Unsaved changes</span> : null}
       </div>
 
-      {/* Connection */}
-      <div className="space-y-3">
-        <SectionTitle Icon={IconGlobe}>Connection</SectionTitle>
-        <Block>
-          {statusLoading && !status ? (
-            <p className="flex items-center gap-2 text-sm text-fg-muted">
-              <Spinner /> Checking the MCP server and OpenAI…
-            </p>
-          ) : status ? (
-            <div className="space-y-3 text-sm">
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-medium text-fg">
-                    MCP {servers.length > 1 ? `servers (${servers.length})` : "server"}
-                  </p>
-                  <Chip tone={mcp?.connected ? "success" : "accent"}>
-                    {mcp?.connected ? "Connected" : mcp?.configured ? "Unreachable" : "Not configured"}
-                  </Chip>
-                </div>
-
-                <ul className="mt-1.5 space-y-1.5">
-                  {servers.length ? (
-                    servers.map((s) => (
-                      <li key={s.name} className="flex items-start gap-2 text-xs">
-                        <span
-                          className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${s.connected ? "bg-success" : "bg-danger"}`}
-                          aria-hidden="true"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-fg">
-                            <strong>{s.name}</strong>
-                            <span className="text-fg-muted"> · {s.target}</span>
-                            {s.info?.name ? <span className="text-fg-subtle"> · {s.info.name} {s.info.version}</span> : null}
-                          </p>
-                          {s.connected ? (
-                            s.tools?.length ? <p className="text-fg-subtle break-words">{s.tools.join(", ")}</p> : null
-                          ) : (
-                            <p className="text-danger">{s.error || "Not connected."}</p>
-                          )}
-                        </div>
-                      </li>
-                    ))
-                  ) : (
-                    <li className="text-xs text-danger">{mcp?.error || "No MCP server is configured."}</li>
-                  )}
-                </ul>
-
-                {mcp?.connected ? (
-                  <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-                    {[
-                      ["Search", mcp.routing?.searchWeb || mcp.capabilities?.searchWeb || "none"],
-                      ["News", mcp.routing?.searchNews || "web search with a recency window"],
-                      ["Fetch", mcp.routing?.fetchPage || "none"],
-                    ].map(([label, value]) => (
-                      <React.Fragment key={label}>
-                        <dt className="text-fg-subtle">{label}</dt>
-                        <dd className="text-fg break-words">{value}</dd>
-                      </React.Fragment>
-                    ))}
-                  </dl>
-                ) : null}
-
-                {mcp?.notes?.map((n, i) => (
-                  <p key={i} className="mt-1 text-xs text-warning">
-                    {n}
-                  </p>
-                ))}
-              </div>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-fg">OpenAI</p>
-                  <p className="text-xs text-fg-muted">{status.ai?.configured ? `Model ${status.ai.model}` : "OPENAI_API_KEY is not set on the server."}</p>
-                </div>
-                <Chip tone={status.ai?.configured ? "success" : "accent"}>{status.ai?.configured ? "Configured" : "Missing"}</Chip>
-              </div>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-fg">Scheduler</p>
-                  <p className="text-xs text-fg-muted">{status.scheduler?.configured ? "CRON_SECRET is set; scheduled briefings run on the server." : "Set CRON_SECRET (and the cron in vercel.json) to enable scheduled briefings."}</p>
-                </div>
-                <Chip tone={status.scheduler?.configured ? "success" : "accent"}>{status.scheduler?.configured ? "Active" : "Inactive"}</Chip>
-              </div>
-            </div>
-          ) : (
-            <Banner tone="warning">Could not check the connection.</Banner>
-          )}
-          <ActionButton Icon={IconRefresh} onClick={onRefreshStatus} busy={statusLoading} size="sm">
-            Check again
-          </ActionButton>
-        </Block>
-      </div>
-
-      <p className="text-[11px] text-fg-subtle flex items-center gap-1.5">
-        <IconSettings className="w-3 h-3" />
-        API keys never leave the server. The app talks to the MCP server and OpenAI only from its API routes.
-      </p>
+      {/* Connection: admin only. The canonical report is /admin?tab=connections. */}
+      {showConnection ? (
+        <div className="space-y-3">
+          <SectionTitle Icon={IconGlobe}>Connection</SectionTitle>
+          <Block>
+            <ConnectionStatus status={status} loading={statusLoading} onRefresh={onRefreshStatus} />
+          </Block>
+          <p className="text-[11px] text-fg-subtle flex items-center gap-1.5">
+            <IconSettings className="w-3 h-3" />
+            API keys never leave the server. The full report, with the database and sign-in configuration, is on the{" "}
+            <Link href="/admin?tab=connections" className="text-primary hover:underline">
+              admin page
+            </Link>
+            .
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

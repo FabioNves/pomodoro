@@ -22,6 +22,7 @@ import {
   StatusPill,
 } from "@/components/planner/MilestoneBits";
 import { getProjectColorMeta } from "@/lib/projectColors";
+import { Locked } from "@/components/access/Gate";
 import {
   compareMilestones,
   formatDateRange,
@@ -68,14 +69,16 @@ function MilestoneCard({ milestone, progress, onToggleComplete, onSuggestTasks, 
         </div>
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <MilestoneMeta milestone={milestone} progress={progress} />
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary-hover"
-            onClick={() => onSuggestTasks(milestone)}
-          >
-            <IconSparkle className="w-3 h-3" />
-            Suggest tasks
-          </button>
+          <Locked feature="ai_project_planning">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary-hover"
+              onClick={() => onSuggestTasks(milestone)}
+            >
+              <IconSparkle className="w-3 h-3" />
+              Suggest tasks
+            </button>
+          </Locked>
         </div>
       </div>
     </div>
@@ -142,14 +145,16 @@ function TaskGroup({
             + Add a task
           </button>
           {milestone ? (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-primary"
-              onClick={() => onSuggestTasks(milestone)}
-            >
-              <IconSparkle className="w-3.5 h-3.5" />
-              Suggest
-            </button>
+            <Locked feature="ai_project_planning">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-primary"
+                onClick={() => onSuggestTasks(milestone)}
+              >
+                <IconSparkle className="w-3.5 h-3.5" />
+                Suggest
+              </button>
+            </Locked>
           ) : null}
         </div>
         <div className="space-y-0.5 min-h-[28px]">
@@ -373,14 +378,16 @@ export default function ProjectPageView({
             >
               + Add
             </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary-hover"
-              onClick={onSuggestMilestones}
-            >
-              <IconSparkle className="w-3.5 h-3.5" />
-              Suggest milestones
-            </button>
+            <Locked feature="ai_project_planning">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary-hover"
+                onClick={onSuggestMilestones}
+              >
+                <IconSparkle className="w-3.5 h-3.5" />
+                Suggest milestones
+              </button>
+            </Locked>
           </div>
           {sortedMilestones.length ? (
             <div className="grid gap-2 sm:grid-cols-2">

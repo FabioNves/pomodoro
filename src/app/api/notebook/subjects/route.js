@@ -23,7 +23,7 @@ const color = z.string().regex(SUBJECT_COLOR_RE, "Use a #rrggbb colour");
 
 // POST /api/notebook/subjects  { name, color? }
 export async function POST(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(req, z.object({ name: subjectName, color: color.optional() }));
   if (!body.ok) return body.response;
@@ -52,7 +52,7 @@ export async function POST(req) {
 // PATCH /api/notebook/subjects  { name, newName?, color? }
 // Renaming also renames the subject on every note and saved view that uses it.
 export async function PATCH(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(
     req,
@@ -90,7 +90,7 @@ export async function PATCH(req) {
 
 // DELETE /api/notebook/subjects  { name }  — also removes it from every note and view.
 export async function DELETE(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(req, z.object({ name: subjectName }));
   if (!body.ok) return body.response;

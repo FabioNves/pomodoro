@@ -28,7 +28,7 @@ export async function loadBriefingDto(userId, briefing) {
 // GET /api/news/briefings?id=…            one briefing with its stories
 // GET /api/news/briefings?kind=daily&limit=20&before=<ISO date>   history
 export async function GET(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
 
   const params = validateSearchParams(

@@ -48,7 +48,11 @@ lists the few rules that keep it that way.
 
 ## Notebook
 
-The **Notebook** tab is a lightweight document editor for your notes:
+The **Notebook** tab is a lightweight document editor for your notes
+(quotes are under Notebook > Quotes, where **Find with AI** takes an author,
+optionally a book or other work to draw the quotes from, and a theme; the
+dashboard shows them on a slot machine you can pull, which Settings >
+Dashboard turns off):
 
 - Rich text (headings, lists, checklists, colours, links, alignment) with
   autosave. Each note can have tabs and subtabs, like Google Docs tabs.
@@ -181,6 +185,106 @@ The news endpoints authenticate differently from the rest of the API: they
 verify the session JWT (`Authorization: Bearer <accessToken>`) instead of
 trusting the `user-id` header, so a user only ever reaches their own
 preferences, briefings and saved stories.
+
+## The planner
+
+Four sections, listed in a sidebar that is there on every one of them (on a
+phone, behind the button above the content):
+
+| Section | What it holds |
+| --- | --- |
+| Tasks | Board, Project and Timeline views of projects, milestones and tasks |
+| Calendar | The week as an hour grid |
+| Schedule | The week plan as a list |
+| Routines | **Habits** and **Cycles**, the two things that come round again |
+
+Habits and recurring tasks used to be separate tabs. They answer the same
+question, so they share the Routines section with a switch at the top of it:
+the section is `?tab=routines`, the view `?view=habits|cycles`. A *cycle* is
+what used to be called a routine task; the model behind it is still
+`RoutineTask`, so nothing about the data changed. An old `?tab=habits` link
+still lands on Habits; an old `?tab=routines` link now opens the section on
+Habits rather than on cycles, one click away.
+
+## The timer
+
+The timer lives on the **dashboard**. There is no Timer tab: a session keeps
+running wherever you go, and the navbar shows it.
+
+- The countdown runs in `TimerProvider`
+  (`src/components/timer/TimerProvider.jsx`), mounted once in the root
+  layout, so moving to the planner, the notebook or the news does not
+  interrupt it. `TimerControls` is only the panel; the dashboard and the
+  `/timer` page both render it and both show the same session.
+- A run is stored as timestamps (`src/lib/timerMachine.js`), not as a ticking
+  number, so a reload picks it up where it was and a throttled background tab
+  catches up the moment you come back to it.
+- While a session is under way, `TimerBadge` sits in the navbar with the time
+  left and leads back to the dashboard. It is the way back now that the tab
+  is gone; `/timer` still opens directly and from the dashboard's timer card.
+- The provider also owns what used to sit next to the countdown: the alarm,
+  the notification when a phase ends, the automatic break, and writing the
+  finished session to `/api/sessions`. A session is therefore saved even if
+  the break ends while you are on another page.
+- Pages say what the session is about with `setSessionContext()` (the project
+  and what is being worked on). It is stored with the run, so a session that
+  ends elsewhere is still attributed correctly, and work with no project
+  saves as *Unassigned* rather than being refused.
+- A run belongs to the account that started it and is dropped rather than
+  resumed if it is more than twelve hours old, so the app never opens by
+  alarming and saving a session from yesterday.
+
+## Roles, plans and the admin page
+
+Three roles, resolved on the server for every request and never taken from
+the client: **admin** (the email in `ADMIN_EMAILS`, by default the owner's),
+**premium** (an unexpired premium plan on the user record) and **free**
+(everyone else). `GET /api/me` tells the browser which one it is.
+
+- **Feature registry.** `src/lib/access/features.js` lists every gateable
+  feature (timer, planner, habits, routines, notebook, analytics, the AI news
+  briefing, ask-about-a-story, AI project planning, the AI quote finder) with
+  its defaults; the admin's edits live in the `AccessConfig` document. The
+  same registry drives the runtime gate, the pricing page and the admin
+  table, so a toggle applies everywhere within seconds.
+- **Gating happens twice.** In the UI a locked feature is drawn greyed out
+  with a small lock that links to `/pricing` (`Locked`, `LockedScreen` in
+  `src/components/access/Gate.jsx`); on the server the route answers 403
+  with `{ code: "feature_locked" | "feature_disabled", feature }`. Session
+  routes get the check from `requireUser()`, planner routes from
+  `validateIdentityHeaders()`, both by looking up the feature behind the
+  path; a route that needs more names it (`feature: "news_ask"`).
+- **Where they live.** Settings, the admin page and the view-as switcher are
+  all under the user's own name in the navbar (`src/components/nav/UserMenu.jsx`),
+  not in the main menu, which is for the app's screens. A **Pricing** button
+  sits in the navbar for anyone not on Premium yet, signed in or not, and the
+  welcome page carries its own link to the same page.
+- **Admin page** at `/admin` (404 for anyone else): Connections (the report
+  that used to sit under News > Settings; admins still see it there), Usage
+  (requests and actions per day, active users, per-feature breakdown,
+  OpenAI and MCP calls with an estimated cost, with today / 7 d / 30 d /
+  custom ranges), Users (live count of sessions active in the last 15 min,
+  search, filters, sort, change plan, revoke sessions) and Subscriptions
+  (the feature table plus plan name, price, currency, interval and status).
+- **View as.** The account menu switches between Admin, Preview as Premium
+  and Preview as Free. The choice is stored on the admin's user record
+  (`PUT /api/me/view-as`), applied server side after the real role is known,
+  and can only lower privileges. While previewing, a banner with "Back to
+  admin" stands above the page and the menu hides its own admin entry, so
+  the preview looks like the real thing. `/admin` always checks the real
+  role, so it stays reachable by URL during a preview.
+- **Pricing** at `/pricing` is public and rendered from the registry: both
+  plans, every enabled feature with a tick or a cross, and a disabled
+  "Coming soon" button while the premium plan has that status. Give the
+  premium plan a checkout link in the admin page once billing exists.
+- **Usage tracking.** Every request that carries a user's identity and every
+  OpenAI or MCP call is recorded in `UsageEvent` (six-month TTL), after the
+  response, so a failed write never breaks a feature. OpenAI cost comes from
+  a per-model price table (`OPENAI_PRICE_PER_M` overrides it); MCP calls are
+  counted, and `MCP_COST_PER_CALL` prices them. `USAGE_TRACK_REQUESTS=off`
+  stops the per-request rows and keeps the external ones.
+- Scheduled briefings only run for users whose plan includes the briefing;
+  a due cycle waits until it does.
 
 ## Live reload in the apps
 

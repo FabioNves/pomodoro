@@ -66,7 +66,7 @@ const deleteTaskSchema = z.object({
 // GET /api/tasks?projectId=...
 export async function GET(req) {
   try {
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const queryValidation = validateSearchParams(req, tasksQuerySchema);
@@ -95,7 +95,7 @@ export async function POST(req) {
     const body = await validateJsonBody(req, createTaskSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const {
@@ -176,7 +176,7 @@ export async function PATCH(req) {
     const body = await validateJsonBody(req, patchTaskSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const { id, title, completed, scheduledDate, milestoneId, startDate, endDate } =
@@ -297,7 +297,7 @@ export async function DELETE(req) {
     const body = await validateJsonBody(req, deleteTaskSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const { id } = body.data;

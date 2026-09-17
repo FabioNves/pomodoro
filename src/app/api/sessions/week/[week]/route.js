@@ -4,6 +4,7 @@ import User from "@/models/User";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { validateRouteParams } from "@/utils/apiValidation";
+import { gateIdentity } from "@/lib/access/server";
 
 const weekParamsSchema = z.object({
   week: z.coerce.number().int().min(1).max(53),
@@ -29,6 +30,9 @@ export async function GET(request, { params }) {
     const userId = optionalUserIdSchema.safeParse(userIdRaw).success
       ? userIdRaw
       : undefined;
+
+    const denied = await gateIdentity(request, { userId: userId || null });
+    if (denied) return denied;
 
     const firstDayOfYear = new Date(year, 0, 1);
     const firstDayOfWeek = firstDayOfYear.getDay();

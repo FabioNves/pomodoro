@@ -61,7 +61,7 @@ export async function POST(req) {
   try {
     const body = await validateJsonBody(req, structureSchema);
     if (!body.ok) return body.response;
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const identQuery = identityQuery(ident.data);

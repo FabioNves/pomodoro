@@ -80,13 +80,13 @@ function RoutineTasksPage() {
           <button
             type="button"
             className="p-2 rounded-lg hover:bg-surface-hover transition-colors"
-            onClick={() => router.push("/planner?tab=routines")}
+            onClick={() => router.push("/planner?tab=routines&view=cycles")}
             aria-label="Back to planner"
           >
             <IconBack className="w-5 h-5 text-fg-muted" />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-fg">Routine Tasks</h1>
+            <h1 className="text-xl font-bold text-fg">Cycles</h1>
             {projectName ? (
               <p className="text-sm text-fg-subtle">{projectName}</p>
             ) : null}

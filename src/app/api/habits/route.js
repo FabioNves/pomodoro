@@ -62,7 +62,7 @@ const deleteHabitSchema = z.object({
 // GET /api/habits
 export async function GET(req) {
   try {
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     await connectToDB();
@@ -84,7 +84,7 @@ export async function POST(req) {
     const body = await validateJsonBody(req, createHabitSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const identity = getIdentityHeaders(req);
@@ -122,7 +122,7 @@ export async function PATCH(req) {
     const body = await validateJsonBody(req, patchHabitSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
     const identQuery = identityQuery(identityValidation.data);
 
@@ -163,7 +163,7 @@ export async function DELETE(req) {
     const body = await validateJsonBody(req, deleteHabitSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
     const identQuery = identityQuery(identityValidation.data);
 

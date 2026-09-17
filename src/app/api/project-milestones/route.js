@@ -95,7 +95,7 @@ async function countTasks(identQuery, milestoneIds) {
 // GET /api/project-milestones?projectId=...
 export async function GET(req) {
   try {
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
     const query = validateSearchParams(req, listSchema);
     if (!query.ok) return query.response;
@@ -124,7 +124,7 @@ export async function POST(req) {
   try {
     const body = await validateJsonBody(req, createSchema);
     if (!body.ok) return body.response;
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const identQuery = identityQuery(ident.data);
@@ -170,7 +170,7 @@ export async function PATCH(req) {
   try {
     const body = await validateJsonBody(req, patchSchema);
     if (!body.ok) return body.response;
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const identQuery = identityQuery(ident.data);
@@ -219,7 +219,7 @@ export async function DELETE(req) {
   try {
     const body = await validateJsonBody(req, deleteSchema);
     if (!body.ok) return body.response;
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const identQuery = identityQuery(ident.data);

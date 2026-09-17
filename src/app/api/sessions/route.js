@@ -4,6 +4,7 @@ import { jwtDecode } from "jwt-decode";
 import { getUserFromRequest } from "@/utils/getUserFromRequest";
 import { z } from "zod";
 import { validateJsonBody } from "@/utils/apiValidation";
+import { gateIdentity } from "@/lib/access/server";
 
 const userIdHeaderSchema = z.string().trim().min(1).max(256);
 
@@ -41,6 +42,9 @@ export async function POST(req) {
         status: 401,
       });
     }
+
+    const denied = await gateIdentity(req, { userId });
+    if (denied) return denied;
 
     const body = await validateJsonBody(req, sessionBodySchema);
     if (!body.ok) return body.response;
@@ -85,6 +89,9 @@ export async function GET(req) {
         status: 401,
       });
     }
+
+    const denied = await gateIdentity(req, { userId });
+    if (denied) return denied;
 
     await connectToDB();
 

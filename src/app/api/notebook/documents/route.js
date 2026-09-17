@@ -20,7 +20,7 @@ const docTitle = z.string().trim().min(1).max(LIMITS.title);
 
 // GET /api/notebook/documents?id=  — one note with all its tabs.
 export async function GET(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const query = validateSearchParams(req, z.object({ id: objectId }));
   if (!query.ok) return query.response;
@@ -39,7 +39,7 @@ export async function GET(req) {
 
 // POST /api/notebook/documents  { title?, folder?, subjects? }
 export async function POST(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(
     req,
@@ -69,7 +69,7 @@ export async function POST(req) {
 
 // PATCH /api/notebook/documents  { id, title?, folder?, subjects?, pinned?, order? }
 export async function PATCH(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(
     req,
@@ -108,7 +108,7 @@ export async function PATCH(req) {
 
 // DELETE /api/notebook/documents  { id }
 export async function DELETE(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(req, z.object({ id: objectId }));
   if (!body.ok) return body.response;

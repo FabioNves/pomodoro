@@ -7,6 +7,7 @@ import React, { useState } from "react";
 import { openExternal } from "@/lib/platform";
 import AskStoryPanel from "@/components/news/AskStoryPanel";
 import { languageName } from "@/lib/news/locales";
+import { Locked } from "@/components/access/Gate";
 import {
   Chip,
   IconBookmark,
@@ -165,13 +166,15 @@ export default function StoryCard({
           />
         ))}
         <span className="flex-1" />
-        <IconButton
-          label={askOpen ? "Hide" : "Ask"}
-          Icon={IconChat}
-          active={askOpen}
-          activeClass="bg-primary-soft text-primary border-primary/40"
-          onClick={() => setAskOpen((v) => !v)}
-        />
+        <Locked feature="news_ask">
+          <IconButton
+            label={askOpen ? "Hide" : "Ask"}
+            Icon={IconChat}
+            active={askOpen}
+            activeClass="bg-primary-soft text-primary border-primary/40"
+            onClick={() => setAskOpen((v) => !v)}
+          />
+        </Locked>
       </div>
 
       {askOpen ? <AskStoryPanel story={story} onClose={() => setAskOpen(false)} /> : null}

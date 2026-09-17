@@ -4,6 +4,7 @@ import User from "@/models/User";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { validateRouteParams } from "@/utils/apiValidation";
+import { gateIdentity } from "@/lib/access/server";
 
 const monthParamsSchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100),
@@ -29,6 +30,9 @@ export async function GET(request, { params }) {
     const userId = optionalUserIdSchema.safeParse(userIdRaw).success
       ? userIdRaw
       : undefined;
+
+    const denied = await gateIdentity(request, { userId: userId || null });
+    if (denied) return denied;
 
     // Create start and end dates for the month
     const startOfMonth = new Date(yearNumber, monthNumber - 1, 1);

@@ -2,6 +2,7 @@ import { connectToDB } from "@/lib/db";
 import Milestone from "@/models/Milestone";
 import { z } from "zod";
 import { validateJsonBody } from "@/utils/apiValidation";
+import { gateIdentity } from "@/lib/access/server";
 
 const milestoneSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -19,6 +20,9 @@ export async function POST(req) {
     const userId = optionalUserIdSchema.safeParse(userIdRaw).success
       ? userIdRaw
       : undefined;
+
+    const denied = await gateIdentity(req, { userId: userId || null });
+    if (denied) return denied;
 
     const { name } = body.data;
 
@@ -50,6 +54,9 @@ export async function GET(req) {
     const userId = optionalUserIdSchema.safeParse(userIdRaw).success
       ? userIdRaw
       : undefined;
+
+    const denied = await gateIdentity(req, { userId: userId || null });
+    if (denied) return denied;
 
     await connectToDB();
 

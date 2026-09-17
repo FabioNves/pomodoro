@@ -4,6 +4,7 @@ import { connectToDB } from "@/lib/db";
 import { validateJsonBody, jsonError } from "@/utils/apiValidation";
 import {
   issueSessionToken,
+  markSignedIn,
   publicUser,
   verifyHandoffCode,
 } from "@/lib/authTokens";
@@ -25,6 +26,7 @@ export async function POST(req) {
     await connectToDB();
     const user = await User.findById(userId);
     if (!user) return jsonError(401, "Unknown user");
+    await markSignedIn(user._id);
 
     return Response.json({
       token: issueSessionToken(user),

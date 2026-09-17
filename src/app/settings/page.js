@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import { useTheme } from "@/hooks/useTheme";
 import { useTimerSettings } from "@/hooks/useTimerSettings";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
+import { useDashboardSettings } from "@/hooks/useDashboardSettings";
 import { WEEK_STARTS } from "@/lib/weekSettings";
 import { createSoundKit } from "@/utils/sounds";
 import TimerPreview from "@/components/timer/TimerPreview";
@@ -139,6 +140,7 @@ export default function SettingsPage() {
   const { settings: timer, update: updateTimer, reset: resetTimer } =
     useTimerSettings();
   const { settings: week, update: updateWeek } = useWeekSettings();
+  const { settings: dashboard, update: updateDashboard } = useDashboardSettings();
   // Previews always play, at the chosen volume, even while sound is off.
   const previewKit = useMemo(
     () => createSoundKit({ ...timer, soundEnabled: true, uiSounds: true }),
@@ -545,6 +547,39 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
+            </SettingRow>
+          </div>
+        </div>
+
+        {/* Dashboard Section */}
+        <div className="bg-surface rounded-lg p-6 border border-edge mb-6 transition-colors duration-300 shadow-md">
+          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2 text-fg">
+            <svg
+              className="w-6 h-6 text-accent"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="3" width="8" height="8" rx="1.5" />
+              <rect x="13" y="3" width="8" height="5" rx="1.5" />
+              <rect x="13" y="11" width="8" height="10" rx="1.5" />
+              <rect x="3" y="14" width="8" height="7" rx="1.5" />
+            </svg>
+            Dashboard
+          </h2>
+          <div className="bg-surface-2 p-4 rounded-lg transition-colors duration-300">
+            <SettingRow
+              title="Quotes"
+              hint="A quote to pull on, on the dashboard. Your own quotes from the notebook, or the built-in ones until you save some."
+            >
+              <Toggle
+                checked={dashboard.showQuotes}
+                onChange={(v) => updateDashboard({ showQuotes: v })}
+                label="Show quotes on the dashboard"
+              />
             </SettingRow>
           </div>
         </div>

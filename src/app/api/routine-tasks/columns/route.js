@@ -52,7 +52,7 @@ const deleteSchema = z.object({
 
 export async function GET(req) {
   try {
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const qv = validateSearchParams(req, querySchema);
@@ -77,7 +77,7 @@ export async function POST(req) {
     const body = await validateJsonBody(req, createSchema);
     if (!body.ok) return body.response;
 
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const identity = getIdentityHeaders(req);
@@ -119,7 +119,7 @@ export async function PATCH(req) {
     const body = await validateJsonBody(req, patchSchema);
     if (!body.ok) return body.response;
 
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const { id, ...updates } = body.data;
@@ -146,7 +146,7 @@ export async function DELETE(req) {
     const body = await validateJsonBody(req, deleteSchema);
     if (!body.ok) return body.response;
 
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const identQuery = identityQuery(ident.data);

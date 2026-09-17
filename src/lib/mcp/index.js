@@ -253,8 +253,9 @@ function errorFromResult(result, tool) {
 /**
  * @param {"web"|"news"} kind
  * @param {string} query
- * @param {{ maxResults?: number, recencyDays?: number, timeoutMs?: number,
+ * @param {{ maxResults?: number, recencyDays?: number|null, timeoutMs?: number,
  *   country?: string, language?: string }} [opts]
+ *   recencyDays: null searches without any recency filter.
  *   country: ISO 3166-1 alpha-2 code; language: ISO 639-1 code. Each is sent
  *   only when the tool declares a matching parameter, in the form it accepts.
  */

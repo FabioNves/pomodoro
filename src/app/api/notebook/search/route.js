@@ -13,7 +13,7 @@ const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // Full-text search over note titles, subjects and tab contents. Returns note
 // summaries plus a snippet around the first match.
 export async function GET(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const query = validateSearchParams(req, z.object({ q: z.string().trim().min(1).max(80) }));
   if (!query.ok) return query.response;

@@ -14,6 +14,8 @@ import WeekCalendar from "@/components/weekplan/WeekCalendar";
 import Dropdown from "@/components/ui/Dropdown";
 import { useWeekPlanTasks } from "@/hooks/useWeekPlanTasks";
 import { apiJson } from "@/utils/apiClient";
+import { useTimerControls } from "@/components/timer/TimerProvider";
+import { notebookApi } from "@/lib/notebook/client";
 import { COLOR_PALETTES } from "@/lib/habitPalettes";
 import { projectOptions, getProjectColorMeta } from "@/lib/projectColors";
 import {
@@ -24,10 +26,7 @@ import {
 } from "@/lib/weekPlanView";
 import { getWeekStartOf, dayIndexOf, weekLabel } from "@/utils/timeUtils";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
-import {
-  requestNotificationPermission,
-  showNotification,
-} from "@/utils/notifications";
+import { requestNotificationPermission } from "@/utils/notifications";
 
 // Where each dashboard section sends the user.
 const ROUTES = {
@@ -36,8 +35,9 @@ const ROUTES = {
   tasks: "/planner?tab=tasks",
   calendar: "/planner?tab=calendar",
   schedule: "/planner?tab=schedule",
-  habits: "/planner?tab=habits",
-  routines: "/planner?tab=routines",
+  habits: "/planner?tab=routines&view=habits",
+  routines: "/planner?tab=routines&view=cycles",
+  quotes: "/notebook?view=quotes",
 };
 
 function loadActiveProject() {
@@ -51,15 +51,13 @@ function loadActiveProject() {
   }
 }
 
-// Sessions need a label; a project is optional so unassigned work still saves.
-const NO_PROJECT_LABEL = "Unassigned";
-
 // Today plus the next two days, when the calendar card is widened.
 const CALENDAR_EXPANDED_DAYS = 3;
 const CALENDAR_WIDTH_KEY = "dashboardCalendarExpanded";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { setSessionContext, completedAt } = useTimerControls();
   const [user, setUser] = useState(null);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -70,6 +68,9 @@ export default function DashboardPage() {
   const [weekPlans, setWeekPlans] = useState([]);
   const [routineTasks, setRoutineTasks] = useState([]);
   const [sessions, setSessions] = useState([]);
+  // Quotes for the slot machine on the dashboard. They need the session
+  // token, so they come through notebookApi, not apiJson.
+  const [quotes, setQuotes] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   // Same persisted selection the timer page uses, so both stay in sync.
@@ -161,6 +162,9 @@ export default function DashboardPage() {
       if (cancelled) return;
       setRoutineTasks(routines.flat());
       setLoaded(true);
+      notebookApi("/api/notebook/quotes?scope=active")
+        .then((data) => !cancelled && setQuotes(data.quotes || []))
+        .catch(() => {});
     })();
     return () => {
       cancelled = true;
@@ -222,35 +226,20 @@ export default function DashboardPage() {
     } catch {}
   };
 
-  const handleSessionCompletion = useCallback(
-    async (focus, brk) => {
-      const label = activeProject.title || NO_PROJECT_LABEL;
-      try {
-        await apiJson("/api/sessions", {
-          method: "POST",
-          body: JSON.stringify({
-            focusTime: focus,
-            breakTime: brk,
-            currentProject: { title: label },
-            tasks: activeTask
-              ? [{ task: activeTask, completed: false, brand: { title: label } }]
-              : [],
-          }),
-        });
-        const on = activeTask ? `${activeTask} · ${label}` : label;
-        toast.success(`Saved a ${focus}-minute session on ${on}.`);
-        showNotification("🎯 Session Completed!", {
-          body: `Great work! You completed a ${focus}-minute focus session on ${on}.`,
-          icon: "/favicon.ico",
-        });
-        refreshSessions();
-      } catch (e) {
-        console.error("Error saving session", e);
-        toast.error("Could not save the session.");
-      }
-    },
-    [activeProject, activeTask, refreshSessions],
-  );
+  // The countdown runs in the provider mounted in the root layout, so it
+  // keeps going on any page. This only says what the session is about and
+  // refreshes the lists once one is saved.
+  useEffect(() => {
+    setSessionContext({
+      projectId: activeProject.projectId,
+      title: activeProject.title,
+      tasks: activeTask ? [{ task: activeTask, completed: false }] : [],
+    });
+  }, [activeProject, activeTask, setSessionContext]);
+
+  useEffect(() => {
+    if (completedAt) refreshSessions();
+  }, [completedAt, refreshSessions]);
 
   const navigate = useCallback(
     (key) => router.push(ROUTES[key] || "/planner"),
@@ -325,8 +314,6 @@ export default function DashboardPage() {
 
   const timerSlot = (
     <TimerControls
-      handleSessionCompletion={handleSessionCompletion}
-      showNotification={showNotification}
       extra={projectPicker}
     />
   );
@@ -404,6 +391,7 @@ export default function DashboardPage() {
           weekPlan={weekPlan}
           routineTasks={routineTasks}
           sessions={sessions}
+          quotes={quotes}
           palettes={COLOR_PALETTES}
           timerSlot={timerSlot}
           todaySlot={todaySlot}

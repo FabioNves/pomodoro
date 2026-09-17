@@ -3,7 +3,10 @@
 // anywhere but api.openai.com (or OPENAI_BASE_URL).
 //
 // Deliberately a small fetch wrapper rather than the SDK: one endpoint, one
-// response shape, explicit retries and timeouts.
+// response shape, explicit retries and timeouts. Every completed call is
+// counted, with its token usage, for the admin usage page.
+
+import { recordExternalCall } from "@/lib/usage/track";
 
 export class AiError extends Error {
   /**
@@ -12,12 +15,14 @@ export class AiError extends Error {
    *   code: not_configured | rate_limited | timeout | api_error | refusal |
    *         invalid_json | truncated
    */
-  constructor(message, { code = "api_error", status, cause } = {}) {
+  constructor(message, { code = "api_error", status, cause, retryAfter = 0 } = {}) {
     super(message);
     this.name = "AiError";
     this.code = code;
     this.status = status;
     this.cause = cause;
+    // Seconds the provider asked us to wait, when it said so.
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -145,7 +150,7 @@ export async function chatJson({
       const retryAfter = Number(res.headers.get("retry-after")) || 0;
       lastError = new AiError(
         `OpenAI ${res.status === 429 ? "rate limit" : "server error"} (${res.status}): ${json?.error?.message || text.slice(0, 200)}`,
-        { code: res.status === 429 ? "rate_limited" : "api_error", status: res.status },
+        { code: res.status === 429 ? "rate_limited" : "api_error", status: res.status, retryAfter },
       );
       const backoff = Math.min(20000, (retryAfter || 2 ** attempt) * 1000);
       if (canRetry(attempt, backoff)) {
@@ -155,11 +160,14 @@ export async function chatJson({
       throw lastError;
     }
     if (!res.ok) {
+      recordExternalCall({ provider: "openai", model, usage: null, ok: false });
       throw new AiError(`OpenAI error (${res.status}): ${json?.error?.message || text.slice(0, 300)}`, {
         code: res.status === 401 || res.status === 403 ? "auth" : "api_error",
         status: res.status,
       });
     }
+
+    recordExternalCall({ provider: "openai", model: json?.model || model, usage: json?.usage || null, ok: true });
 
     const choice = json?.choices?.[0];
     const message = choice?.message;

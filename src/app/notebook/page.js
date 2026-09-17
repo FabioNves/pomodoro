@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import Navbar from "@/components/Navbar";
 import NotebookApp from "@/components/notebook/NotebookApp";
+import { LockedScreen } from "@/components/access/Gate";
 
 export default function NotebookPage() {
   const [user, setUser] = useState(null);
@@ -50,7 +51,9 @@ export default function NotebookPage() {
             <div className="w-full max-w-7xl mx-auto px-4 text-sm text-fg-muted">Loading…</div>
           }
         >
-          <NotebookApp />
+          <LockedScreen feature="notebook" title="Notebook" description="Notes with tabs, folders, saved views, quotes and the Brain graph.">
+            <NotebookApp />
+          </LockedScreen>
         </Suspense>
       </main>
     </div>

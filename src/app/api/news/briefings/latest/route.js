@@ -10,7 +10,7 @@ import { loadBriefingDto } from "@/app/api/news/briefings/route";
 // The newest briefing of that kind (generating, ready, empty or failed), so
 // the dashboard can show progress and errors as well as content.
 export async function GET(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
 
   // `kinds` takes a comma-separated list so the dashboard's Daily view can

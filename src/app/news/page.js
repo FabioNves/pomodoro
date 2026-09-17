@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import Navbar from "@/components/Navbar";
 import NewsDashboard from "@/components/news/NewsDashboard";
+import { LockedScreen } from "@/components/access/Gate";
 
 export default function NewsPage() {
   const [user, setUser] = useState(null);
@@ -45,7 +46,13 @@ export default function NewsPage() {
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pb-8">
         <Suspense fallback={<div className="container mx-auto px-4 max-w-4xl text-sm text-fg-muted">Loading…</div>}>
-          <NewsDashboard />
+          <LockedScreen
+            feature="news_briefing"
+            title="News briefing"
+            description="Real stories retrieved from the web through MCP, ranked and summarised for your topics."
+          >
+            <NewsDashboard />
+          </LockedScreen>
         </Suspense>
       </main>
     </div>

@@ -34,7 +34,7 @@ async function claimAskSlot(userId) {
 // Answers from the story's sources, running extra MCP searches when the
 // question needs context the sources do not contain.
 export async function POST(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req, { feature: "news_ask" });
   if (!auth.ok) return auth.response;
 
   const body = await validateJsonBody(

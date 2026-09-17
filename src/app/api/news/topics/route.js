@@ -20,7 +20,7 @@ const editionKeys = z.array(z.string().trim().min(1).max(40)).max(MAX_EDITIONS);
 
 // GET /api/news/topics
 export async function GET(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
   try {
     await connectToDB();
@@ -34,7 +34,7 @@ export async function GET(req) {
 
 // POST /api/news/topics  { name, source?: "manual" | "story", editions?: string[] }
 export async function POST(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(
     req,
@@ -63,7 +63,7 @@ export async function POST(req) {
 // PATCH /api/news/topics  { id, editions }
 // Which editions a topic is followed in; an empty list means all of them.
 export async function PATCH(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(req, z.object({ id: objectId, editions: editionKeys }));
   if (!body.ok) return body.response;
@@ -81,7 +81,7 @@ export async function PATCH(req) {
 
 // DELETE /api/news/topics  { id } or { name }
 export async function DELETE(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(
     req,

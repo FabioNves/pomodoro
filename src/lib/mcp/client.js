@@ -11,6 +11,7 @@ import {
   describeMcpTarget,
   mcpConfigKey,
 } from "@/lib/mcp/config";
+import { recordExternalCall } from "@/lib/usage/track";
 
 export class McpError extends Error {
   /**
@@ -294,7 +295,9 @@ export async function callTool(name, args = {}, { timeoutMs, server } = {}) {
         undefined,
         { timeout, resetTimeoutOnProgress: true },
       );
+      recordExternalCall({ provider: "mcp", model: `${config.name || server || "default"}/${name}`, ok: true });
     } catch (error) {
+      recordExternalCall({ provider: "mcp", model: `${config.name || server || "default"}/${name}`, ok: false });
       const message = error?.message || String(error);
       if (/timed? ?out/i.test(message) || error?.code === -32001) {
         throw new McpError(`MCP tool "${name}" timed out after ${timeout} ms`, {

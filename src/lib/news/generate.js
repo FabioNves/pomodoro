@@ -21,6 +21,7 @@
 // chain that breaks is picked up again by the dashboard or the cron.
 
 import { timingSafeEqual } from "node:crypto";
+import { withUsageContext } from "@/lib/usage/track";
 import { connectToDB } from "@/lib/db";
 import Briefing from "@/models/Briefing";
 import BriefingStory from "@/models/BriefingStory";
@@ -802,12 +803,14 @@ export async function runNextEdition(briefingId, { log = defaultLog, budgetMs, c
     if (!claim) break;
     if (!context) context = await loadRunContext(claim.briefing);
 
-    const outcome = await runEdition(claim.briefing, claim.key, {
-      ...context,
-      log,
-      deadlineAt: hardStop,
-      editionCount: claim.briefing.editions.length,
-    });
+    const outcome = await withUsageContext({ userId: String(claim.briefing.user), feature: "news_briefing" }, () =>
+      runEdition(claim.briefing, claim.key, {
+        ...context,
+        log,
+        deadlineAt: hardStop,
+        editionCount: claim.briefing.editions.length,
+      }),
+    );
     ran += 1;
 
     if (outcome?.status === "failed" && RUN_FATAL_CODES.has(outcome.errorCode)) {

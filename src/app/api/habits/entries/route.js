@@ -41,7 +41,7 @@ const upsertEntrySchema = z.object({
 // GET /api/habits/entries?habitId=...&year=...
 export async function GET(req) {
   try {
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     const queryValidation = validateSearchParams(req, getEntriesSchema);
@@ -77,7 +77,7 @@ export async function PUT(req) {
     const body = await validateJsonBody(req, upsertEntrySchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const identity = getIdentityHeaders(req);

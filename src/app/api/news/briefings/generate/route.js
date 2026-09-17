@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 // editionKeys limits the run to those editions of the kind, so a reader can
 // refresh one region without rebuilding the rest.
 export async function POST(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
 
   const body = await validateJsonBody(

@@ -22,7 +22,7 @@ import {
 } from "./text";
 import { orderedTabs, tabLevel, tabSubtreeHeight, MAX_TAB_LEVELS } from "./tree";
 
-export const SIGN_IN = { signInMessage: "Sign in to use the notebook." };
+export const SIGN_IN = { signInMessage: "Sign in to use the notebook.", feature: "notebook" };
 
 export const LIMITS = {
   tabs: 60,

@@ -38,6 +38,8 @@ import SuggestDialog from "@/components/planner/SuggestDialog";
 import ProjectPageView from "@/components/planner/ProjectPageView";
 import TimelineView from "@/components/planner/TimelineView";
 import { compareMilestones, idOf } from "@/lib/milestones";
+import { LockedScreen } from "@/components/access/Gate";
+import { useAccess } from "@/lib/access/client";
 
 /* ╔══════════════════════════════════════════════════════╗
    ║  Shared icons                                        ║
@@ -343,7 +345,7 @@ function ProjectColumn({
 
             <div className="px-2 pb-3">
               <Link
-                href={`/planner?tab=routines`}
+                href={`/planner?tab=routines&view=cycles`}
                 onClick={(e) => {
                   e.preventDefault();
                   if (typeof window !== "undefined") {
@@ -369,7 +371,7 @@ function ProjectColumn({
                     d="M4 6h16M4 12h16M4 18h7"
                   />
                 </svg>
-                Routine Tasks
+                Cycles
               </Link>
             </div>
           </div>
@@ -1173,14 +1175,27 @@ function EditWeekModal({ weekPlan, projects, onSave, onCancel }) {
    ║  Tab pills                                           ║
    ╚══════════════════════════════════════════════════════╝ */
 
+// Habits and cycles are both things that come round again, so they share the
+// Routines section with a view switch inside it. A cycle is a recurring task;
+// the model behind it is still RoutineTask.
 const TABS = [
   { key: "tasks", label: "Tasks" },
   { key: "calendar", label: "Calendar" },
   { key: "schedule", label: "Schedule" },
-  { key: "habits", label: "Habits" },
   { key: "routines", label: "Routines" },
 ];
 const DEFAULT_TAB = "tasks";
+
+const ROUTINE_VIEWS = [
+  { key: "habits", label: "Habits", hint: "Daily habits and their streaks" },
+  { key: "cycles", label: "Cycles", hint: "Tasks that repeat on a schedule" },
+];
+const DEFAULT_ROUTINE_VIEW = "habits";
+// Older links: habits had its own tab, and the section was called Rituals for
+// a while. A bare ?tab=routines is the section itself now, so it opens on
+// Habits rather than on what used to live there.
+const LEGACY_TABS = { habits: { tab: "routines", view: "habits" }, rituals: { tab: "routines" } };
+const LEGACY_VIEWS = { routines: "cycles" };
 
 const TASK_VIEWS = [
   { key: "board", label: "Board", hint: "Every project as a column" },
@@ -1189,41 +1204,19 @@ const TASK_VIEWS = [
 ];
 const DEFAULT_TASK_VIEW = "board";
 
-function PlannerTabs({ active, onChange }) {
-  return (
-    <div className="px-4 pt-3 pb-3 flex md:justify-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="inline-flex shrink-0 gap-1 p-1 rounded-xl bg-surface border border-edge">
-        {TABS.map((t) => {
-          const isActive = active === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => onChange(t.key)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-primary-soft text-primary"
-                  : "text-fg-muted hover:bg-surface-hover"
-              }`}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 /* ╔══════════════════════════════════════════════════════╗
    ║  Page (inner — uses useSearchParams)                 ║
    ╚══════════════════════════════════════════════════════╝ */
 
 function PlannerPageInner() {
+  const access = useAccess();
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const activeTab = TABS.some((t) => t.key === tabParam)
+  const legacy = LEGACY_TABS[tabParam];
+  const activeTab = legacy
+    ? legacy.tab
+    : TABS.some((t) => t.key === tabParam)
     ? tabParam
     : DEFAULT_TAB;
 
@@ -1244,6 +1237,21 @@ function PlannerPageInner() {
     ? viewParam
     : DEFAULT_TASK_VIEW;
   const selectedProjectId = searchParams.get("project");
+
+  // Routines views: habits or cycles, kept in the same ?view= as the Tasks
+  // tab (only one section is open at a time).
+  const namedView = LEGACY_VIEWS[viewParam] || viewParam;
+  const routinesView =
+    legacy?.view || (ROUTINE_VIEWS.some((v) => v.key === namedView) ? namedView : DEFAULT_ROUTINE_VIEW);
+  const setRoutinesView = useCallback(
+    (view) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "routines");
+      params.set("view", view);
+      router.replace(`/planner?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
   const setTasksView = useCallback(
     (view, projectId) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -1462,12 +1470,12 @@ function PlannerPageInner() {
     const handler = (e) => {
       const pid = e?.detail?.projectId;
       if (pid) setSelectedRoutineProjectId(pid);
-      setTab("routines");
+      setRoutinesView("cycles");
     };
     window.addEventListener("planner:open-routines", handler);
     return () =>
       window.removeEventListener("planner:open-routines", handler);
-  }, [setTab]);
+  }, [setRoutinesView]);
 
   const selectedWeekPlan = weekPlans.find((w) => w._id === selectedWeekPlanId);
 
@@ -2645,7 +2653,7 @@ function PlannerPageInner() {
 
   /* ── Routines tab renderers ────────────────────────── */
 
-  const renderRoutinesSidebar = () => (
+  const renderCyclesSidebar = () => (
     <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3 overflow-hidden">
       <div className="px-2 py-2 font-semibold text-fg">
         Projects
@@ -2680,7 +2688,7 @@ function PlannerPageInner() {
     </div>
   );
 
-  const renderRoutinesMain = () => {
+  const renderCyclesMain = () => {
     const proj = projects.find((p) => p._id === selectedRoutineProjectId);
     return (
       <div className="h-full overflow-y-auto p-4 md:p-6">
@@ -2765,7 +2773,7 @@ function PlannerPageInner() {
   const renderScheduleSidebar = () => (
     <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3 overflow-hidden">
       <div className="px-2 py-2 font-semibold text-fg">
-        Weekly Routines
+        Weeks
       </div>
       <WeekPicker
         weekPlans={weekPlans}
@@ -3184,8 +3192,7 @@ function PlannerPageInner() {
     </div>
   );
 
-  // Calendar tab: the tab strip is hidden, so the sidebar carries the
-  // section navigation above the week list.
+  // The sidebar carries the section navigation on every tab.
   const renderSectionNav = () => (
     <nav
       className="bg-surface border border-edge rounded-2xl shadow-sm p-2 space-y-0.5"
@@ -3215,10 +3222,49 @@ function PlannerPageInner() {
     </nav>
   );
 
-  const renderCalendarSidebar = () => (
+  const renderRoutinesViewSwitcher = () => (
+    <div className="flex items-center gap-2 px-4 pt-3 md:pr-8">
+      <div
+        className="inline-flex gap-0.5 p-0.5 rounded-lg bg-surface border border-edge"
+        role="tablist"
+        aria-label="Routines view"
+      >
+        {ROUTINE_VIEWS.map((v) => {
+          const isActive = routinesView === v.key;
+          return (
+            <button
+              key={v.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              title={v.hint}
+              onClick={() => setRoutinesView(v.key)}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                isActive ? "bg-primary-soft text-primary" : "text-fg-muted hover:bg-surface-hover"
+              }`}
+            >
+              {v.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const renderRoutinesMain = () => (
+    <div className="h-full flex flex-col">
+      {renderRoutinesViewSwitcher()}
+      <div className="flex-1 min-h-0">
+        {routinesView === "cycles" ? renderCyclesMain() : renderHabitsMain()}
+      </div>
+    </div>
+  );
+
+  /** Whatever the tab needs, under the list of sections. */
+  const withSections = (content) => (
     <div className="space-y-3">
       {renderSectionNav()}
-      {renderScheduleSidebar()}
+      {content}
     </div>
   );
 
@@ -3235,7 +3281,7 @@ function PlannerPageInner() {
         <div className="md:hidden">
           <div className="bg-surface border border-edge rounded-2xl shadow-sm p-3">
             <div className="px-2 py-2 font-semibold text-fg">
-              Weekly Routines
+              Weeks
             </div>
             <WeekPicker
               weekPlans={weekPlans}
@@ -3296,8 +3342,8 @@ function PlannerPageInner() {
         <div className="hidden md:flex flex-col items-center justify-center h-full text-fg-subtle">
           <p className="text-lg">
             {weekPlans.length
-              ? "Select a weekly routine"
-              : "Create a weekly routine to get started"}
+              ? "Select a week"
+              : "Create a week plan to get started"}
           </p>
         </div>
       )}
@@ -3309,43 +3355,66 @@ function PlannerPageInner() {
      ╚════════════════════════════════════════════════════╝ */
 
   // Calendar and Schedule share the week-plan sidebar.
-  const sidebar =
-    activeTab === "tasks"
+  // Habits and cycles are features of their own; the rest is the planner.
+  const tabFeature = activeTab === "routines" ? (routinesView === "cycles" ? "routines" : "habits") : "planner";
+  const tabVerdict = access.feature(tabFeature);
+  const tabLocked = Boolean(tabVerdict && !tabVerdict.allowed);
+
+  const sectionBody = tabLocked
+    ? null
+    : activeTab === "tasks"
       ? renderTasksSidebar()
       : activeTab === "routines"
-        ? renderRoutinesSidebar()
-        : activeTab === "habits"
-          ? renderHabitsSidebar()
-          : activeTab === "calendar"
-            ? renderCalendarSidebar()
-            : renderScheduleSidebar();
+        ? routinesView === "cycles"
+          ? renderCyclesSidebar()
+          : renderHabitsSidebar()
+        : renderScheduleSidebar();
+  // The sections are always there, even where the tab itself is locked.
+  const sidebar = withSections(sectionBody);
 
-  const main =
-    activeTab === "tasks"
+  const TAB_TITLES = { tasks: "Planner", calendar: "Calendar", schedule: "Schedule", routines: "Routines" };
+  const main = tabLocked
+    ? (
+        <div className="h-full overflow-y-auto pt-4">
+          <LockedScreen feature={tabFeature} title={TAB_TITLES[activeTab] || "Planner"} />
+        </div>
+      )
+    : activeTab === "tasks"
       ? renderTasksMain()
       : activeTab === "routines"
         ? renderRoutinesMain()
-        : activeTab === "habits"
-          ? renderHabitsMain()
-          : activeTab === "calendar"
-            ? renderScheduleMain("calendar")
-            : renderScheduleMain("list");
+        : activeTab === "calendar"
+          ? renderScheduleMain("calendar")
+          : renderScheduleMain("list");
 
   return (
     <div className="w-screen min-h-screen transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
 
-      {/* The calendar hides the tab strip (it moves into the sidebar) to give
-          the hour grid as much height as possible. */}
+      {/* Phones have no room for the sidebar, so the section it is on and the
+          way to the others sit above the content. The calendar has its own
+          button for the same drawer. */}
       {activeTab !== "calendar" ? (
-        <PlannerTabs active={activeTab} onChange={setTab} />
+        <div className="md:hidden px-4 pt-2 pb-1">
+          <button
+            type="button"
+            onClick={() => setMobileSidebarOpen(true)}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-edge text-sm font-medium text-fg"
+            aria-label="Planner sections"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            {TABS.find((t) => t.key === activeTab)?.label || "Planner"}
+          </button>
+        </div>
       ) : null}
 
       <div
         className={`w-full flex flex-col md:flex-row md:px-6 ${
           activeTab === "calendar"
             ? "h-[calc(100vh-10rem)] md:h-[calc(100vh-5.5rem)] pt-1"
-            : "h-[calc(100vh-13rem)] md:h-[calc(100vh-7.75rem)]"
+            : "h-[calc(100vh-13rem)] md:h-[calc(100vh-5.5rem)]"
         }`}
       >
         {/* Sidebar (desktop only) */}
@@ -3390,7 +3459,7 @@ function PlannerPageInner() {
               role="dialog"
               aria-label="Weeks and sections"
             >
-              {renderCalendarSidebar()}
+              {sidebar}
             </motion.div>
           </motion.div>
         ) : null}

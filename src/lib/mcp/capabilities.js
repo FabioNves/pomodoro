@@ -220,8 +220,12 @@ export function buildSearchArgs(cap, { query, maxResults = 10, recencyDays = 7, 
   if (countKey) args[countKey] = clampToSchema(props[countKey], Math.round(maxResults));
 
   // Recency. Prefer explicit range enums; fall back to day counts / dates.
-  const days = Math.max(1, Math.round(recencyDays));
-  if (props.time_range) {
+  // A null window means "any time": nothing recency-related is sent, so
+  // evergreen searches (quotations, reference pages) are not cut to a year.
+  const days = recencyDays == null ? null : Math.max(1, Math.round(recencyDays));
+  if (days == null) {
+    /* no recency filter */
+  } else if (props.time_range) {
     const wanted = days <= 1 ? "day" : days <= 7 ? "week" : days <= 31 ? "month" : "year";
     const value = pickEnum(props.time_range, [wanted, wanted[0]]);
     if (value) args.time_range = value;

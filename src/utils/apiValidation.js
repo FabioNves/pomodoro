@@ -95,7 +95,12 @@ export function getIdentityHeaders(req) {
   };
 }
 
-export function validateIdentityHeaders(req) {
+/**
+ * Validate the planner identity headers and check that the identity's plan
+ * includes the feature behind the route (src/lib/access/server.js). A
+ * locked feature answers 403 with { code: "feature_locked", feature }.
+ */
+export async function validateIdentityHeaders(req, { feature } = {}) {
   const headers = getIdentityHeaders(req);
   const result = identityHeadersSchema.safeParse(headers);
   if (!result.success) {
@@ -104,6 +109,10 @@ export function validateIdentityHeaders(req) {
       response: jsonError(401, "Missing user-id or session-id"),
     };
   }
+
+  const { gateIdentity } = await import("@/lib/access/server");
+  const denied = await gateIdentity(req, { userId: result.data.userId, features: feature });
+  if (denied) return { ok: false, response: denied };
 
   return { ok: true, data: result.data };
 }

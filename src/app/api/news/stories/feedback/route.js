@@ -10,7 +10,7 @@ const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid id");
 // POST /api/news/stories/feedback  { storyId, value: relevant | not_relevant |
 //   interesting | not_interested | null }   (null clears the verdict)
 export async function POST(req) {
-  const auth = requireUser(req);
+  const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
 
   const body = await validateJsonBody(

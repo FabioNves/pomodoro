@@ -53,7 +53,7 @@ export async function PATCH(req) {
     const body = await validateJsonBody(req, reorderSchema);
     if (!body.ok) return body.response;
 
-    const identityValidation = validateIdentityHeaders(req);
+    const identityValidation = await validateIdentityHeaders(req);
     if (!identityValidation.ok) return identityValidation.response;
 
     const { updates } = body.data;

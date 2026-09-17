@@ -5,6 +5,7 @@ import { validateJsonBody, jsonError } from "@/utils/apiValidation";
 import {
   issueHandoffCode,
   issueSessionToken,
+  markSignedIn,
   publicUser,
 } from "@/lib/authTokens";
 
@@ -86,6 +87,8 @@ export async function POST(req) {
     if (handoff) {
       return Response.json({ handoffCode: issueHandoffCode(user) });
     }
+
+    await markSignedIn(user._id);
 
     return Response.json({
       token: issueSessionToken(user),

@@ -34,7 +34,7 @@ export async function POST(req) {
     const body = await validateJsonBody(req, moveSchema);
     if (!body.ok) return body.response;
 
-    const ident = validateIdentityHeaders(req);
+    const ident = await validateIdentityHeaders(req);
     if (!ident.ok) return ident.response;
 
     await connectToDB();

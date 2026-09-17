@@ -414,6 +414,8 @@ export default function NewsDashboard() {
   const followedTopics = new Set(topics.map((t) => t.name.toLowerCase()));
   const mcpProblem = status?.mcp && !status.mcp.connected;
   const aiProblem = status?.ai && !status.ai.configured;
+  // Non-admin readers only learn whether briefings can run, not why.
+  const unavailable = Boolean(status) && status.available === false;
   const kindEditions = editionsForKind(preferences?.editions, kind);
 
   return (
@@ -476,16 +478,19 @@ export default function NewsDashboard() {
         })}
       </div>
 
-      {(mcpProblem || aiProblem) && tab !== "settings" ? (
+      {(mcpProblem || aiProblem || unavailable) && tab !== "settings" ? (
         <div className="mb-4">
           <Banner
             tone="warning"
             action={
-              <ActionButton size="sm" onClick={() => setParams({ tab: "settings" })}>
-                Open settings
-              </ActionButton>
+              unavailable ? null : (
+                <ActionButton size="sm" onClick={() => setParams({ tab: "settings" })}>
+                  Open settings
+                </ActionButton>
+              )
             }
           >
+            {unavailable ? "Briefings cannot be generated right now. Please try again later." : ""}
             {mcpProblem ? "The MCP server is not reachable, so briefings cannot retrieve news. " : ""}
             {aiProblem ? "OPENAI_API_KEY is not configured on the server." : ""}
           </Banner>

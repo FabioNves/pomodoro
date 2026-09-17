@@ -1,6 +1,7 @@
 // Server-side token helpers shared by the auth routes.
 
 import jwt from "jsonwebtoken";
+import User from "@/models/User";
 
 const SESSION_TTL = "7d";
 const HANDOFF_TTL = "2m";
@@ -59,4 +60,14 @@ export function verifyHandoffCode(code) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Record a sign-in. Also clears a session revocation: tokens issued from
+ * now on carry a later iat than sessionsRevokedAt and pass the check in
+ * src/lib/sessionAuth.js, so the timestamp only needs to stay for history.
+ */
+export async function markSignedIn(userId) {
+  const now = new Date();
+  await User.updateOne({ _id: userId }, { $set: { lastSignInAt: now, lastActiveAt: now } });
 }

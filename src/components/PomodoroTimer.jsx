@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import TimerControls from "./TimerControls";
+import { useTimerControls } from "@/components/timer/TimerProvider";
 import SessionTasks from "./SessionTasks";
 import CompletedSessions from "./CompletedSessions";
 import TodoList from "./TodoList";
@@ -10,7 +11,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 
-const PomodoroTimer = ({ showNotification }) => {
+const PomodoroTimer = () => {
+  // The countdown itself runs in the provider mounted in the root layout, so
+  // it keeps going when the user leaves this page. All this screen does is
+  // tell it what the session is about and react when one is saved.
+  const { setSessionContext, completedAt } = useTimerControls();
   const [user, setUser] = useState(null);
   const [hasMounted, setHasMounted] = useState(false);
   const [todoInput, setTodoInput] = useState("");
@@ -65,29 +70,39 @@ const PomodoroTimer = ({ showNotification }) => {
     }
   }, []);
 
+  const refreshSessions = useCallback(async () => {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+    try {
+      const response = await fetch("/api/sessions", { headers: { "user-id": userId } });
+      if (response.ok) setSessions(await response.json());
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError("Could not load data");
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
+    refreshSessions();
+  }, [user, refreshSessions]);
 
-    const fetchData = async () => {
-      const userId = user?.userId || localStorage.getItem("userId");
+  // The provider saved a session, from this page or another one.
+  useEffect(() => {
+    if (!completedAt) return;
+    setTasks((prev) => prev.filter((t) => !t.completed));
+    refreshSessions();
+  }, [completedAt, refreshSessions]);
 
-      try {
-        // Fetch sessions
-        const sessionsResponse = await fetch("/api/sessions", {
-          headers: { "user-id": userId },
-        });
-        if (sessionsResponse.ok) {
-          const sessionsData = await sessionsResponse.json();
-          setSessions(sessionsData);
-        }
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        setError("Could not load data");
-      }
-    };
-
-    fetchData();
-  }, [user]);
+  // What the provider saves the session against, kept current while this
+  // page is open.
+  useEffect(() => {
+    setSessionContext({
+      projectId: activeProject.projectId,
+      title: activeProject.title,
+      tasks: tasks.map((t) => ({ task: t.task || "", completed: Boolean(t.completed) })),
+    });
+  }, [activeProject, tasks, setSessionContext]);
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
@@ -140,71 +155,6 @@ const PomodoroTimer = ({ showNotification }) => {
     }
   };
 
-  const handleSessionCompletion = useCallback(
-    async (focus, brk) => {
-      const userId = user?.userId || localStorage.getItem("userId");
-
-      // If no active project is set, prompt user to select one
-      if (!activeProject.title) {
-        alert("Please select a project first.");
-        return;
-      }
-
-      const sessionData = {
-        focusTime: focus,
-        breakTime: brk,
-        currentProject: activeProject, // Save the active project
-        tasks: tasks.map((task) => ({
-          task: task.task || "", // Optional task description
-          completed: task.completed || false,
-          brand: {
-            title: activeProject.title, // Use active project
-          },
-        })),
-      };
-
-      try {
-        const response = await fetch("/api/sessions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "user-id": userId,
-          },
-          body: JSON.stringify(sessionData),
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to save session");
-        }
-
-        console.log("Session saved successfully");
-
-        // Keep uncompleted tasks, remove only completed ones
-        const uncompletedTasks = tasks.filter((task) => !task.completed);
-        setTasks(uncompletedTasks);
-
-        if (showNotification) {
-          showNotification("🎯 Session Completed!", {
-            body: `Great work! You completed a ${focus}-minute focus session on ${activeProject.title}.`,
-            icon: "/favicon.ico",
-          });
-        }
-
-        // Refresh sessions after completion
-        const refreshResponse = await fetch("/api/sessions", {
-          headers: { "user-id": userId },
-        });
-        if (refreshResponse.ok) {
-          const updatedSessions = await refreshResponse.json();
-          setSessions(updatedSessions);
-        }
-      } catch (error) {
-        console.error("Error saving session", error);
-      }
-    },
-    [tasks, user, showNotification, activeProject]
-  );
-
   if (!hasMounted) return null;
 
   return (
@@ -245,11 +195,7 @@ const PomodoroTimer = ({ showNotification }) => {
             >
               {/* Timer Section */}
               <div className="bg-surface/80 rounded-xl p-6 backdrop-blur-sm border border-edge transition-colors duration-300">
-                <TimerControls
-                  handleSessionCompletion={handleSessionCompletion}
-                  showNotification={showNotification}
-                  activeProject={activeProject}
-                />
+                <TimerControls />
               </div>
               {/* Active Project Banner */}
               {/* <motion.div

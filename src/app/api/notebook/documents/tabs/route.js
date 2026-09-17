@@ -28,7 +28,7 @@ async function loadDoc(userId, docId) {
 
 // POST /api/notebook/documents/tabs  { docId, title?, parent? }
 export async function POST(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(
     req,
@@ -66,7 +66,7 @@ export async function POST(req) {
 // note's refreshed summary only. Structural changes (title, parent, order)
 // also return the whole note.
 export async function PATCH(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(
     req,
@@ -123,7 +123,7 @@ export async function PATCH(req) {
 
 // DELETE /api/notebook/documents/tabs  { docId, tabId }  — removes the tab and its subtabs.
 export async function DELETE(req) {
-  const auth = requireUser(req, SIGN_IN);
+  const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   const body = await validateJsonBody(req, z.object({ docId: objectId, tabId: objectId }));
   if (!body.ok) return body.response;
