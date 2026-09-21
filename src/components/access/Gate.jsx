@@ -2,10 +2,14 @@
 
 // Locked controls. A feature outside the user's plan is drawn, not hidden:
 // greyed out, not interactive, with a small lock that links to /pricing.
-// Nothing here stops a request; the API answers 403 on its own.
+// The one exception is a feature in no plan at all, which only the admin
+// has (isAdminOnly in src/lib/access/features.js): everyone else gets
+// nothing, and a whole screen of it is the app's 404, as /admin is.
+// Nothing here stops a request; the API answers 403 (or 404) on its own.
 
 import React from "react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { useAccess, useFeatureGate } from "@/lib/access/client";
 
 export function IconLock({ className = "w-3 h-3" }) {
@@ -55,7 +59,8 @@ export function LockBadge({ disabled = false, label = null, className = "" }) {
  *   top-right corner over the greyed content (cards, panels)
  */
 export function Locked({ feature, children, layout = "inline", className = "", badge = true }) {
-  const { locked, disabled } = useFeatureGate(feature);
+  const { locked, disabled, hidden } = useFeatureGate(feature);
+  if (hidden) return null;
   if (!locked && !disabled) return children;
   const title = disabled ? DISABLED_TITLE : PREMIUM_TITLE;
 
@@ -90,11 +95,14 @@ export function Locked({ feature, children, layout = "inline", className = "", b
  * than the live screen (which would only fail its requests).
  */
 export function LockedScreen({ feature, title, description, children }) {
-  const { locked, disabled } = useFeatureGate(feature);
+  const { locked, disabled, hidden, known } = useFeatureGate(feature);
   const { signedIn, me, loading } = useAccess();
   // Wait for the verdict before mounting the live screen, which would
-  // otherwise start requests that a locked plan answers with 403.
-  if (signedIn && !me && loading) return null;
+  // otherwise start requests that a locked plan answers with 403. A
+  // snapshot that predates the feature has no verdict for it: wait for the
+  // fresh one too, rather than judging by the catalogue default.
+  if (signedIn && loading && (!me || !known)) return null;
+  if (hidden) notFound();
   if (!locked && !disabled) return children;
   return (
     <div className="container mx-auto px-4 pb-12 max-w-4xl">

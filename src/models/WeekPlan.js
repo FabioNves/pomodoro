@@ -22,6 +22,11 @@ const weekTaskSchema = new mongoose.Schema(
     // fall back to estimatedTime, then 60).
     startMinute: { type: Number, default: null },
     durationMinutes: { type: Number, default: null },
+    // For a task that stands for a cycle occurrence (routineTask set): the
+    // day of that occurrence, when the task was moved away from it. null =
+    // the day the task sits on. It is what stops a cycle regenerating on the
+    // day its task was moved off (see occurrencesHandled in weekPlanView.js).
+    originDay: { type: Number, default: null, min: 0, max: 6 },
   },
   { _id: true },
 );

@@ -15,10 +15,13 @@ import {
   IconPlus,
   IconCheck,
   IconDotsVertical,
-  IconNote,
   AddTaskPopover,
   TaskEditPopover,
   TaskColorLines,
+  NotesButton,
+  duplicateTaskFields,
+  projectOptionsFrom,
+  useNotesPeek,
 } from "./weekplan/WeekPlanShared";
 import WeekCalendar from "./weekplan/WeekCalendar";
 import { getProjectColorMeta } from "@/lib/projectColors";
@@ -27,6 +30,7 @@ import {
   routineOccursOn,
   virtualRoutineTask,
 } from "@/lib/routineSchedule";
+import { occurrenceKey, occurrencesHandled, occursOnFor } from "@/lib/weekPlanView";
 
 // Fallback only; day names normally come from the plan's real dates.
 const DEFAULT_DAY_NAMES = [
@@ -59,9 +63,15 @@ export default function WeeklyRoutine({
   view = "list",
   // Calendar view on phones: opens the drawer with sections + weeks.
   onOpenSidebar,
+  // Calendar view: whether the Tasks column sits beside the calendar, and
+  // how to switch it (the planner keeps it in ?view=split).
+  split,
+  onToggleSplit,
 }) {
   const [addingDay, setAddingDay] = useState(null);
   const [editingTaskKey, setEditingTaskKey] = useState(null);
+  // Notes of the task under the pointer, with a Copy button.
+  const notesPeek = useNotesPeek();
   const [dragOverCell, setDragOverCell] = useState(null);
   const addBtnRefs = useRef({});
   const editBtnRefs = useRef({});
@@ -123,6 +133,11 @@ export default function WeeklyRoutine({
       map[p._id] = getProjectColorMeta(p.headerColor).swatchClass;
     return map;
   }, [projects]);
+
+  const projectOptions = useMemo(
+    () => projectOptionsFrom(projectNameMap, projectColorMap),
+    [projectNameMap, projectColorMap],
+  );
 
   // Pending (incomplete) todo tasks, optionally scoped to a project
   const todoTasks = useMemo(
@@ -250,9 +265,11 @@ export default function WeeklyRoutine({
       }
     }
     // Inject virtual auto-scheduled routine tasks (display-only).
-    // Skip days where a real task already references the same routine task.
+    // Skip an occurrence a real task already answers for, wherever that task
+    // sits now: one moved to another day still covers the day it came from.
     // Weekday patterns, monthly rules and the active date range are all
     // decided by routineOccursOn() against the week's real dates.
+    const handled = occurrencesHandled(days, occursOnFor(routineTasks, weekPlan?.weekStart));
     for (const rt of routineTasks) {
       if (!rt.autoSchedule) continue;
       const dayIdxs = [0, 1, 2, 3, 4, 5, 6].filter((dayIdx) =>
@@ -273,17 +290,8 @@ export default function WeeklyRoutine({
         for (let d = 0; d < 7; d++) map[sectionKey][d] = [];
       }
       for (const dayIdx of dayIdxs) {
-        const arr = map[sectionKey][dayIdx];
-        const already = arr.some((t) => {
-          if (!t.routineTask) return false;
-          const id =
-            typeof t.routineTask === "object"
-              ? String(t.routineTask._id || t.routineTask)
-              : String(t.routineTask);
-          return id === String(rt._id);
-        });
-        if (already) continue;
-        arr.unshift(virtualRoutineTask(rt, dayIdx, pid));
+        if (handled.has(occurrenceKey(String(rt._id), dayIdx))) continue;
+        map[sectionKey][dayIdx].unshift(virtualRoutineTask(rt, dayIdx, pid));
       }
     }
     // Inject dated Task entries (display-only; cannot be edited or dragged here).
@@ -395,12 +403,17 @@ export default function WeeklyRoutine({
     const colors = rtId ? taskColorMap[rtId] : null;
     const editKey = `edit-${dayIdx}-${task._id}`;
     const canDrag = !task._virtual && !task.completed;
+    const when = `${dayNames[dayIdx] || ""}${
+      task.startMinute != null ? ` · ${minutesToTime(task.startMinute)}` : ""
+    }`;
 
     return (
       <div
         className={`flex items-center gap-1.5 group ${canDrag ? "cursor-grab active:cursor-grabbing" : ""}`}
         draggable={canDrag}
+        {...notesPeek.bind(task, when)}
         onDragStart={(e) => {
+          notesPeek.close();
           if (!canDrag) return;
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData(
@@ -455,19 +468,11 @@ export default function WeeklyRoutine({
                     ? "text-fg-muted italic"
                     : "text-fg"
             }`}
-            title={task.notes || task.taskName}
+            title={task.notes ? undefined : task.taskName}
           >
             {task.taskName}
           </span>
-          {task.notes ? (
-            <span
-              className="shrink-0 text-warning"
-              title={task.notes}
-              aria-label="Has notes"
-            >
-              <IconNote className="w-3 h-3" />
-            </span>
-          ) : null}
+          <NotesButton task={task} onPin={(el) => notesPeek.pin(task, el, when)} />
         </div>
         {task.startMinute != null ? (
           <span
@@ -529,6 +534,7 @@ export default function WeeklyRoutine({
                 className="opacity-0 group-hover:opacity-100 p-0.5 text-fg-subtle hover:text-primary transition-all"
                 onClick={(e) => {
                   e.stopPropagation();
+                  notesPeek.close();
                   setEditingTaskKey((cur) =>
                     cur === editKey ? null : editKey,
                   );
@@ -540,9 +546,13 @@ export default function WeeklyRoutine({
               {editingTaskKey === editKey ? (
                 <TaskEditPopover
                   task={task}
+                  projectId={task.project ? String(task.project._id || task.project) : null}
+                  inheritLabel={task.routineTask ? "Same as its cycle" : null}
+                  projectOptions={projectOptions}
                   onSave={(updates) =>
                     onUpdateTask?.(dayIdx, task._id, updates)
                   }
+                  onDuplicate={() => onAddTask?.(dayIdx, duplicateTaskFields(task))}
                   onDelete={() => onDeleteTask(dayIdx, task._id)}
                   onClose={() => setEditingTaskKey(null)}
                   anchorRef={{
@@ -638,6 +648,27 @@ export default function WeeklyRoutine({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {view === "calendar" && onToggleSplit ? (
+            <button
+              type="button"
+              onClick={onToggleSplit}
+              aria-pressed={!!split}
+              // "Tasks" alone would share its name with the Tasks section.
+              aria-label="Tasks column"
+              className={`hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                split
+                  ? "border-primary/40 bg-primary-soft text-primary"
+                  : "border-edge text-fg-muted hover:text-fg hover:bg-surface-hover"
+              }`}
+              title={split ? "Hide the tasks column" : "Show your tasks beside the calendar"}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M14 4v16M17 8h1M17 12h1" />
+              </svg>
+              Tasks
+            </button>
+          ) : null}
           {onEditWeek ? (
             <button
               type="button"
@@ -1067,6 +1098,9 @@ export default function WeeklyRoutine({
                           const colors = rtId ? taskColorMap[rtId] : null;
                           const editKey = `mobile-edit-${dayIdx}-${task._id}`;
                           const canDrag = !task._virtual && !task.completed;
+                          const when = `${dayNames[dayIdx] || ""}${
+                            task.startMinute != null ? ` · ${minutesToTime(task.startMinute)}` : ""
+                          }`;
                           return (
                             <div
                               key={task._id}
@@ -1076,7 +1110,9 @@ export default function WeeklyRoutine({
                                   : "bg-surface-2"
                               } ${canDrag ? "cursor-grab active:cursor-grabbing" : ""}`}
                               draggable={canDrag}
+                              {...notesPeek.bind(task, when)}
                               onDragStart={(e) => {
+                                notesPeek.close();
                                 if (!canDrag) return;
                                 e.dataTransfer.effectAllowed = "move";
                                 e.dataTransfer.setData(
@@ -1155,19 +1191,15 @@ export default function WeeklyRoutine({
                                     ? "line-through text-fg-subtle"
                                     : "text-fg"
                                 }`}
-                                title={task.notes || task.taskName}
+                                title={task.notes ? undefined : task.taskName}
                               >
                                 {task.taskName}
                               </span>
-                              {task.notes ? (
-                                <span
-                                  className="shrink-0 text-warning"
-                                  title={task.notes}
-                                  aria-label="Has notes"
-                                >
-                                  <IconNote className="w-3.5 h-3.5" />
-                                </span>
-                              ) : null}
+                              <NotesButton
+                                task={task}
+                                className="p-0.5"
+                                onPin={(el) => notesPeek.pin(task, el, when)}
+                              />
                               {task.estimatedTime ? (
                                 <span className="text-xs text-fg-subtle px-1.5 py-0.5 bg-surface-2 rounded">
                                   {task.estimatedTime}m
@@ -1183,6 +1215,7 @@ export default function WeeklyRoutine({
                                     className="p-1 text-fg-subtle hover:text-primary"
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      notesPeek.close();
                                       setEditingTaskKey((cur) =>
                                         cur === editKey ? null : editKey,
                                       );
@@ -1194,8 +1227,14 @@ export default function WeeklyRoutine({
                                   {editingTaskKey === editKey ? (
                                     <TaskEditPopover
                                       task={task}
+                                      projectId={task.project ? String(task.project._id || task.project) : null}
+                  inheritLabel={task.routineTask ? "Same as its cycle" : null}
+                                      projectOptions={projectOptions}
                                       onSave={(updates) =>
                                         onUpdateTask?.(dayIdx, task._id, updates)
+                                      }
+                                      onDuplicate={() =>
+                                        onAddTask?.(dayIdx, duplicateTaskFields(task))
                                       }
                                       onDelete={() =>
                                         onDeleteTask(dayIdx, task._id)
@@ -1317,6 +1356,7 @@ export default function WeeklyRoutine({
       </div>
         </>
       )}
+      {view === "calendar" ? null : notesPeek.card}
     </div>
   );
 }

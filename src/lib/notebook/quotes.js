@@ -12,6 +12,37 @@ export const QUOTE_LIMITS = {
 
 export const UNKNOWN_AUTHOR = "Unknown";
 
+/**
+ * Voices the quote player offers for reading aloud with the AI voice (the
+ * OpenAI speech voices). The server only accepts these.
+ */
+export const QUOTE_VOICES = [
+  { key: "sage", label: "Sage", hint: "calm, warm" },
+  { key: "onyx", label: "Onyx", hint: "deep" },
+  { key: "coral", label: "Coral", hint: "bright" },
+  { key: "ash", label: "Ash", hint: "clear" },
+  { key: "ballad", label: "Ballad", hint: "soft" },
+  { key: "echo", label: "Echo", hint: "even" },
+  { key: "fable", label: "Fable", hint: "storyteller" },
+  { key: "nova", label: "Nova", hint: "lively" },
+  { key: "alloy", label: "Alloy", hint: "neutral" },
+  { key: "shimmer", label: "Shimmer", hint: "light" },
+  { key: "verse", label: "Verse", hint: "expressive" },
+];
+export const DEFAULT_QUOTE_VOICE = "sage";
+
+/** The voices a speech model has: the older tts-1 models lack ballad and verse. */
+export function voicesForModel(model = "") {
+  return /^tts-1/.test(String(model)) ? QUOTE_VOICES.filter((v) => v.key !== "ballad" && v.key !== "verse") : QUOTE_VOICES;
+}
+
+/** The words the AI voice reads for a quote: the quote, then who said it. */
+export function spokenQuote(quote) {
+  const text = cleanQuoteText(quote?.text);
+  const author = String(quote?.author || "").trim();
+  return author && author !== UNKNOWN_AUTHOR ? `${text}\n\n${author}.` : text;
+}
+
 /** Normalised author name, so "marcus aurelius" and "Marcus Aurelius" match. */
 export function authorKey(name) {
   return String(name || "")

@@ -13,9 +13,21 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { clearSession } from "@/lib/auth";
+import { featureMeta, isAdminOnly } from "@/lib/access/features";
 
 const AccessContext = createContext(null);
 const SNAPSHOT_KEY = "accessSnapshot";
+
+/**
+ * Hidden (admin only, and not the admin)? Before /api/me has an answer for
+ * the feature (signed out, first paint, a snapshot older than the feature)
+ * the catalogue default decides, so an admin-only tab never flashes up for
+ * everyone else.
+ */
+function hiddenIn(features, known, key) {
+  const verdict = known ? features[key] : null;
+  return verdict ? Boolean(verdict.hidden) : isAdminOnly(featureMeta(key));
+}
 
 /** Fetch helper for the account routes: Bearer session token, JSON in and out. */
 export async function accessApi(path, { method = "GET", body } = {}) {
@@ -133,10 +145,12 @@ export function AccessProvider({ children }) {
       plan: me?.plan || { key: "free", expiresAt: null },
       registry: me?.registry || null,
       features,
-      /** Whether the control for a feature is usable. Unknown → usable; the server decides. */
-      can: (key) => (me ? features[key]?.allowed !== false : true),
+      /** Whether the control for a feature is usable. Unknown → usable (the server decides), unless it is admin only. */
+      can: (key) => !hiddenIn(features, Boolean(me), key) && (me ? features[key]?.allowed !== false : true),
       /** Verdict for one feature, or null before /api/me answered. */
       feature: (key) => (me ? features[key] || null : null),
+      /** Admin only, and this is not the admin: show nothing at all. */
+      hidden: (key) => hiddenIn(features, Boolean(me), key),
       setViewAs,
       refresh,
     };
@@ -158,8 +172,9 @@ const FALLBACK = {
   plan: { key: "free", expiresAt: null },
   registry: null,
   features: {},
-  can: () => true,
+  can: (key) => !hiddenIn({}, false, key),
   feature: () => null,
+  hidden: (key) => hiddenIn({}, false, key),
   setViewAs: async () => {},
   refresh: async () => null,
 };
@@ -170,17 +185,23 @@ export function useAccess() {
 
 /**
  * The gate for one feature key:
- *   allowed  - render normally
- *   locked   - enabled, but not in this role's plan (grey it out, link to /pricing)
- *   disabled - switched off for everyone
+ *   allowed   - render normally
+ *   locked    - enabled, but not in this role's plan (grey it out, link to /pricing)
+ *   disabled  - switched off for everyone
+ *   hidden    - admin only, and this is not the admin (render nothing, or the 404)
+ *   known     - /api/me has answered for this feature; until then the
+ *               verdict is the catalogue default
+ *   adminOnly - in no plan: the admin is looking at something nobody else has
  */
 export function useFeatureGate(key) {
-  const { feature, can } = useAccess();
+  const { feature, can, hidden } = useAccess();
   const verdict = feature(key);
-  const allowed = can(key);
   return {
-    allowed,
+    allowed: can(key),
     locked: Boolean(verdict && verdict.locked),
     disabled: Boolean(verdict && !verdict.enabled),
+    hidden: hidden(key),
+    known: Boolean(verdict),
+    adminOnly: Boolean(verdict && verdict.adminOnly),
   };
 }

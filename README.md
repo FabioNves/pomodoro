@@ -69,6 +69,63 @@ Everything is stored per user (`NotebookFolder`, `NotebookDocument`,
 `NotebookSettings`) behind `/api/notebook/*`, which verifies the session
 token like the news routes do.
 
+## Business
+
+The **Business** tab is for creating, setting up, running, measuring and
+improving a business. It is not a wizard and not a checklist: a business is
+six connected phases that are all open at once, each with its own progress.
+
+**Define → Build → Launch → Operate → Measure → Improve → back to Define**
+
+- **Create your business** asks for a name and the kind of business (and,
+  optionally, a line about it and its currency). The six phases, a first set
+  of work items for each, the prerequisites between them and the default
+  metrics are generated from that; a service business gets no inventory, a
+  software business no stock to count. Everything can be renamed, removed,
+  added to and rewired afterwards.
+- **Overview.** "Your business is 42% operational", the six phases as
+  connected cards (number, name, percentage, bar, status, and what the phase
+  is waiting on), the next actions, Business health, the continuous cycle and
+  recent activity. On a phone the cards stack, with the same connections.
+- **Progress is derived, never typed in.** A phase is its completed work
+  items over all of its work items (work in progress counts once it is
+  completed: three of five done is 60 %); the business is the average of the
+  six phases. Each status is worked out too: *Not started*, *In progress*,
+  *Blocked* (a prerequisite is not completed), *Ready* (every prerequisite
+  is) and *Completed*.
+- **Dependencies** are between work items, never whole phases, so later
+  phases open up piece by piece while earlier ones are still being refined.
+  A blocked item names exactly what blocks it, every name is a link to that
+  prerequisite, and when the blockers are blocked themselves the dialog says
+  where to start. The server refuses to start or complete blocked work;
+  a prerequisite that would go round in a circle is refused as well.
+  Completing an item updates its phase, the business, what it unlocks and the
+  next actions at once, with no reload.
+- **Phase workspaces** (`?phase=define`) group the work into areas (Business
+  identity, Pricing, Payments, Inventory…), each a card of its own; add
+  items or whole areas. Measure also holds all the metrics, Improve the
+  improvement loops. A work item (`?item=`) has a status, a description of
+  what done looks like, notes, what it waits on and what it unlocks.
+- **Business health** holds the numbers you keep an eye on (revenue,
+  customers, costs, conversion, retention, and any of your own), each with an
+  optional target and the change since the last value. "Open work" is counted
+  from the work items.
+- **The cycle never ends.** Completing all six phases is a checkpoint, not a
+  finish line: an **improvement loop** ("New pricing strategy") adds one step
+  to every phase, Define through Improve, each waiting on the one before, so
+  the phases it passes through open up again.
+
+Everything is stored per user (`Business`, `BusinessPhase`,
+`BusinessWorkItem`, `BusinessDependency`, `BusinessMetric`,
+`BusinessActivity`) behind `/api/business/*`, which verifies the session token
+like the notebook and news routes do. An account can hold several businesses;
+the page keeps the chosen one in `?b=`.
+
+Business is **admin only** for now: it is in neither plan, so only the admin
+sees the tab (with an "Admin only" chip on the page); for everyone else it
+does not exist. Tick Free or Premium for it under Admin > Subscriptions to
+open it up.
+
 ## Projects, milestones and templates
 
 The Planner's **Tasks** tab has three views (kept in the URL as `?view=`):
@@ -242,8 +299,9 @@ the client: **admin** (the email in `ADMIN_EMAILS`, by default the owner's),
 (everyone else). `GET /api/me` tells the browser which one it is.
 
 - **Feature registry.** `src/lib/access/features.js` lists every gateable
-  feature (timer, planner, habits, routines, notebook, analytics, the AI news
-  briefing, ask-about-a-story, AI project planning, the AI quote finder) with
+  feature (timer, planner, habits, routines, notebook, business, analytics,
+  the AI news briefing, ask-about-a-story, AI project planning, the AI quote
+  finder) with
   its defaults; the admin's edits live in the `AccessConfig` document. The
   same registry drives the runtime gate, the pricing page and the admin
   table, so a toggle applies everywhere within seconds.
@@ -254,6 +312,11 @@ the client: **admin** (the email in `ADMIN_EMAILS`, by default the owner's),
   routes get the check from `requireUser()`, planner routes from
   `validateIdentityHeaders()`, both by looking up the feature behind the
   path; a route that needs more names it (`feature: "news_ask"`).
+- **Admin only.** A feature that is enabled but ticked for neither plan is
+  the admin's alone. Instead of a lock, everyone else simply does not have
+  it: no menu entry, no row on the pricing page, the app's 404 page and a
+  404 from its API, exactly like `/admin`. Previewing as Premium or Free
+  hides it too. It is the way to ship a feature before releasing it.
 - **Where they live.** Settings, the admin page and the view-as switcher are
   all under the user's own name in the navbar (`src/components/nav/UserMenu.jsx`),
   not in the main menu, which is for the app's screens. A **Pricing** button

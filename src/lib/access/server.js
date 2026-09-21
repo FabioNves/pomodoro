@@ -25,6 +25,7 @@ import {
   effectiveRole,
   featureAllowed,
   featureForPath,
+  isAdminOnly,
   normalizeRegistry,
   VIEW_AS_ROLES,
 } from "@/lib/access/features";
@@ -141,13 +142,16 @@ export async function describeAccess(user, registry) {
 
 /**
  * Check a list of features for a role. Returns null when all are allowed,
- * otherwise the 403 response for the first one that is not.
+ * otherwise the response for the first one that is not: 403 for a locked or
+ * switched-off feature, 404 for an admin-only one, which, like the admin
+ * routes, is not there for anyone else.
  */
 export function denyIfLocked(registry, role, features) {
   const keys = (Array.isArray(features) ? features : [features]).filter(Boolean);
   for (const key of keys) {
     const feature = registry.features.find((f) => f.key === key);
     if (featureAllowed(feature, role)) continue;
+    if (isAdminOnly(feature)) return notFoundResponse();
     const denial = denialFor(feature);
     return Response.json({ error: denial.message, code: denial.code, feature: key }, { status: 403 });
   }

@@ -1,5 +1,6 @@
 import { connectToDB } from "@/lib/db";
 import WeekPlan from "@/models/WeekPlan";
+import { originDayAfterMove } from "@/lib/weekPlanView";
 import { z } from "zod";
 import {
   validateIdentityHeaders,
@@ -59,6 +60,8 @@ export async function POST(req) {
 
     const task = fromDay.tasks[taskIdx];
     const snapshot = {
+      // Same id, so the browser's copy of the task stays the task.
+      _id: task._id,
       routineTask: task.routineTask || null,
       project:
         body.data.toProjectId !== undefined
@@ -76,6 +79,13 @@ export async function POST(req) {
         body.data.durationMinutes !== undefined
           ? body.data.durationMinutes
           : (task.durationMinutes ?? null),
+      // A cycle task keeps answering for the day it was moved from, so that
+      // day does not grow a fresh auto-scheduled copy of the same occurrence.
+      originDay: originDayAfterMove(
+        task,
+        body.data.fromDayOfWeek,
+        body.data.toDayOfWeek,
+      ),
     };
 
     fromDay.tasks.splice(taskIdx, 1);

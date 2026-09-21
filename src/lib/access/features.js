@@ -65,6 +65,17 @@ export const FEATURE_CATALOGUE = [
     enabled: true,
   },
   {
+    // In no plan, so admin only (see isAdminOnly): tick a plan under
+    // Admin > Subscriptions to open it up.
+    key: "business",
+    name: "Business",
+    description: "Six connected phases for creating, running and improving a business, with progress and dependencies.",
+    group: "Core",
+    availableToFree: false,
+    availableToPremium: false,
+    enabled: true,
+  },
+  {
     key: "analytics",
     name: "Analytics",
     description: "Weekly, monthly and yearly focus statistics.",
@@ -104,6 +115,15 @@ export const FEATURE_CATALOGUE = [
     key: "ai_quotes",
     name: "AI quote finder",
     description: "Quotes by an author, found and verified on the web.",
+    group: "AI",
+    availableToFree: false,
+    availableToPremium: true,
+    enabled: true,
+  },
+  {
+    key: "ai_voice",
+    name: "AI voice",
+    description: "Your quotes read aloud by a natural AI voice in the quote player.",
     group: "AI",
     availableToFree: false,
     availableToPremium: true,
@@ -212,16 +232,29 @@ export function featureAllowed(feature, role) {
 }
 
 /**
+ * Enabled but in no plan: only the admin has it. Everyone else is not told
+ * it exists (no menu entry, no pricing row, the app's 404), rather than
+ * offered an upgrade to a plan that does not include it either.
+ */
+export function isAdminOnly(feature) {
+  return Boolean(feature && feature.enabled && !feature.availableToFree && !feature.availableToPremium);
+}
+
+/**
  * Per-feature verdicts for one role:
- *   allowed  - the role can use it now
- *   enabled  - the global switch is on
- *   locked   - enabled but not included in this role's plan (show the upsell)
+ *   allowed   - the role can use it now
+ *   enabled   - the global switch is on
+ *   locked    - enabled but not included in this role's plan (show the upsell)
+ *   hidden    - admin only, and this role is not the admin (show nothing)
+ *   adminOnly - in no plan, whoever is asking
  */
 export function accessMap(registry, role) {
   const map = {};
   for (const f of registry.features) {
     const allowed = featureAllowed(f, role);
-    map[f.key] = { allowed, enabled: f.enabled, locked: f.enabled && !allowed };
+    const adminOnly = isAdminOnly(f);
+    const hidden = adminOnly && !allowed;
+    map[f.key] = { allowed, enabled: f.enabled, locked: f.enabled && !allowed && !hidden, hidden, adminOnly };
   }
   return map;
 }
@@ -244,6 +277,7 @@ export function featureForPath(pathname = "") {
   if (/^\/api\/habits\b/.test(p)) return "habits";
   if (/^\/api\/routine-tasks\b/.test(p)) return "routines";
   if (/^\/api\/notebook\b/.test(p)) return "notebook";
+  if (/^\/api\/business\b/.test(p)) return "business";
   if (/^\/api\/news\b/.test(p)) return "news_briefing";
   return null;
 }

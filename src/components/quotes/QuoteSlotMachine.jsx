@@ -2,11 +2,16 @@
 
 // A slot machine of quotes: pull the lever (or press Spin) and the window
 // flicks through the quotes, slowing down until one lands. The dashboard
-// shows it once the day's blocks are done; the notebook's Quotes view uses
-// the compact form as a live preview of the active quotes.
+// shows it under the greeting; the notebook's Quotes view uses the compact
+// form as a live preview of the active quotes.
+//
+// The full-size machine has "View more", which opens the quote player
+// (QuotesPlayer): every quote by author, an auto mode, and reading aloud.
+// The compact preview leaves it out, as the notebook already lists them all.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import QuotesPlayer from "@/components/quotes/QuotesPlayer";
 
 // Delay before each frame of a spin: fast at first, then easing out.
 const SPIN_FRAMES = [45, 45, 50, 55, 60, 70, 80, 95, 115, 140, 170, 210, 260, 330];
@@ -77,9 +82,11 @@ export default function QuoteSlotMachine({
   manageLabel = "Manage quotes",
   compact = false,
   autoSpin = true,
+  expandable = !compact,
   className = "",
 }) {
   const list = useMemo(() => (quotes || []).filter((q) => q && q.text), [quotes]);
+  const [playerOpen, setPlayerOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const [frame, setFrame] = useState(0);
   const [spinning, setSpinning] = useState(false);
@@ -156,7 +163,7 @@ export default function QuoteSlotMachine({
       className={`relative rounded-2xl border border-edge bg-surface shadow-sm overflow-hidden ${className}`}
       aria-label="Quote slot machine"
     >
-      {caption || onManage ? (
+      {caption || onManage || (expandable && list.length) ? (
         <div className={`flex items-center justify-between gap-3 ${compact ? "px-3 pt-2.5 pb-1.5" : "px-4 pt-3 pb-2 sm:px-5"}`}>
           <p className="min-w-0 flex items-center gap-1.5 text-xs text-fg-subtle">
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-accent shrink-0" fill="currentColor" aria-hidden="true">
@@ -164,15 +171,30 @@ export default function QuoteSlotMachine({
             </svg>
             <span className="truncate">{caption}</span>
           </p>
-          {onManage ? (
-            <button
-              type="button"
-              onClick={onManage}
-              className="shrink-0 text-xs font-medium text-primary hover:underline underline-offset-2"
-            >
-              {manageLabel}
-            </button>
-          ) : null}
+          <div className="shrink-0 flex items-center gap-3">
+            {onManage ? (
+              <button
+                type="button"
+                onClick={onManage}
+                className="text-xs font-medium text-fg-muted hover:text-primary hover:underline underline-offset-2"
+              >
+                {manageLabel}
+              </button>
+            ) : null}
+            {expandable && list.length ? (
+              <button
+                type="button"
+                onClick={() => setPlayerOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-edge text-xs font-semibold text-primary hover:bg-primary-soft transition-colors"
+                aria-haspopup="dialog"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
+                View more
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -223,6 +245,23 @@ export default function QuoteSlotMachine({
         {!compact ? <Reel spinning={spinning} /> : null}
         {list.length > 1 ? <Lever onPull={spin} disabled={spinning} spinning={spinning} /> : null}
       </div>
+
+      {expandable ? (
+        <QuotesPlayer
+          open={playerOpen}
+          quotes={list}
+          startWith={quote}
+          onClose={() => setPlayerOpen(false)}
+          onManage={
+            onManage
+              ? () => {
+                  setPlayerOpen(false);
+                  onManage();
+                }
+              : null
+          }
+        />
+      ) : null}
     </section>
   );
 }

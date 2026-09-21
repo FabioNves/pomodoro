@@ -33,6 +33,8 @@ const addTaskSchema = z.object({
   completed: z.boolean().optional(),
   startMinute: startMinuteSchema.optional(),
   durationMinutes: durationSchema.optional(),
+  // A duplicate of a moved cycle task answers for the same occurrence.
+  originDay: z.number().int().min(0).max(6).nullable().optional(),
 });
 
 const patchTaskSchema = z.object({
@@ -88,6 +90,13 @@ export async function POST(req) {
       order: maxOrder + 1,
       startMinute: body.data.startMinute ?? null,
       durationMinutes: body.data.durationMinutes ?? null,
+      // Only a cycle task stands for an occurrence, and never for its own day.
+      originDay:
+        body.data.routineTaskId &&
+        Number.isInteger(body.data.originDay) &&
+        body.data.originDay !== body.data.dayOfWeek
+          ? body.data.originDay
+          : null,
     });
 
     await plan.save();

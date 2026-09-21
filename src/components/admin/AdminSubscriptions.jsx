@@ -8,7 +8,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { accessApi } from "@/lib/access/client";
-import { BILLING_INTERVALS, CURRENCIES, PLAN_STATUSES, formatPrice } from "@/lib/access/features";
+import { BILLING_INTERVALS, CURRENCIES, PLAN_STATUSES, formatPrice, isAdminOnly } from "@/lib/access/features";
 import { ActionButton, Chip, IconCheck, SectionTitle, Spinner, Toggle } from "@/components/news/newsUi";
 import { IconCard, Table, Td, Tr, inputClass } from "@/components/admin/adminUi";
 
@@ -167,7 +167,7 @@ export default function AdminSubscriptions() {
       <div className="space-y-2">
         <p className="text-sm font-semibold text-fg">Features</p>
         <p className="text-xs text-fg-muted">
-          The single source of truth. "Free" and "Premium" say which plan includes a feature; "Enabled" is the global switch. The admin can always use every enabled feature.
+          The single source of truth. "Free" and "Premium" say which plan includes a feature; "Enabled" is the global switch. The admin can always use every enabled feature. An enabled feature in neither plan is admin only: nobody else sees it, in the menu or on the pricing page.
         </p>
         <Table
           columns={["Feature", "Description", { key: "free", label: "Free" }, { key: "premium", label: "Premium" }, { key: "enabled", label: "Enabled" }]}
@@ -187,7 +187,14 @@ export default function AdminSubscriptions() {
                   <Tr key={f.key} className={!f.enabled ? "opacity-60" : ""}>
                     <Td>
                       <input aria-label={`Name of ${f.key}`} value={f.name} maxLength={80} onChange={(e) => patchFeature(f.key, { name: e.target.value })} className={`${inputClass} w-44 font-medium`} />
-                      <p className="text-[11px] text-fg-subtle mt-0.5 font-mono">{f.key}</p>
+                      <p className="text-[11px] text-fg-subtle mt-0.5 font-mono">
+                        {f.key}
+                        {isAdminOnly(f) ? (
+                          <span className="ml-1.5 font-sans font-semibold uppercase tracking-wide text-[10px] text-accent" data-testid={`admin-only-${f.key}`}>
+                            Admin only
+                          </span>
+                        ) : null}
+                      </p>
                     </Td>
                     <Td>
                       <input aria-label={`Description of ${f.key}`} value={f.description} maxLength={300} onChange={(e) => patchFeature(f.key, { description: e.target.value })} className={`${inputClass} w-full min-w-[16rem]`} />

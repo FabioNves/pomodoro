@@ -11,6 +11,10 @@
 // - Click-and-drag on empty grid space selects a range, then the add-task
 //   popover asks which task goes into that block.
 // - Drag a block's bottom edge to change its length.
+// - A task dragged in from outside (the Tasks panel of the planner's split
+//   view, see src/lib/plannerDrag.js) becomes a week task where it lands.
+// - Resting the pointer on a task with notes shows them in a card with a
+//   Copy button; the notes icon opens the same card on a tap.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -19,11 +23,15 @@ import {
   TaskColorLines,
   IconCheck,
   IconDotsVertical,
-  IconNote,
   IconPlus,
+  NotesButton,
+  duplicateTaskFields,
   minutesToTime,
+  projectOptionsFrom,
   taskDuration,
+  useNotesPeek,
 } from "./WeekPlanShared";
+import { endExternalDrag, externalDrag, isExternalTaskDrag } from "@/lib/plannerDrag";
 import { dayShortName, weekDates, weekDayLabels } from "@/utils/timeUtils";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
 
@@ -92,6 +100,12 @@ function createEdgeScroller(getEl) {
       raf = 0;
     },
   };
+}
+
+/** The project set on the task itself (a cycle task may have none and follow its cycle). */
+function ownProjectId(task) {
+  if (!task?.project) return null;
+  return typeof task.project === "object" ? String(task.project._id || task.project) : String(task.project);
 }
 
 function routineIdOf(task) {
@@ -198,6 +212,13 @@ export default function WeekCalendar({
   const [addingStripDay, setAddingStripDay] = useState(null);
   const [editingKey, setEditingKey] = useState(null);
 
+  // Notes of the task under the pointer, with a Copy button.
+  const notesPeek = useNotesPeek();
+  const projectOptions = useMemo(
+    () => projectOptionsFrom(projectNameMap, projectColorMap),
+    [projectNameMap, projectColorMap],
+  );
+
   const [nowMinute, setNowMinute] = useState(() => {
     const d = new Date();
     return d.getHours() * 60 + d.getMinutes();
@@ -269,7 +290,31 @@ export default function WeekCalendar({
     setDragOverStrip(null);
   };
 
+  // A task dragged in from outside the calendar has no drag info of ours
+  // until it arrives; give it some, sized to the task, so the preview and
+  // the drop work exactly as for a block moved within the calendar.
+  const adoptExternalDrag = (e) => {
+    const current = dragInfoRef.current;
+    if (current && !current.external) return current;
+    if (!isExternalTaskDrag(e)) {
+      if (current?.external) dragInfoRef.current = null;
+      return null;
+    }
+    const payload = externalDrag();
+    if (current?.external && current.external === payload) return current;
+    const info = {
+      external: payload,
+      task: { _id: "__external", taskName: payload.taskName },
+      fromDay: null,
+      duration: Math.max(15, Math.min(DAY_MINUTES, Number(payload.duration) || 60)),
+      grabOffsetMin: 0,
+    };
+    dragInfoRef.current = info;
+    return info;
+  };
+
   const handleDragStart = (e, task, fromDay, timed) => {
+    notesPeek.close();
     if (!canDrag(task)) {
       e.preventDefault();
       return;
@@ -303,9 +348,10 @@ export default function WeekCalendar({
   };
 
   const handleColumnDragOver = (e, dayIdx) => {
-    if (!dragInfoRef.current) return;
+    const info = adoptExternalDrag(e);
+    if (!info) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
+    e.dataTransfer.dropEffect = info.external ? "copy" : "move";
     const start = pointerStart(e, dayIdx);
     if (start == null) return;
     const duration = dragInfoRef.current.duration;
@@ -319,16 +365,35 @@ export default function WeekCalendar({
 
   // Place a dragged task at `startMinute` on `toDay` (null = unscheduled).
   const commitDrop = (info, toDay, startMinute) => {
+    if (info.external) {
+      // A task from the side panel: a new week task, in its project.
+      const { taskName, projectId = null } = info.external;
+      endExternalDrag();
+      onAddTask?.(toDay, {
+        taskName,
+        projectId,
+        estimatedTime: 0,
+        ...(startMinute != null ? { startMinute, durationMinutes: info.duration } : {}),
+      });
+      return;
+    }
     const { task, fromDay } = info;
     const projectId = getTaskProjectId?.(task) ?? null;
     if (task._virtual) {
-      if (task._dated || startMinute == null) return;
-      // Materialise the auto-scheduled routine task at this time.
+      if (task._dated) return;
+      const otherDay = toDay !== fromDay;
+      // Onto its own strip it is already there; anywhere else it becomes real.
+      if (startMinute == null && !otherDay) return;
+      // Materialise the auto-scheduled routine task where it was dropped.
+      // Dragged off its own day, the new task stands for that day's
+      // occurrence (originDay), so the dashed copy it came from goes away
+      // and the day it lands on keeps its own occurrence.
       onAddTask?.(toDay, {
         routineTaskId: routineIdOf(task),
         projectId,
         taskName: task.taskName,
         estimatedTime: task.estimatedTime || 0,
+        ...(otherDay ? { originDay: fromDay } : {}),
         startMinute,
         durationMinutes: info.duration,
       });
@@ -349,7 +414,7 @@ export default function WeekCalendar({
   };
 
   const handleColumnDrop = (e, dayIdx) => {
-    const info = dragInfoRef.current;
+    const info = adoptExternalDrag(e);
     if (!info) return;
     e.preventDefault();
     const start = pointerStart(e, dayIdx);
@@ -359,20 +424,21 @@ export default function WeekCalendar({
   };
 
   const handleStripDragOver = (e, dayIdx) => {
-    const info = dragInfoRef.current;
-    if (!info || info.task._virtual) return;
+    const info = adoptExternalDrag(e);
+    if (!info) return;
+    // A dashed occurrence can only go to another day's strip.
+    if (info.task._virtual && (info.task._dated || info.fromDay === dayIdx)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
+    e.dataTransfer.dropEffect = info.external ? "copy" : "move";
     if (dragOverStrip !== dayIdx) setDragOverStrip(dayIdx);
     if (dragPreview) setDragPreview(null);
   };
 
   const handleStripDrop = (e, dayIdx) => {
-    const info = dragInfoRef.current;
+    const info = adoptExternalDrag(e);
     if (!info) return;
     e.preventDefault();
     clearDrag();
-    if (info.task._virtual) return;
     commitDrop(info, dayIdx, null);
   };
 
@@ -513,6 +579,11 @@ export default function WeekCalendar({
     onToggleTask?.(dayIdx, task._id, !task.completed);
   };
 
+  // A copy on the same day and at the same time, as a new task: it shows up
+  // beside the original, ready to be dragged wherever it is needed. A copy
+  // of a moved cycle task answers for the same occurrence as the original.
+  const duplicateTask = (task, dayIdx) => onAddTask?.(dayIdx, duplicateTaskFields(task));
+
   const renderEditControls = (task, dayIdx) => {
     if (task._virtual) return null;
     const key = `cal-edit-${dayIdx}-${task._id}`;
@@ -526,6 +597,7 @@ export default function WeekCalendar({
           className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-0.5 rounded text-fg-subtle hover:text-primary transition-all"
           onClick={(e) => {
             e.stopPropagation();
+            notesPeek.close();
             setEditingKey((cur) => (cur === key ? null : key));
           }}
           onMouseDown={(e) => e.stopPropagation()}
@@ -536,7 +608,11 @@ export default function WeekCalendar({
         {editingKey === key ? (
           <TaskEditPopover
             task={task}
+            projectId={ownProjectId(task)}
+            inheritLabel={routineIdOf(task) ? "Same as its cycle" : null}
+            projectOptions={projectOptions}
             onSave={(updates) => onUpdateTask?.(dayIdx, task._id, updates)}
+            onDuplicate={() => duplicateTask(task, dayIdx)}
             onDelete={() => onDeleteTask?.(dayIdx, task._id)}
             onClose={() => setEditingKey(null)}
             anchorRef={{ current: editBtnRefs.current[key] }}
@@ -558,6 +634,7 @@ export default function WeekCalendar({
   const renderStripChip = (task, dayIdx) => {
     const colors = colorsFor(task);
     const draggable = canDrag(task);
+    const when = `${dayNames[dayIdx] || ""} · no time yet`;
     return (
       <div
         key={task._id}
@@ -565,10 +642,13 @@ export default function WeekCalendar({
         draggable={draggable}
         onDragStart={(e) => handleDragStart(e, task, dayIdx, false)}
         onDragEnd={clearDrag}
+        {...notesPeek.bind(task, when)}
         className={`group flex items-center gap-1 px-1.5 py-1 rounded-md border text-[11px] leading-tight ${blockTone(task)} ${
           draggable ? "cursor-grab active:cursor-grabbing" : ""
         }`}
-        title={task.notes || task.taskName}
+        // With notes, the card says it all; a native tooltip would only
+        // pile on top of it.
+        title={task.notes ? undefined : task.taskName}
       >
         {colors ? (
           <TaskColorLines
@@ -601,11 +681,7 @@ export default function WeekCalendar({
         >
           {task.taskName}
         </span>
-        {task.notes ? (
-          <span className="shrink-0 text-warning" title={task.notes}>
-            <IconNote className="w-3 h-3" />
-          </span>
-        ) : null}
+        <NotesButton task={task} onPin={(el) => notesPeek.pin(task, el, when)} />
         {task.estimatedTime ? (
           <span className="text-[10px] text-fg-subtle shrink-0">
             {task.estimatedTime}
@@ -623,6 +699,7 @@ export default function WeekCalendar({
     const height = Math.max(minuteToY(end - start), 18);
     const showTime = height >= 34;
     const isResizing = resizing && String(resizing.taskId) === String(task._id);
+    const when = `${dayNames[dayIdx] || ""} · ${minutesToTime(start)} – ${minutesToTime(end)}`;
     return (
       <div
         key={task._id}
@@ -631,6 +708,7 @@ export default function WeekCalendar({
         onDragStart={(e) => handleDragStart(e, task, dayIdx, true)}
         onDragEnd={clearDrag}
         onMouseDown={(e) => e.stopPropagation()}
+        {...notesPeek.bind(task, when)}
         style={{
           top,
           height,
@@ -640,9 +718,7 @@ export default function WeekCalendar({
         className={`group absolute rounded-md border px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden shadow-sm select-none ${blockTone(task)} ${
           draggable ? "cursor-grab active:cursor-grabbing" : ""
         } ${isResizing ? "ring-2 ring-focus/40" : ""}`}
-        title={`${task.taskName} · ${minutesToTime(start)} – ${minutesToTime(end)}${
-          task.notes ? `\n${task.notes}` : ""
-        }`}
+        title={task.notes ? undefined : `${task.taskName} · ${minutesToTime(start)} – ${minutesToTime(end)}`}
       >
         <div className="flex items-start gap-1 h-full">
           {colors ? (
@@ -652,7 +728,9 @@ export default function WeekCalendar({
             />
           ) : null}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1">
+            {/* Above the resize strip: on a short block the strip would
+                otherwise cover the tick box and the task menu. */}
+            <div className="relative z-10 flex items-center gap-1">
               <button
                 type="button"
                 className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center transition-colors ${
@@ -673,11 +751,7 @@ export default function WeekCalendar({
               >
                 {task.taskName}
               </span>
-              {task.notes ? (
-                <span className="shrink-0 text-warning" title={task.notes}>
-                  <IconNote className="w-3 h-3" />
-                </span>
-              ) : null}
+              <NotesButton task={task} onPin={(el) => notesPeek.pin(task, el, when)} />
               {renderEditControls(task, dayIdx)}
             </div>
             {showTime ? (
@@ -714,7 +788,10 @@ export default function WeekCalendar({
           if (dragInfoRef.current) edgeScrollRef.current?.update(e.clientY);
         }}
         onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget)) edgeScrollRef.current?.stop();
+          if (e.currentTarget.contains(e.relatedTarget)) return;
+          edgeScrollRef.current?.stop();
+          // An outside task that leaves again is not ours any more.
+          if (dragInfoRef.current?.external) clearDrag();
         }}
         onDrop={() => edgeScrollRef.current?.stop()}
       >
@@ -917,6 +994,8 @@ export default function WeekCalendar({
           anchorRef={selectionAnchorRef}
         />
       ) : null}
+
+      {notesPeek.card}
     </div>
   );
 }

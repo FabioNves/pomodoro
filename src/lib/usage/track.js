@@ -104,6 +104,8 @@ const OPENAI_PRICES = [
   [/^gpt-4\.1-nano/, 0.1, 0.4],
   [/^gpt-4\.1-mini/, 0.4, 1.6],
   [/^gpt-4\.1/, 2, 8],
+  // Speech: text in, audio tokens out (about 21 per second of speech).
+  [/^gpt-4o-mini-tts/, 0.6, 12],
   [/^gpt-4o-mini/, 0.15, 0.6],
   [/^gpt-4o/, 2.5, 10],
   [/^o4-mini/, 1.1, 4.4],

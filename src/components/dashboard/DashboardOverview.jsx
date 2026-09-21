@@ -186,7 +186,9 @@ export default function DashboardOverview({
   onToggleCalendar = null,
   onNavigate,
 }) {
-  const { settings: dashboard } = useDashboardSettings();
+  // The preference is read from storage after mount; until then it is the
+  // default, so waiting for it keeps a switched-off panel from flashing in.
+  const { settings: dashboard, ready: dashboardReady } = useDashboardSettings();
   const go = (key) => () => onNavigate?.(key);
 
   // Fixed for the life of the dashboard so derived data stays stable.
@@ -382,7 +384,7 @@ export default function DashboardOverview({
   // none of your own they are the built-in ones, with an offer to add some.
   // Turn the whole thing off under Settings > Dashboard.
   const slotQuotes = quotes.length ? quotes : DEFAULT_QUOTES;
-  const showQuotes = dashboard.showQuotes && slotQuotes.length > 0;
+  const showQuotes = dashboardReady && dashboard.showQuotes && slotQuotes.length > 0;
 
   return (
     <div className="p-4 md:p-6">

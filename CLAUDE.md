@@ -25,7 +25,8 @@ README.md has the commands.
   `src/lib/ai`, `src/lib/access/server.js`, `src/lib/access/admin.js`,
   `src/lib/access/connections.js`, `src/lib/usage`, `src/lib/news` (except `src/lib/news/client.js`,
   `schedule.js`, `kinds.js`, `locales.js` and `topicSuggestions.js`, which
-  are shared with the browser), `src/lib/notebook/server.js`, `src/models` and
+  are shared with the browser), `src/lib/notebook/server.js`,
+  `src/lib/business/server.js`, `src/models` and
   `src/proxy.js`; the static export drops `src/app/api` and `src/proxy.js`.
   Never import those modules from a page or component.
 - Routes that hold private data verify the session JWT with
@@ -99,6 +100,31 @@ README.md has the commands.
   "found on the page", which is what was actually checked: the words appear
   on the page cited. A quote-listing page can still attribute them to the
   wrong person, so do not upgrade that wording to a claim of authorship.
+- "View more" on the full-size slot machine opens the quote player
+  (`src/components/quotes/QuotesPlayer.jsx`): authors in a side navigation
+  (chips on phones), one quote at a time on a stage, a list to jump around,
+  and an auto mode that moves on at reading pace or reads each quote aloud.
+  The compact machine in the notebook has no View more (`expandable`
+  defaults to `!compact`), because the notebook already lists every quote.
+- Voices: "Device" is the browser's own speech synthesis (free, offline);
+  "AI voice" is the `ai_voice` feature (premium), drawn locked with the
+  Premium badge for anyone else. `POST /api/notebook/quotes/speech` only reads
+  a quote the reader has, or a built-in one, looked up on the server: never
+  text from the request, so it cannot voice arbitrary words. Every clip is
+  kept in `QuoteSpeech` by model, voice and words, so a quote is paid for once
+  per voice, and a reader can have at most `QUOTE_VOICE_DAILY_LIMIT` (200)
+  new clips made a day; kept clips always replay. The model is
+  `OPENAI_TTS_MODEL` (default `gpt-4o-mini-tts`, whose cost row is in
+  `src/lib/usage/track.js`); the voices are `QUOTE_VOICES` in
+  `src/lib/notebook/quotes.js`, narrowed by `voicesForModel()` for the older
+  tts-1 models. Browser helpers, including the silent-clip unlock phones need
+  before sound can start from a timer, are in
+  `src/lib/notebook/quoteVoice.js`.
+- In the player, the voice the reader picks is remembered; a voice that fails
+  mid-session is replaced for that session only (`voiceFallback`), never
+  saved over the pick. "Read this one" starts from the tap itself rather than
+  from an effect, and the order is kept with the list it was built for, so
+  closing, reopening and picking an author never put a stale quote on stage.
 
 ## Saved posts
 
@@ -126,6 +152,61 @@ README.md has the commands.
   the app shells, so every `src` goes through `apiUrl()` from
   `src/lib/platform.js`. Forget that and the picture is simply missing in
   the phone and desktop apps while the website looks fine.
+
+## Business
+
+- Admin only for now: the `business` feature is in no plan (see "Roles,
+  plans and feature gating"). Everyone else gets no tab, the 404 page and
+  404s from `/api/business/*`; the page shows the admin an "Admin only" chip.
+- A `Business` owns six `BusinessPhase` documents (define, build, launch,
+  operate, measure, improve), the `BusinessWorkItem` documents under them,
+  `BusinessDependency` edges between work items ("`item` cannot start before
+  `dependsOn` is completed"), `BusinessMetric` numbers and a
+  `BusinessActivity` log. Routes live in `src/app/api/business/*` (the
+  business itself, `/items`, `/dependencies`, `/metrics`, `/loops`) and
+  verify the session JWT; DTOs, ownership checks, the snapshot and the seed
+  are in `src/lib/business/server.js` (server only).
+- Nothing about progress or status is stored. A work item keeps
+  `not_started`, `in_progress` or `completed`; **blocked**, **ready**, phase
+  progress and status, overall progress and the next actions are derived by
+  `summarize()` in `src/lib/business/engine.js`, pure functions shared by the
+  routes (which answer 409 `{ code: "blocked", blockers }` to starting
+  blocked work, and `{ code: "cycle" }` to a circular prerequisite) and the
+  browser (which recomputes the whole page the moment an item changes). Put
+  a new rule there, never in a component or a route, and never add a stored
+  percentage. Progress counts completed work only: in progress is not half.
+- The phases are not a wizard. A prerequisite always names a work item, not
+  a phase, so later phases open up piece by piece. Do not add a "Next"
+  button or gate a phase workspace behind another phase.
+- The six phases, their areas, the statuses, business types and limits are
+  data in `src/lib/business/phases.js`; what a new business starts with (work
+  items, the prerequisites between them, which business types get which) in
+  `blueprint.js`; metric defaults and formatting in `metrics.js`. All three
+  are shared with the browser. The blueprint is copied when a business is
+  created, so editing it never changes an existing business.
+- The cycle is continuous: `Business.loops` holds improvement loops, each a
+  chain of one work item per phase (`BusinessWorkItem.loop`), created by
+  `POST /api/business/loops`. 100 % shows the prompt for the next loop, never
+  a "finished" screen.
+- The page keeps its place in the query string: `?b=` the business (absent
+  means the first one), `?phase=` the open workspace, `?item=` the open work
+  item, which also opens its phase behind it. `setParams()` in `BusinessApp`
+  builds on the last query it asked for, because the router applies a change
+  a moment later and two changes in a row would otherwise undo each other.
+- UI lives in `src/components/business`: `BusinessApp` (data, URL, optimistic
+  updates with rollback), `BusinessOverview`, `PhaseMap` (one set of cards;
+  only the connectors change shape between desktop and phone),
+  `PhaseWorkspace` (an area per card), `WorkItemDialog`, `MetricsPanel`,
+  `CyclePanel`. A phase workspace gets its extra blocks from the phase's
+  `panels` in `phases.js`. `area.module` and `BusinessMetric.source` are
+  where a future module (CRM, finance, inventory…) attaches; `link` on a
+  work item points at a screen that already does the work.
+- `StatusPill` is `inline-flex` itself, so hide it with a wrapper
+  (`<span className="hidden sm:inline-flex">`), not with `hidden` on the pill.
+- The main menu now has six tabs, which do not fit beside the logo and the
+  account below about 1100 px: `NavLink` in `src/components/Navbar.jsx` shows
+  icons at `md`, labels at `lg` and both from `xl`. Check 768 px and 1024 px
+  before adding a seventh.
 
 ## Projects and milestones
 
@@ -187,6 +268,36 @@ README.md has the commands.
   calendar; dropping or ticking one materialises it as a real week task.
   `WeekCalendar` auto-scrolls while a block is dragged, a range is selected
   or a block is resized near its top or bottom edge (`createEdgeScroller`).
+- Whether a cycle occurrence still needs its dashed auto row is decided by
+  `occurrencesHandled()` in `src/lib/weekPlanView.js`, which the planner
+  calendar, the schedule list and the dashboard all ask. A real week task
+  answers for the occurrence of the day it came from: moving a cycle task
+  records `originDay` (`originDayAfterMove()`, used by the move route and by
+  both optimistic updates), and dragging a dashed occurrence to another day
+  makes it real there with `originDay` set to the day it left. So the day it
+  left does not grow a fresh copy and the day it went to keeps its own
+  occurrence. An origin only counts on a day the cycle really runs
+  (`occursOnFor()`); otherwise the task answers for the day it sits on.
+  Never go back to "is there a task for this routine on this day", which is
+  what regenerated them.
+- A week task can belong to a project from the add form, and change project,
+  duplicate or be deleted from its "⋮" menu (`TaskEditPopover`). The menu
+  edits the project of the task itself: a cycle task without one follows its
+  cycle, and the empty choice says so ("Same as its cycle"). The picker is
+  `ProjectSelect` with `projectOptionsFrom()`; a copy is built by
+  `duplicateTaskFields()` so the calendar and the list make the same one (it
+  copies the stored block length, never the estimate, which the API may
+  refuse as a length). All of it lives in
+  `src/components/weekplan/WeekPlanShared.jsx`.
+- Notes show in a card beside a task while the pointer rests on it, with a
+  Copy button (`useNotesPeek()` + `NotesButton`, one card per view; tapping
+  the notes icon pins it, for phones). Do not put notes back into `title`
+  tooltips: nothing can be copied from those.
+- The calendar also accepts a task dragged in from outside it (the Tasks
+  column of the split view). HTML5 drag data cannot be read before the drop,
+  so the source leaves its payload in `src/lib/plannerDrag.js` and marks the
+  drag with `PLANNER_DRAG_TYPE`; the drop becomes a week task in the same
+  project, as the add form's Todo picker does.
 
 ## AI news briefing
 
@@ -250,6 +361,13 @@ README.md has the commands.
   `withSections()`, on every tab, and the sidebar is what the phone drawer
   shows. There is no horizontal tab strip; do not bring one back for a new
   section, add it to `TABS`.
+- The calendar has a split view, Calendar + Tasks, kept in the URL as
+  `?tab=calendar&view=split` and switched by the "Tasks" button in its header
+  (named "Tasks column" for screen readers, since the Tasks section is a
+  button too). The column is `TasksPanel` (`src/components/planner`): pending
+  tasks by project, quick add, and each task dragged onto a day or sent to one
+  from its menu. It needs lg (1024 px) and up; below that the button and the
+  column are simply not drawn.
 
 ## The timer
 
@@ -295,6 +413,16 @@ README.md has the commands.
   the control in `<Locked feature="...">` or the screen in `<LockedScreen>`
   from `src/components/access/Gate.jsx`; locked controls are drawn greyed
   out with a lock that links to `/pricing`, never hidden and never a dialog.
+- The one exception is a feature that is enabled but in **no plan**: it is
+  admin only (`isAdminOnly()` in `features.js`). Nobody else is told it
+  exists: the verdict is `hidden` rather than `locked`, `NAV_ITEMS` drops it,
+  `<Locked>` renders nothing, `<LockedScreen>` renders the app's 404, the
+  pricing API leaves it out and the gate answers 404 like the admin routes.
+  It follows the effective role, so an admin previewing as Premium or Free
+  does not see it either. This is how an unreleased feature ships (Business
+  does today); opening it up is ticking a plan under Admin > Subscriptions.
+  Until `/api/me` answers, the browser takes the catalogue default, so change
+  the catalogue too when a feature is released for good.
 - `requireUser()` is async: it verifies the JWT, loads the user (so revoked
   sessions and plan changes apply at once), records usage and gates. Always
   `await` it. Admin routes use `requireAdmin()` from `src/lib/access/admin.js`

@@ -119,6 +119,24 @@ function IconNotebook({ className = "" }) {
   );
 }
 
+function IconBusiness({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={className}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 8h16a1 1 0 011 1v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9a1 1 0 011-1zM9 8V6a2 2 0 012-2h2a2 2 0 012 2v2M3 13h18M12 12v2"
+      />
+    </svg>
+  );
+}
+
 // The screens of the app. Settings, the admin page and the view-as switcher
 // are not here: they belong to the account, so they live in UserMenu. Nor is
 // the timer, which lives on the dashboard with TimerBadge showing a running
@@ -127,6 +145,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", short: "Home", Icon: IconDashboard },
   { href: "/planner", label: "Planner", short: "Plan", Icon: IconTasks, feature: "planner" },
   { href: "/notebook", label: "Notebook", short: "Notes", Icon: IconNotebook, feature: "notebook" },
+  { href: "/business", label: "Business", short: "Biz", Icon: IconBusiness, feature: "business" },
   { href: "/analytics", label: "Analytics", short: "Stats", Icon: IconAnalytics, feature: "analytics" },
   { href: "/news", label: "News", short: "News", Icon: IconNews, feature: "news_briefing" },
 ];
@@ -136,6 +155,8 @@ const Navbar = ({ user, onLogout }) => {
   const pathname = usePathname();
   const access = useAccess();
   const isLocked = (item) => Boolean(item.feature && access.feature(item.feature)?.locked);
+  // Admin-only screens are left out of the menu for everyone else.
+  const items = NAV_ITEMS.filter((item) => !(item.feature && access.hidden(item.feature)));
   // Pricing is for anyone not on Premium yet: signed out, or signed in on a
   // free plan. Signed in it waits for the real role, rather than flashing at
   // a paying user while /api/me is still in flight.
@@ -194,7 +215,7 @@ const Navbar = ({ user, onLogout }) => {
 
             {/* Navigation Items - Center */}
             <div className="hidden md:flex items-center gap-1 bg-surface-2/80 px-1.5 py-1 rounded-lg border border-edge backdrop-blur-sm">
-              {NAV_ITEMS.map((item) => (
+              {items.map((item) => (
                 <NavLink
                   key={item.href}
                   href={item.href}
@@ -262,7 +283,7 @@ const Navbar = ({ user, onLogout }) => {
       <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         <div className="max-w-7xl mx-auto bg-surface/90 backdrop-blur-xl rounded-xl border border-edge shadow-lg">
           <div className="flex items-center px-0.5 py-1">
-            {NAV_ITEMS.map((item) => (
+            {items.map((item) => (
               <MobileNavIcon
                 key={item.href}
                 href={item.href}
@@ -325,7 +346,9 @@ const Navbar = ({ user, onLogout }) => {
   );
 };
 
-// NavLink Component for desktop navigation items
+// NavLink Component for desktop navigation items. The tabs have to share the
+// bar with the logo, Pricing, the running timer and the account, so they are
+// icons on a tablet (md), labels on a small laptop (lg) and both from xl up.
 const NavLink = ({ href, label, Icon, locked = false }) => {
   const pathname = usePathname();
   const isActive =
@@ -334,9 +357,14 @@ const NavLink = ({ href, label, Icon, locked = false }) => {
       : pathname === href || pathname?.startsWith(`${href}/`);
 
   return (
-    <Link href={href} aria-current={isActive ? "page" : undefined} title={locked ? "Available on Premium" : undefined}>
+    <Link
+      href={href}
+      aria-label={label}
+      aria-current={isActive ? "page" : undefined}
+      title={locked ? `${label}: available on Premium` : label}
+    >
       <motion.span
-        className={`relative flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors duration-200 cursor-pointer group rounded-md ${
+        className={`relative flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 text-sm whitespace-nowrap transition-colors duration-200 cursor-pointer group rounded-md ${
           isActive
             ? "text-fg font-semibold"
             : "text-fg-muted hover:text-fg font-medium"
@@ -345,8 +373,8 @@ const NavLink = ({ href, label, Icon, locked = false }) => {
         whileTap={{ scale: 0.95 }}
         transition={{ type: "spring", stiffness: 400, damping: 17 }}
       >
-        <Icon className="w-4 h-4" />
-        {label}
+        <Icon className="w-4 h-4 lg:hidden xl:block" />
+        <span className="hidden lg:inline">{label}</span>
         {locked ? <IconLock className="w-3 h-3 text-fg-subtle" /> : null}
         <motion.span
           className={`absolute inset-0 bg-primary-soft rounded-lg -z-10 transition-opacity ${

@@ -37,7 +37,9 @@ import NewProjectModal from "@/components/planner/NewProjectModal";
 import SuggestDialog from "@/components/planner/SuggestDialog";
 import ProjectPageView from "@/components/planner/ProjectPageView";
 import TimelineView from "@/components/planner/TimelineView";
+import TasksPanel from "@/components/planner/TasksPanel";
 import { compareMilestones, idOf } from "@/lib/milestones";
+import { originDayAfterMove } from "@/lib/weekPlanView";
 import { LockedScreen } from "@/components/access/Gate";
 import { useAccess } from "@/lib/access/client";
 
@@ -1238,6 +1240,20 @@ function PlannerPageInner() {
     : DEFAULT_TASK_VIEW;
   const selectedProjectId = searchParams.get("project");
 
+  // Calendar + Tasks side by side: ?tab=calendar&view=split. The tasks
+  // column only exists on screens wide enough for both (lg and up).
+  const calendarSplit = activeTab === "calendar" && viewParam === "split";
+  const setCalendarSplit = useCallback(
+    (on) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "calendar");
+      if (on) params.set("view", "split");
+      else params.delete("view");
+      router.replace(`/planner?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
   // Routines views: habits or cycles, kept in the same ?view= as the Tasks
   // tab (only one section is open at a time).
   const namedView = LEGACY_VIEWS[viewParam] || viewParam;
@@ -1635,8 +1651,11 @@ function PlannerPageInner() {
           }),
         });
         if (mountedRef.current) setTasks((prev) => [...prev, created]);
+        return created;
       } catch (e) {
         console.error(e);
+        // null tells a caller (the Tasks column) the task was not made.
+        return null;
       }
     },
     [],
@@ -2272,6 +2291,7 @@ function PlannerPageInner() {
                   project: data.projectId || null,
                   startMinute: data.startMinute ?? null,
                   durationMinutes: data.durationMinutes ?? null,
+                  originDay: data.originDay ?? null,
                 },
               ],
             };
@@ -2311,7 +2331,14 @@ function PlannerPageInner() {
             return {
               ...d,
               tasks: d.tasks.map((t) =>
-                String(t._id) === String(taskId) ? { ...t, ...updates } : t,
+                String(t._id) === String(taskId)
+                  ? {
+                      ...t,
+                      ...updates,
+                      // The API calls it projectId; the task calls it project.
+                      ...("projectId" in updates ? { project: updates.projectId || null } : {}),
+                    }
+                  : t,
               ),
             };
           });
@@ -2387,6 +2414,9 @@ function PlannerPageInner() {
                       ? toProjectId
                       : movedTask.project || null,
                   order: d.tasks.length,
+                  // Same rule as the server, so the day it left does not
+                  // flash a fresh auto-scheduled copy before it answers.
+                  originDay: originDayAfterMove(movedTask, fromDayOfWeek, toDayOfWeek),
                   ...timing,
                 },
               ],
@@ -3296,7 +3326,8 @@ function PlannerPageInner() {
       ) : null}
 
       {selectedWeekPlan ? (
-        <div className={view === "calendar" ? "flex-1 min-h-0 flex flex-col" : ""}>
+        <div className={view === "calendar" ? "flex-1 min-h-0 flex gap-3" : ""}>
+        <div className={view === "calendar" ? "flex-1 min-w-0 min-h-0 flex flex-col" : ""}>
           {view !== "calendar" ? (
             <button
               type="button"
@@ -3336,7 +3367,23 @@ function PlannerPageInner() {
             onUpdateTask={updateWeekTask}
             onMoveTask={moveWeekTask}
             onEditWeek={(wp) => setEditingWeekPlan(wp)}
+            split={view === "calendar" ? calendarSplit : undefined}
+            onToggleSplit={view === "calendar" ? () => setCalendarSplit(!calendarSplit) : undefined}
           />
+        </div>
+        {view === "calendar" && calendarSplit ? (
+          <div className="hidden lg:block w-[300px] xl:w-[340px] shrink-0 min-h-0">
+            <TasksPanel
+              projects={projects}
+              tasks={tasks}
+              weekPlan={selectedWeekPlan}
+              onAddTask={addTask}
+              onToggleTask={toggleTask}
+              onAddToDay={addWeekTask}
+              onClose={() => setCalendarSplit(false)}
+            />
+          </div>
+        ) : null}
         </div>
       ) : (
         <div className="hidden md:flex flex-col items-center justify-center h-full text-fg-subtle">

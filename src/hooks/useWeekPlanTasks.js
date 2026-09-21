@@ -7,6 +7,15 @@
 
 import { useCallback } from "react";
 import { apiJson } from "@/utils/apiClient";
+import { originDayAfterMove } from "@/lib/weekPlanView";
+
+// The API names a task's project `projectId`; the task itself calls it
+// `project`. Optimistic copies must use the task's name for it to show.
+function asTaskFields(updates) {
+  if (!updates || !("projectId" in updates)) return updates;
+  const { projectId, ...rest } = updates;
+  return { ...rest, project: projectId || null };
+}
 
 export function useWeekPlanTasks({ plan, setPlan, createPlan, onError }) {
   const fail = useCallback(
@@ -54,6 +63,7 @@ export function useWeekPlanTasks({ plan, setPlan, createPlan, onError }) {
                 project: data.projectId || null,
                 startMinute: data.startMinute ?? null,
                 durationMinutes: data.durationMinutes ?? null,
+                originDay: data.originDay ?? null,
               },
             ],
           })),
@@ -80,7 +90,7 @@ export function useWeekPlanTasks({ plan, setPlan, createPlan, onError }) {
         patchDays(plan, dayOfWeek, (d) => ({
           ...d,
           tasks: d.tasks.map((t) =>
-            String(t._id) === String(taskId) ? { ...t, ...updates } : t,
+            String(t._id) === String(taskId) ? { ...t, ...asTaskFields(updates) } : t,
           ),
         })),
       );
@@ -154,6 +164,7 @@ export function useWeekPlanTasks({ plan, setPlan, createPlan, onError }) {
               ...moved,
               project: toProjectId !== undefined ? toProjectId : moved.project || null,
               order: d.tasks.length,
+              originDay: originDayAfterMove(moved, fromDayOfWeek, toDayOfWeek),
               ...timing,
             },
           ],
