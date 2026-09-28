@@ -1,8 +1,9 @@
 "use client";
 
-// The quote player, opened from the slot machine's "View more": every quote
-// the machine draws from, by author in a side navigation, one at a time on a
-// large stage. Auto mode moves on by itself, silently at reading pace or
+// The quote browser, opened from the machine's expand button: laid out like
+// the notebook's Quotes view, with the authors down the side and the quotes
+// as cards in the main column, plus a stage that shows one at a time and a
+// search box. Auto mode moves on by itself, silently at reading pace or
 // reading each quote aloud with the device's voice or the AI voice.
 //
 // Keys: Space plays or pauses, ←/→ step, Esc closes.
@@ -79,6 +80,12 @@ const IconSpeaker = icon("M11 5L6 9H2v6h4l5 4V5zM15.5 8.5a5 5 0 010 7M19 5a10 10
 const IconX = icon("M6 6l12 12M18 6L6 18");
 const IconQuote = icon(
   "M9 7H5.5A2.5 2.5 0 003 9.5v2A2.5 2.5 0 005.5 14H7c0 2-1 3-3 3.5M20 7h-3.5A2.5 2.5 0 0014 9.5v2a2.5 2.5 0 002.5 2.5H18c0 2-1 3-3 3.5",
+);
+const IconSearch = icon("M21 21l-4.3-4.3", <circle cx="11" cy="11" r="7" />);
+const IconUser = icon("M4 20c0-3.3 3.6-5 8-5s8 1.7 8 5", <circle cx="12" cy="8" r="4" />);
+const IconGear = icon(
+  "M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z",
+  <circle cx="12" cy="12" r="3" />,
 );
 
 function IconPlayPause({ playing, className = "w-5 h-5" }) {
@@ -188,6 +195,7 @@ export default function QuotesPlayer({ open, quotes, startWith = null, onClose, 
   const panelRef = useRef(null);
 
   const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const [shuffle, setShuffle] = useState(false);
   // The order is kept with the list it was built for: until the two match
   // again (right after picking an author), nothing is on the stage.
@@ -216,10 +224,18 @@ export default function QuotesPlayer({ open, quotes, startWith = null, onClose, 
     return [...byKey.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [all]);
 
-  const list = useMemo(
-    () => (filter === "all" ? all : all.filter((q) => (authorKey(q.author) || "unknown") === filter)),
-    [all, filter],
-  );
+  // The author picked down the side, narrowed further by the search box.
+  const list = useMemo(() => {
+    const byAuthor = filter === "all" ? all : all.filter((q) => (authorKey(q.author) || "unknown") === filter);
+    const needle = search.trim().toLowerCase();
+    if (!needle) return byAuthor;
+    return byAuthor.filter(
+      (q) =>
+        q.text.toLowerCase().includes(needle) ||
+        String(q.author || "").toLowerCase().includes(needle) ||
+        String(q.source || "").toLowerCase().includes(needle),
+    );
+  }, [all, filter, search]);
 
   // Is the AI voice there at all? Only asked when the plan includes it.
   const aiLocked = gate.locked || gate.disabled;
@@ -317,6 +333,7 @@ export default function QuotesPlayer({ open, quotes, startWith = null, onClose, 
     setPlaying(false);
     setPhase("idle");
     setFilter("all");
+    setSearch("");
     setOrderState({ list: null, order: [] });
     currentRef.current = null;
     return undefined;
@@ -338,6 +355,12 @@ export default function QuotesPlayer({ open, quotes, startWith = null, onClose, 
   useEffect(() => {
     endOneOff();
   }, [pos, filter, endOneOff]);
+
+  // The card of the quote on the stage stays in view as auto mode moves on.
+  const activeCardRef = useRef(null);
+  useEffect(() => {
+    activeCardRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [pos, order]);
 
   /** Reads `quote` with the voice in use; on failure, falls back rather than stalling. */
   const readAloud = useCallback(
@@ -509,23 +532,36 @@ export default function QuotesPlayer({ open, quotes, startWith = null, onClose, 
               </span>
               <div className="min-w-0 flex-1">
                 <h2 className="text-base font-semibold text-fg leading-tight">Quotes</h2>
-                <p className="text-[11px] text-fg-subtle">
+                <p className="text-[11px] text-fg-subtle truncate">
                   {all.length} quote{all.length === 1 ? "" : "s"} · {authors.length} author{authors.length === 1 ? "" : "s"}
                 </p>
               </div>
+              <label className="relative shrink-0">
+                <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-fg-subtle pointer-events-none" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search quotes…"
+                  aria-label="Search quotes"
+                  className="w-28 sm:w-48 pl-8 pr-2 py-1.5 rounded-lg bg-surface-2 border border-edge text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-focus [&::-webkit-search-cancel-button]:appearance-none"
+                />
+              </label>
               {onManage ? (
                 <button
                   type="button"
                   onClick={onManage}
-                  className="hidden sm:inline-flex px-2.5 py-1 rounded-lg text-xs font-medium text-primary border border-edge hover:bg-primary-soft transition-colors"
+                  aria-label="Manage quotes"
+                  title="Manage quotes"
+                  className="p-1.5 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-hover transition-colors"
                 >
-                  Manage quotes
+                  <IconGear className="w-4 h-4" />
                 </button>
               ) : null}
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close the quote player"
+                aria-label="Close the quote browser"
                 className="p-1.5 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-hover transition-colors"
               >
                 <IconX className="w-4 h-4" />
@@ -557,7 +593,7 @@ export default function QuotesPlayer({ open, quotes, startWith = null, onClose, 
 
                 {/* Stage */}
                 <section
-                  className="relative shrink-0 min-h-[210px] sm:min-h-[250px] flex items-center justify-center px-6 sm:px-12 py-8 bg-gradient-to-b from-surface-2/60 to-surface"
+                  className="relative shrink-0 min-h-[180px] sm:min-h-[220px] flex items-center justify-center px-6 sm:px-12 py-6 bg-gradient-to-b from-surface-2/60 to-surface"
                   aria-live={playing ? "off" : "polite"}
                 >
                   <AnimatePresence mode="wait" initial={false}>
@@ -579,7 +615,7 @@ export default function QuotesPlayer({ open, quotes, startWith = null, onClose, 
                         </figcaption>
                       </motion.figure>
                     ) : (
-                      <p className="text-sm text-fg-subtle">No quotes here.</p>
+                      <p className="text-sm text-fg-subtle">{search.trim() ? `No quote matches “${search.trim()}”.` : "No quotes here."}</p>
                     )}
                   </AnimatePresence>
                 </section>
@@ -683,30 +719,40 @@ export default function QuotesPlayer({ open, quotes, startWith = null, onClose, 
                   {notice ? <p className="basis-full text-xs text-warning">{notice}</p> : null}
                 </div>
 
-                {/* Every quote in this list */}
-                <ol className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 space-y-1 [scrollbar-width:thin]" aria-label="Quotes in this list">
+                {/* Every quote in this list, as cards like the notebook's */}
+                <ol
+                  className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 grid gap-2.5 grid-cols-1 lg:grid-cols-2 content-start [scrollbar-width:thin]"
+                  aria-label="Quotes in this list"
+                >
                   {order.map((idx, i) => {
                     const q = list[idx];
                     if (!q) return null;
                     const active = i === pos % order.length;
                     return (
-                      <li key={`${idx}-${q.text}`}>
+                      <li key={`${idx}-${q.text}`} ref={active ? activeCardRef : null}>
                         <button
                           type="button"
                           onClick={() => setPos(i)}
                           aria-current={active ? "true" : undefined}
-                          className={`w-full flex items-start gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                            active ? "bg-primary-soft" : "hover:bg-surface-hover"
+                          className={`w-full h-full flex flex-col justify-start gap-2 rounded-xl border p-3.5 text-left transition-all ${
+                            active
+                              ? "border-primary/50 bg-primary-soft shadow-sm"
+                              : "border-edge bg-surface hover:border-edge-strong hover:shadow-md"
                           }`}
                         >
-                          <span className={`mt-0.5 text-[10px] tabular-nums w-5 shrink-0 ${active ? "text-primary font-semibold" : "text-fg-subtle"}`}>
-                            {i + 1}
-                          </span>
-                          <span className="flex-1 min-w-0">
-                            <span className={`block text-sm leading-snug ${active ? "text-fg font-medium" : "text-fg-muted"}`}>
+                          <span className="flex items-start gap-2">
+                            <IconQuote className="w-4 h-4 mt-0.5 shrink-0 text-accent" />
+                            <span className={`flex-1 min-w-0 text-sm leading-snug break-words ${active ? "text-fg font-medium" : "text-fg"}`}>
                               {q.text}
                             </span>
-                            <span className="block text-[11px] text-fg-subtle mt-0.5">{q.author}</span>
+                          </span>
+                          <span className="flex items-center gap-2.5 text-[11px] text-fg-subtle">
+                            <span className="inline-flex items-center gap-1 font-medium text-fg-muted min-w-0">
+                              <IconUser className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{q.author}</span>
+                            </span>
+                            {q.source ? <span className="truncate">{q.source}</span> : null}
+                            <span className={`ml-auto shrink-0 tabular-nums ${active ? "text-primary font-semibold" : ""}`}>{i + 1}</span>
                           </span>
                         </button>
                       </li>

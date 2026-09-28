@@ -7,6 +7,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useTimerSettings } from "@/hooks/useTimerSettings";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
 import { useDashboardSettings } from "@/hooks/useDashboardSettings";
+import { QUOTE_VIEWS } from "@/lib/dashboardSettings";
 import { WEEK_STARTS } from "@/lib/weekSettings";
 import { createSoundKit } from "@/utils/sounds";
 import TimerPreview from "@/components/timer/TimerPreview";
@@ -570,10 +571,10 @@ export default function SettingsPage() {
             </svg>
             Dashboard
           </h2>
-          <div className="bg-surface-2 p-4 rounded-lg transition-colors duration-300">
+          <div className="bg-surface-2 p-4 rounded-lg transition-colors duration-300 space-y-4">
             <SettingRow
               title="Quotes"
-              hint="A quote to pull on, on the dashboard. Your own quotes from the notebook, or the built-in ones until you save some."
+              hint="Your own quotes from the notebook, under the greeting on the dashboard."
             >
               <Toggle
                 checked={dashboard.showQuotes}
@@ -581,6 +582,18 @@ export default function SettingsPage() {
                 label="Show quotes on the dashboard"
               />
             </SettingRow>
+            {dashboard.showQuotes ? (
+              <div>
+                <p className="text-sm font-medium text-fg mb-2">How they are shown</p>
+                <OptionCards
+                  name="Quotes view"
+                  options={QUOTE_VIEWS}
+                  value={dashboard.quotesView}
+                  onChange={(id) => updateDashboard({ quotesView: id })}
+                  columns="grid-cols-2"
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 

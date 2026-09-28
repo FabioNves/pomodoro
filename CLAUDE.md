@@ -70,13 +70,25 @@ README.md has the commands.
   anything; a single quote can be switched off on its own.
 - `GET /api/notebook/quotes?scope=active` is what the dashboard asks for:
   active quotes of active authors, and nothing else. The shared rules and
-  the fallback quotes are in `src/lib/notebook/quotes.js` (browser too), the
+  the built-in quotes are in `src/lib/notebook/quotes.js` (browser too), the
   DTOs and the duplicate check in `quotesServer.js` (server only).
 - The dashboard shows `QuoteSlotMachine` (`src/components/quotes`) under the
   greeting, every day rather than only once the day's blocks are done: a
-  reader with no week plan would otherwise never see it. With no quotes of
-  their own they get `DEFAULT_QUOTES` and an offer to save some, so the
-  machine is never empty. The caption still marks a finished day.
+  reader with no week plan would otherwise never see it. It shows only the
+  reader's own active quotes, never stand-ins: the page asks for them first
+  and passes `quotesReady`, so the window says it is loading rather than
+  spinning on something else, and with none switched on it says so and
+  offers the notebook. `DEFAULT_QUOTES` is shown nowhere any more (the
+  speech route still accepts one). The caption still marks a finished day.
+- The window is always the same height: a quote is clamped to two lines
+  (`QuoteBody` measures the overflow) and a longer one gets a More/Less
+  toggle, `expandedFrame`, which lets the window grow until the next quote.
+  The header row holds the view switch (`QUOTE_VIEWS`: slot machine or
+  gallery, the `quotesView` preference in `src/lib/dashboardSettings.js`,
+  also under Settings > Dashboard), an expand button that opens the browser
+  and a gear that goes to the notebook (`onManage`). The gallery steps
+  through the list in order with the arrows, a swipe or the arrow keys; the
+  reels and the lever belong to the slot machine.
 - Whether it is there at all is a device preference,
   `src/lib/dashboardSettings.js` with `useDashboardSettings()`, set under
   Settings > Dashboard. Follow that module for any further dashboard
@@ -100,12 +112,14 @@ README.md has the commands.
   "found on the page", which is what was actually checked: the words appear
   on the page cited. A quote-listing page can still attribute them to the
   wrong person, so do not upgrade that wording to a claim of authorship.
-- "View more" on the full-size slot machine opens the quote player
-  (`src/components/quotes/QuotesPlayer.jsx`): authors in a side navigation
-  (chips on phones), one quote at a time on a stage, a list to jump around,
+- The expand button on the full-size machine opens the quote browser
+  (`src/components/quotes/QuotesPlayer.jsx`), laid out like the notebook's
+  Quotes view: authors in a side navigation (chips on phones), a search box,
+  one quote at a time on a stage, the quotes as cards below to jump around,
   and an auto mode that moves on at reading pace or reads each quote aloud.
-  The compact machine in the notebook has no View more (`expandable`
-  defaults to `!compact`), because the notebook already lists every quote.
+  The compact machine in the notebook has no expand button, view switch or
+  gear (`expandable` defaults to `!compact`; `onViewChange` and `onManage`
+  are null there), because the notebook already lists every quote.
 - Voices: "Device" is the browser's own speech synthesis (free, offline);
   "AI voice" is the `ai_voice` feature (premium), drawn locked with the
   Premium badge for anyone else. `POST /api/notebook/quotes/speech` only reads

@@ -97,6 +97,11 @@ export function TimerProvider({ children }) {
     const owned = { ...next, owner: currentOwner() };
     runRef.current = owned;
     setRunState(owned);
+    // The clock only ticks while running, so it is stale by the time a run
+    // starts or resumes. Read again here, in the same render as the new
+    // run, so the first frame shows the right time rather than the
+    // remaining time plus however long the timer sat idle.
+    setNow(Date.now());
     saveRun(owned);
     return owned;
   }, []);
@@ -115,6 +120,7 @@ export function TimerProvider({ children }) {
       usable || blankRun({ focusMinutes: settings.defaultFocus, breakMinutes: settings.defaultBreak, owner: currentOwner() });
     runRef.current = next;
     setRunState(next);
+    setNow(Date.now());
   }, [ready, settings.defaultFocus, settings.defaultBreak]);
 
   // Changing the defaults in Settings moves an idle timer with them.

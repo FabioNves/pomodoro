@@ -10,9 +10,9 @@ import {
 } from "@/lib/dashboardSettings";
 
 /**
- * Dashboard preferences (whether the quote machine is shown). Reads
- * localStorage after mount and follows changes made elsewhere (the Settings
- * page, another tab).
+ * Dashboard preferences (whether the quotes are shown, and as a slot machine
+ * or a gallery). Reads localStorage after mount and follows changes made
+ * elsewhere (the Settings page, the switch on the dashboard, another tab).
  */
 export function useDashboardSettings() {
   const [settings, setSettings] = useState(DEFAULT_DASHBOARD_SETTINGS);

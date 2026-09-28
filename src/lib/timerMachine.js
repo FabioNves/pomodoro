@@ -44,7 +44,10 @@ export function blankRun({ focusMinutes = 25, breakMinutes = 5, context, owner =
 export function secondsLeft(run, now = Date.now()) {
   if (!run) return 0;
   if (!run.running || !run.runningSince) return Math.max(0, run.remaining);
-  return Math.max(0, run.remaining - Math.floor((now - run.runningSince) / 1000));
+  // A clock read before the run started (a stale tick) must not add time:
+  // the display would show more than the phase has, then snap back.
+  const elapsed = Math.max(0, Math.floor((now - run.runningSince) / 1000));
+  return Math.max(0, run.remaining - elapsed);
 }
 
 /** Seconds the current phase lasts in full, for the progress ring. */

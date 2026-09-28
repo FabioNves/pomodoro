@@ -9,7 +9,6 @@ import React, { useMemo, useState } from "react";
 import { toYMD, dayIndexOf, weekDayLabels } from "@/utils/timeUtils";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
 import { routineOccursOn } from "@/lib/routineSchedule";
-import { DEFAULT_QUOTES } from "@/lib/notebook/quotes";
 import QuoteSlotMachine from "@/components/quotes/QuoteSlotMachine";
 import { useDashboardSettings } from "@/hooks/useDashboardSettings";
 import {
@@ -172,9 +171,10 @@ export default function DashboardOverview({
   weekPlan = null,
   routineTasks = [],
   sessions = [],
-  // Active quotes from the notebook; the slot machine falls back to a few
-  // well-known ones while the notebook has none.
+  // The reader's active quotes from the notebook, and whether they have
+  // arrived yet. Nothing else is ever shown in their place.
   quotes = [],
+  quotesReady = true,
   palettes = {},
   timerSlot = null,
   todaySlot = null,
@@ -188,7 +188,7 @@ export default function DashboardOverview({
 }) {
   // The preference is read from storage after mount; until then it is the
   // default, so waiting for it keeps a switched-off panel from flashing in.
-  const { settings: dashboard, ready: dashboardReady } = useDashboardSettings();
+  const { settings: dashboard, update: updateDashboard, ready: dashboardReady } = useDashboardSettings();
   const go = (key) => () => onNavigate?.(key);
 
   // Fixed for the life of the dashboard so derived data stays stable.
@@ -380,11 +380,11 @@ export default function DashboardOverview({
   const nextLabel = weekSummary.next
     ? `${minutesToTime(weekSummary.next.start)} · ${weekSummary.next.task.taskName}`
     : "Nothing scheduled yet";
-  // The quotes are here every day, not only once the blocks are done; with
-  // none of your own they are the built-in ones, with an offer to add some.
-  // Turn the whole thing off under Settings > Dashboard.
-  const slotQuotes = quotes.length ? quotes : DEFAULT_QUOTES;
-  const showQuotes = dashboardReady && dashboard.showQuotes && slotQuotes.length > 0;
+  // The quotes are here every day, not only once the blocks are done. Only
+  // the reader's own: while they load the window says so, and with none
+  // switched on it offers the notebook. Turn the whole thing off under
+  // Settings > Dashboard.
+  const showQuotes = dashboardReady && dashboard.showQuotes;
 
   return (
     <div className="p-4 md:p-6">
@@ -414,10 +414,13 @@ export default function DashboardOverview({
 
         {showQuotes ? (
           <QuoteSlotMachine
-            quotes={slotQuotes}
+            quotes={quotes}
+            loading={!quotesReady}
+            view={dashboard.quotesView}
+            onViewChange={(view) => updateDashboard({ quotesView: view })}
             caption={dayDone ? `Every block done today · ${weekSummary.timed.length} of them` : ""}
             onManage={() => onNavigate?.("quotes")}
-            manageLabel={quotes.length ? "Manage quotes" : "Add your own"}
+            manageLabel={quotes.length ? "Manage quotes" : "Add your quotes"}
           />
         ) : null}
 

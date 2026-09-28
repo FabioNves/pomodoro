@@ -562,7 +562,7 @@ export default function QuotesView({ onCountChange }) {
               autoSpin={false}
               caption={
                 live.length
-                  ? `The dashboard shows these ${live.length} quote${live.length === 1 ? "" : "s"} once your blocks are done`
+                  ? `The dashboard shows these ${live.length} quote${live.length === 1 ? "" : "s"}`
                   : "Switch an author on to feed the dashboard"
               }
             />

@@ -68,9 +68,11 @@ export default function DashboardPage() {
   const [weekPlans, setWeekPlans] = useState([]);
   const [routineTasks, setRoutineTasks] = useState([]);
   const [sessions, setSessions] = useState([]);
-  // Quotes for the slot machine on the dashboard. They need the session
-  // token, so they come through notebookApi, not apiJson.
+  // The reader's active quotes, for the machine under the greeting. They
+  // need the session token, so they come through notebookApi, not apiJson.
+  // Until they have arrived the machine waits rather than showing stand-ins.
   const [quotes, setQuotes] = useState([]);
+  const [quotesReady, setQuotesReady] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   // Same persisted selection the timer page uses, so both stay in sync.
@@ -139,6 +141,16 @@ export default function DashboardPage() {
         console.error(e);
         return [];
       });
+    // First, and on its own: the quotes are the first thing on the page and
+    // must not wait for the planner data, nor stop it when they fail.
+    notebookApi("/api/notebook/quotes?scope=active")
+      .then((data) => {
+        if (!cancelled) setQuotes(data.quotes || []);
+      })
+      .catch((e) => console.error(e))
+      .finally(() => {
+        if (!cancelled) setQuotesReady(true);
+      });
     (async () => {
       const year = new Date().getFullYear();
       const [prj, tks, hbs, ents, plans, sess] = await Promise.all([
@@ -162,9 +174,6 @@ export default function DashboardPage() {
       if (cancelled) return;
       setRoutineTasks(routines.flat());
       setLoaded(true);
-      notebookApi("/api/notebook/quotes?scope=active")
-        .then((data) => !cancelled && setQuotes(data.quotes || []))
-        .catch(() => {});
     })();
     return () => {
       cancelled = true;
@@ -392,6 +401,7 @@ export default function DashboardPage() {
           routineTasks={routineTasks}
           sessions={sessions}
           quotes={quotes}
+          quotesReady={quotesReady}
           palettes={COLOR_PALETTES}
           timerSlot={timerSlot}
           todaySlot={todaySlot}

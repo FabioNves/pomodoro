@@ -80,8 +80,10 @@ export const ORIGIN_LABELS = {
 };
 
 /**
- * Quotes the dashboard falls back to while the notebook has no active
- * quotes of its own. Well-known lines with their usual attribution.
+ * Built-in quotes: well-known lines with their usual attribution. The
+ * dashboard shows only the reader's own quotes, so these are no longer put
+ * in their place; the speech route still accepts one, so a clip of a
+ * built-in quote can be played.
  */
 export const DEFAULT_QUOTES = [
   { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
