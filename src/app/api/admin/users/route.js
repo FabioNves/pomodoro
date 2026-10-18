@@ -90,7 +90,7 @@ export async function GET(req) {
       filter.$or = [{ email: re }, { name: re }];
     }
     const docs = await User.find(filter)
-      .select("email name imageUrl plan planExpiresAt viewAs lastActiveAt lastSignInAt sessionsRevokedAt createdAt")
+      .select("email name imageUrl plan planExpiresAt viewAs lastActiveAt lastSignInAt sessionsRevokedAt hubAdminUntil createdAt")
       .limit(MAX_ROWS)
       .lean();
 

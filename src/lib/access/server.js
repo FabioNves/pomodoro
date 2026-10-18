@@ -2,7 +2,8 @@
 //
 // Every request resolves its role here, from the database, never from
 // anything the client sent:
-//   admin    the configured admin email (ADMIN_EMAILS, comma separated)
+//   admin    the configured admin email (ADMIN_EMAILS, comma separated), or
+//            a current Movez Hub grant (User.hubAdminUntil, see /api/hub/sso)
 //   premium  an unexpired premium plan on the User document
 //   free     everyone else, signed in or not
 //
@@ -54,6 +55,7 @@ export function isAdminEmail(email) {
 export function roleOfUser(user) {
   if (!user) return "free";
   if (isAdminEmail(user.email)) return "admin";
+  if (user.hubAdminUntil && new Date(user.hubAdminUntil).getTime() > Date.now()) return "admin";
   if (user.plan === "premium") {
     if (!user.planExpiresAt || new Date(user.planExpiresAt).getTime() > Date.now()) return "premium";
   }
@@ -102,7 +104,7 @@ export function isObjectIdString(value) {
 }
 
 const USER_FIELDS =
-  "email name imageUrl plan planExpiresAt viewAs lastActiveAt lastSignInAt sessionsRevokedAt createdAt";
+  "email name imageUrl plan planExpiresAt viewAs lastActiveAt lastSignInAt sessionsRevokedAt hubAdminUntil createdAt";
 
 /** Lean user record, cached for a couple of seconds per instance. */
 export async function loadUser(userId) {
