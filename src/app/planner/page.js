@@ -1186,7 +1186,7 @@ const TABS = [
   { key: "schedule", label: "Schedule" },
   { key: "routines", label: "Routines" },
 ];
-const DEFAULT_TAB = "tasks";
+const DEFAULT_TAB = "calendar";
 
 const ROUTINE_VIEWS = [
   { key: "habits", label: "Habits", hint: "Daily habits and their streaks" },

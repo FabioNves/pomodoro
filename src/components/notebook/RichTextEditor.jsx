@@ -397,11 +397,46 @@ export default function RichTextEditor({ initialHtml, onChange, onSaveNow, place
     exec("insertText", `[[${title}]] `);
   };
 
+  // Markdown-style shortcuts: "- " or "* " at the start of a line starts a
+  // bulleted list, "1. " a numbered one. Run on input rather than keydown,
+  // because phone keyboards do not say which key was pressed. The marker is
+  // removed with the editing commands, so Undo brings the typed text back.
+  const autoList = () => {
+    const sel = window.getSelection();
+    if (!sel?.isCollapsed || !sel.rangeCount || !isInside(sel.anchorNode)) return false;
+    const node = sel.anchorNode;
+    const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    if (el.closest("li, pre, h1, h2, h3, blockquote")) return false;
+    const block = el.closest(BLOCK_SELECTOR);
+    const range = document.createRange();
+    if (block && block !== editorRef.current && isInside(block)) {
+      range.setStart(block, 0);
+    } else if (node.nodeType === Node.TEXT_NODE && (!node.previousSibling || node.previousSibling.nodeName === "BR")) {
+      range.setStart(node, 0); // a bare line straight inside the editor
+    } else {
+      return false;
+    }
+    range.setEnd(node, sel.anchorOffset);
+    // The browser types a trailing space as a non-breaking one.
+    const before = range.toString().replace(/ /g, " ");
+    const command = before === "- " || before === "* " ? "insertUnorderedList" : before === "1. " ? "insertOrderedList" : null;
+    if (!command) return false;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand("delete");
+    document.execCommand(command);
+    saveSelection();
+    refreshFormat();
+    emit();
+    return true;
+  };
+
   /* ── editor events ───────────────────────────────────── */
 
   // Typing "[[" opens the note picker without taking focus: the text typed
   // after it filters the list until "]]" closes it or Enter picks a note.
-  const onInput = () => {
+  const onInput = (e) => {
+    if (e.nativeEvent?.inputType === "insertText" && e.nativeEvent.data === " " && autoList()) return;
     emit();
     const typed = typedQuery();
     if (popover?.kind === "note" && popover.trigger === "typed") {

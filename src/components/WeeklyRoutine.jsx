@@ -310,6 +310,8 @@ export default function WeeklyRoutine({
         _id: `__dated_${task._id}`,
         _virtual: true,
         _dated: true,
+        // Kept so the calendar can draw its project's line and name it.
+        project: pid,
         taskName: task.title,
         completed: false,
       });

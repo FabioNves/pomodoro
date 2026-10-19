@@ -7,6 +7,7 @@ import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
 import NativeBridge from "../components/NativeBridge";
 import UpdateBanner from "../components/UpdateBanner";
 import ViewAsBar from "../components/access/ViewAsBar";
+import QuickNotebook from "../components/notebook/QuickNotebook";
 import { AccessProvider } from "../lib/access/client";
 import { TimerProvider } from "../components/timer/TimerProvider";
 import { ThemeProvider } from "../hooks/useTheme";
@@ -155,6 +156,7 @@ export default function RootLayout({ children }) {
                   <ViewAsBar />
                   {children}
                 </div>
+                <QuickNotebook />
               </TimerProvider>
             </AccessProvider>
           </GoogleOAuthProvider>

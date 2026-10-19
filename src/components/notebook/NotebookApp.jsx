@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { notebookApi } from "@/lib/notebook/client";
+import { notebookApi, patchParams } from "@/lib/notebook/client";
 import { subjectKey } from "@/lib/notebook/subjects";
 import { isBlankHtml } from "@/lib/notebook/sanitize";
 import { buildFolderIndex, buildLinkIndex, tabChildren } from "@/lib/notebook/tree";
@@ -25,8 +25,10 @@ import ViewEditor from "@/components/notebook/ViewEditor";
 import {
   ActionButton,
   IconAlert,
+  IconExternal,
   IconMenu,
   IconNotePlus,
+  IconX,
   Spinner,
 } from "@/components/notebook/notebookUi";
 
@@ -45,14 +47,37 @@ function Loading({ label = "Loading your notebook…" }) {
   );
 }
 
+/** The notebook page: its place lives in the query string. */
 export default function NotebookApp() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const viewParam = searchParams.get("view") || "folders";
-  const docId = searchParams.get("doc");
-  const tabParam = searchParams.get("tab");
-  const folderParam = searchParams.get("folder");
-  const subjectParam = searchParams.get("subject");
+
+  const setParams = useCallback(
+    (patch, { push = false } = {}) => {
+      const params = patchParams(searchParams, patch);
+      const url = params.toString() ? `/notebook?${params.toString()}` : "/notebook";
+      if (push) router.push(url, { scroll: false });
+      else router.replace(url, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  return <NotebookWorkspace params={searchParams} setParams={setParams} />;
+}
+
+/**
+ * The notebook itself. `params` holds its place (view, folder, doc, tab,
+ * subject) and `setParams(patch)` moves it: the page keeps them in the URL,
+ * the floating quick notebook (`QuickNotebook`) in its own state, so it never
+ * navigates away from the page it is opened over. `embedded` draws the
+ * compact header that window needs, with `onExpand` and `onClose`.
+ */
+export function NotebookWorkspace({ params, setParams, embedded = false, onExpand = null, onClose = null }) {
+  const viewParam = params.get("view") || "folders";
+  const docId = params.get("doc");
+  const tabParam = params.get("tab");
+  const folderParam = params.get("folder");
+  const subjectParam = params.get("subject");
 
   const [folders, setFolders] = useState([]);
   const [docs, setDocs] = useState([]);
@@ -74,20 +99,6 @@ export default function NotebookApp() {
       mountedRef.current = false;
     };
   }, []);
-
-  const setParams = useCallback(
-    (patch, { push = false } = {}) => {
-      const params = new URLSearchParams(searchParams.toString());
-      for (const [key, value] of Object.entries(patch)) {
-        if (value == null || value === "") params.delete(key);
-        else params.set(key, String(value));
-      }
-      const url = params.toString() ? `/notebook?${params.toString()}` : "/notebook";
-      if (push) router.push(url, { scroll: false });
-      else router.replace(url, { scroll: false });
-    },
-    [router, searchParams],
-  );
 
   /* ── state helpers ───────────────────────────────────── */
 
@@ -636,9 +647,55 @@ export default function NotebookApp() {
     );
   }
 
+  const newNoteButton =
+    mode === "quotes" || mode === "posts" ? null : (
+      <ActionButton tone="primary" Icon={IconNotePlus} onClick={newNoteHere} disabled={loading || !!loadError}>
+        New note
+      </ActionButton>
+    );
+  const menuButton = (
+    <button
+      type="button"
+      className="md:hidden p-2 rounded-lg border border-edge text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors"
+      aria-label="Open notebook menu"
+      onClick={() => setSidebarOpen(true)}
+    >
+      <IconMenu className="w-5 h-5" />
+    </button>
+  );
+
   return (
-    <div className="w-full max-w-7xl mx-auto px-3 sm:px-4">
+    <div className={embedded ? "flex flex-col h-full min-h-0" : "w-full max-w-7xl mx-auto px-3 sm:px-4"}>
       {/* Header */}
+      {embedded ? (
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-edge shrink-0">
+          {menuButton}
+          <h2 className="flex-1 min-w-0 text-base font-semibold text-fg truncate">Notebook</h2>
+          {newNoteButton}
+          {onExpand ? (
+            <button
+              type="button"
+              onClick={onExpand}
+              className="p-2 rounded-lg text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors"
+              aria-label="Open the full notebook"
+              title="Open the full notebook"
+            >
+              <IconExternal className="w-4 h-4" />
+            </button>
+          ) : null}
+          {onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-lg text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors"
+              aria-label="Close the notebook"
+              title="Close (Esc)"
+            >
+              <IconX className="w-4 h-4" />
+            </button>
+          ) : null}
+        </div>
+      ) : (
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent leading-tight">
@@ -649,24 +706,14 @@ export default function NotebookApp() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {mode === "quotes" || mode === "posts" ? null : (
-            <ActionButton tone="primary" Icon={IconNotePlus} onClick={newNoteHere} disabled={loading || !!loadError}>
-              New note
-            </ActionButton>
-          )}
-          <button
-            type="button"
-            className="md:hidden p-2 rounded-lg border border-edge text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors"
-            aria-label="Open notebook menu"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <IconMenu className="w-5 h-5" />
-          </button>
+          {newNoteButton}
+          {menuButton}
         </div>
       </div>
+      )}
 
       {loadError ? (
-        <div className="flex items-start gap-3 p-4 rounded-2xl border border-danger/40 bg-danger-soft text-danger text-sm">
+        <div className={`flex items-start gap-3 p-4 rounded-2xl border border-danger/40 bg-danger-soft text-danger text-sm ${embedded ? "m-3" : ""}`}>
           <IconAlert className="w-4 h-4 mt-0.5 shrink-0" />
           <div className="flex-1">{loadError}</div>
           <ActionButton size="sm" onClick={load}>
@@ -674,7 +721,13 @@ export default function NotebookApp() {
           </ActionButton>
         </div>
       ) : (
-        <div className="flex bg-surface/70 backdrop-blur-sm rounded-2xl border border-edge shadow-md overflow-hidden h-[calc(100dvh-14rem)] md:h-[calc(100dvh-10rem)] min-h-[520px] transition-colors duration-300">
+        <div
+          className={
+            embedded
+              ? "flex flex-1 min-h-0 overflow-hidden"
+              : "flex bg-surface/70 backdrop-blur-sm rounded-2xl border border-edge shadow-md overflow-hidden h-[calc(100dvh-14rem)] md:h-[calc(100dvh-10rem)] min-h-[520px] transition-colors duration-300"
+          }
+        >
           <div className="hidden md:flex w-64 lg:w-72 shrink-0 border-r border-edge flex-col min-h-0">
             <NotebookSidebar {...sidebarProps} />
           </div>

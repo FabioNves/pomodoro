@@ -36,3 +36,17 @@ export async function notebookApi(path, { method = "GET", body, blob, signal, ke
   }
   return data;
 }
+
+/**
+ * Applies a `{ key: value | null }` patch to a copy of the notebook's place
+ * (view, folder, doc, tab, subject). The page keeps it in the URL, the
+ * floating notebook in its own state; both move it through this.
+ */
+export function patchParams(params, patch) {
+  const next = new URLSearchParams(params.toString());
+  for (const [key, value] of Object.entries(patch)) {
+    if (value == null || value === "") next.delete(key);
+    else next.set(key, String(value));
+  }
+  return next;
+}

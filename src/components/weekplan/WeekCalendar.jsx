@@ -26,6 +26,7 @@ import {
   IconPlus,
   NotesButton,
   duplicateTaskFields,
+  formatMinutes,
   minutesToTime,
   projectOptionsFrom,
   taskDuration,
@@ -212,8 +213,9 @@ export default function WeekCalendar({
   const [addingStripDay, setAddingStripDay] = useState(null);
   const [editingKey, setEditingKey] = useState(null);
 
-  // Notes of the task under the pointer, with a Copy button.
-  const notesPeek = useNotesPeek();
+  // The details of the task under the pointer (project, time, notes with a
+  // Copy button): every task gets the card, the blocks are too small to read.
+  const notesPeek = useNotesPeek({ allTasks: true });
   const projectOptions = useMemo(
     () => projectOptionsFrom(projectNameMap, projectColorMap),
     [projectNameMap, projectColorMap],
@@ -270,12 +272,41 @@ export default function WeekCalendar({
     [dayTasks],
   );
 
+  // The project the task shows under: its own, or that of its cycle.
+  const projectIdFor = useCallback(
+    (task) => (getTaskProjectId ? getTaskProjectId(task) : ownProjectId(task)) || null,
+    [getTaskProjectId],
+  );
+
+  // The project's line comes first, then the cycle's own colours.
   const colorsFor = useCallback(
     (task) => {
       const rtId = routineIdOf(task);
-      return rtId ? taskColorMap[rtId] : null;
+      const pid = projectIdFor(task);
+      return {
+        projectClass: (pid && projectColorMap[pid]) || "",
+        ...(rtId ? taskColorMap[rtId] : null),
+      };
     },
-    [taskColorMap],
+    [taskColorMap, projectColorMap, projectIdFor],
+  );
+
+  // What the hover card shows besides the title and the time.
+  const peekMetaFor = useCallback(
+    (task) => {
+      const pid = projectIdFor(task);
+      const badges = [];
+      if (task.completed) badges.push({ label: "Done", tone: "success" });
+      if (task._dated) badges.push({ label: "From Tasks", tone: "primary" });
+      else if (task._virtual) badges.push({ label: "Auto-scheduled", tone: "warning" });
+      else if (routineIdOf(task)) badges.push({ label: "Cycle", tone: "neutral" });
+      if (task.estimatedTime) badges.push({ label: formatMinutes(task.estimatedTime), tone: "neutral" });
+      return {
+        project: pid && projectNameMap[pid] ? { name: projectNameMap[pid], colorClass: projectColorMap[pid] || "" } : null,
+        badges,
+      };
+    },
+    [projectIdFor, projectNameMap, projectColorMap],
   );
 
   const canDrag = (task) =>
@@ -642,20 +673,16 @@ export default function WeekCalendar({
         draggable={draggable}
         onDragStart={(e) => handleDragStart(e, task, dayIdx, false)}
         onDragEnd={clearDrag}
-        {...notesPeek.bind(task, when)}
+        {...notesPeek.bind(task, when, peekMetaFor(task))}
         className={`group flex items-center gap-1 px-1.5 py-1 rounded-md border text-[11px] leading-tight ${blockTone(task)} ${
           draggable ? "cursor-grab active:cursor-grabbing" : ""
         }`}
-        // With notes, the card says it all; a native tooltip would only
-        // pile on top of it.
-        title={task.notes ? undefined : task.taskName}
       >
-        {colors ? (
-          <TaskColorLines
-            manualColor={colors.manualColor}
-            conditionalColor={colors.conditionalColor}
-          />
-        ) : null}
+        <TaskColorLines
+          projectClass={colors.projectClass}
+          manualColor={colors.manualColor}
+          conditionalColor={colors.conditionalColor}
+        />
         <button
           type="button"
           className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center transition-colors ${
@@ -681,7 +708,7 @@ export default function WeekCalendar({
         >
           {task.taskName}
         </span>
-        <NotesButton task={task} onPin={(el) => notesPeek.pin(task, el, when)} />
+        <NotesButton task={task} onPin={(el) => notesPeek.pin(task, el, when, peekMetaFor(task))} />
         {task.estimatedTime ? (
           <span className="text-[10px] text-fg-subtle shrink-0">
             {task.estimatedTime}
@@ -708,7 +735,7 @@ export default function WeekCalendar({
         onDragStart={(e) => handleDragStart(e, task, dayIdx, true)}
         onDragEnd={clearDrag}
         onMouseDown={(e) => e.stopPropagation()}
-        {...notesPeek.bind(task, when)}
+        {...notesPeek.bind(task, when, peekMetaFor(task))}
         style={{
           top,
           height,
@@ -718,15 +745,13 @@ export default function WeekCalendar({
         className={`group absolute rounded-md border px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden shadow-sm select-none ${blockTone(task)} ${
           draggable ? "cursor-grab active:cursor-grabbing" : ""
         } ${isResizing ? "ring-2 ring-focus/40" : ""}`}
-        title={task.notes ? undefined : `${task.taskName} · ${minutesToTime(start)} – ${minutesToTime(end)}`}
       >
         <div className="flex items-start gap-1 h-full">
-          {colors ? (
-            <TaskColorLines
-              manualColor={colors.manualColor}
-              conditionalColor={colors.conditionalColor}
-            />
-          ) : null}
+          <TaskColorLines
+            projectClass={colors.projectClass}
+            manualColor={colors.manualColor}
+            conditionalColor={colors.conditionalColor}
+          />
           <div className="flex-1 min-w-0">
             {/* Above the resize strip: on a short block the strip would
                 otherwise cover the tick box and the task menu. */}
@@ -751,7 +776,7 @@ export default function WeekCalendar({
               >
                 {task.taskName}
               </span>
-              <NotesButton task={task} onPin={(el) => notesPeek.pin(task, el, when)} />
+              <NotesButton task={task} onPin={(el) => notesPeek.pin(task, el, when, peekMetaFor(task))} />
               {renderEditControls(task, dayIdx)}
             </div>
             {showTime ? (

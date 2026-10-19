@@ -7,6 +7,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import Dropdown from "@/components/ui/Dropdown";
 
 // Compute a viewport-aware popover position anchored under an element.
 // Flips above if not enough room below; right-aligns if not enough room right.
@@ -183,39 +184,38 @@ export function projectOptionsFrom(projectNameMap = {}, projectColorMap = {}) {
 }
 
 /**
- * Native select (good on phones) with the chosen project's colour beside it.
+ * The app's Dropdown, styled as a form field, with each project's colour.
  * `emptyLabel` names the "no project of its own" choice ("Same as its cycle"
- * for a cycle task, which then shows under its cycle's project).
+ * for a cycle task, which then shows under its cycle's project). Its menu
+ * lives in a portal, so popovers holding it ignore clicks inside
+ * `[data-dropdown-menu]` (see `isInsideFloatingMenu()`).
  */
 export function ProjectSelect({ value, onChange, options = [], className = "", emptyLabel = "No project" }) {
   const current = options.find((o) => o.id === value) || null;
   // A project the list no longer has (deleted, or not loaded yet) is kept
   // rather than silently shown as "No project".
   const orphan = value && !current;
+  const choices = [
+    { value: "", label: emptyLabel, colorClass: "border border-edge-strong" },
+    ...(orphan ? [{ value, label: "Other project", colorClass: "bg-edge-strong" }] : []),
+    ...options.map((o) => ({ value: o.id, label: o.name, colorClass: o.colorClass || "bg-edge-strong" })),
+  ];
   return (
-    <label
-      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg bg-surface-2 border border-edge focus-within:border-focus ${className}`}
-    >
-      <span
-        className={`w-2.5 h-2.5 rounded-full shrink-0 ${current?.colorClass || "border border-edge-strong"}`}
-        aria-hidden="true"
-      />
-      <select
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        aria-label="Project"
-        className="flex-1 min-w-0 bg-transparent text-sm text-fg outline-none cursor-pointer"
-      >
-        <option value="">{emptyLabel}</option>
-        {orphan ? <option value={value}>Other project</option> : null}
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <Dropdown
+      value={value || ""}
+      onChange={(v) => onChange(v || null)}
+      options={choices}
+      block
+      menuLabel="Project"
+      className={className}
+      triggerClassName="rounded-lg! bg-surface-2! px-2! py-1.5! hover:border-edge-strong"
+    />
   );
+}
+
+/** True when a click landed in a portaled Dropdown menu opened from a popover. */
+export function isInsideFloatingMenu(target) {
+  return !!target?.closest?.("[data-dropdown-menu]");
 }
 
 /* ── Duplicating ───────────────────────────────────────── */
@@ -299,16 +299,35 @@ function peekPosition(rect, height) {
   return { top, left };
 }
 
+function IconClock({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+const PEEK_BADGE_TONES = {
+  success: "bg-success-soft text-success",
+  warning: "bg-warning-soft text-warning",
+  primary: "bg-primary-soft text-primary",
+  neutral: "bg-surface-2 text-fg-muted",
+};
+
 function NotesPeekCard({ peek, onEnter, onLeave, onClose }) {
   const ref = useRef(null);
   const [pos, setPos] = useState(null);
   const [copied, setCopied] = useState(false);
-  const { task, rect, when } = peek;
+  const { task, rect, when, meta } = peek;
+  const project = meta?.project || null;
+  const badges = meta?.badges || [];
+  const notes = task.notes || "";
 
   useLayoutEffect(() => {
     if (!ref.current) return;
     setPos(peekPosition(rect, ref.current.getBoundingClientRect().height));
-  }, [rect, task.notes]);
+  }, [rect, notes]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -343,12 +362,15 @@ function NotesPeekCard({ peek, onEnter, onLeave, onClose }) {
   }, [copied]);
 
   return createPortal(
-    <div
+    <motion.div
       ref={ref}
       role="dialog"
-      aria-label={`Notes for ${task.taskName}`}
+      aria-label={`Details of ${task.taskName}`}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
+      initial={{ opacity: 0, y: 4, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.14, ease: "easeOut" }}
       style={{
         position: "fixed",
         top: pos?.top ?? 0,
@@ -356,50 +378,95 @@ function NotesPeekCard({ peek, onEnter, onLeave, onClose }) {
         width: PEEK_WIDTH,
         visibility: pos ? "visible" : "hidden",
       }}
-      className="z-[9999] bg-surface border border-edge rounded-xl shadow-xl overflow-hidden"
+      className="z-[9999] bg-surface border border-edge rounded-2xl shadow-2xl overflow-hidden"
     >
-      <div className="flex items-start gap-2 px-3 pt-2.5 pb-2 border-b border-edge">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-fg leading-snug break-words">{task.taskName}</p>
-          {when ? <p className="text-[11px] text-fg-subtle mt-0.5">{when}</p> : null}
+      {/* The project's colour runs along the top, like the line on the block. */}
+      <div className={`h-1 ${project?.colorClass || "bg-edge"}`} aria-hidden="true" />
+
+      <div className="px-3.5 pt-3 pb-3">
+        <div className="flex items-center gap-1.5 flex-wrap mb-2">
+          <span className="inline-flex items-center gap-1.5 max-w-full px-2 py-0.5 rounded-full bg-surface-2 border border-edge text-[11px] font-medium text-fg-muted">
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${project?.colorClass || "border border-edge-strong"}`}
+              aria-hidden="true"
+            />
+            <span className="truncate">{project?.name || "No project"}</span>
+          </span>
+          {badges.map((b) => (
+            <span
+              key={b.label}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${PEEK_BADGE_TONES[b.tone] || PEEK_BADGE_TONES.neutral}`}
+            >
+              {b.label}
+            </span>
+          ))}
         </div>
-        <button
-          type="button"
-          onClick={async () => setCopied(await copyText(task.notes))}
-          className={`shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium transition-colors ${
-            copied
-              ? "border-success/40 bg-success-soft text-success"
-              : "border-edge text-fg-muted hover:text-fg hover:bg-surface-hover"
+
+        <p
+          className={`text-[15px] font-semibold text-fg leading-snug break-words ${
+            task.completed ? "line-through decoration-fg-subtle/60" : ""
           }`}
-          aria-label={copied ? "Notes copied" : "Copy notes"}
         >
-          {copied ? <IconCheck className="w-3.5 h-3.5" /> : <IconCopy className="w-3.5 h-3.5" />}
-          {copied ? "Copied" : "Copy"}
-        </button>
+          {task.taskName}
+        </p>
+        {when ? (
+          <p className="flex items-center gap-1.5 text-xs text-fg-subtle mt-1">
+            <IconClock className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{when}</span>
+          </p>
+        ) : null}
       </div>
-      <p className="px-3 py-2.5 max-h-60 overflow-y-auto text-sm text-fg-muted whitespace-pre-wrap break-words select-text [scrollbar-width:thin]">
-        {task.notes}
-      </p>
-    </div>,
+
+      {notes ? (
+        <div className="border-t border-edge bg-surface-2/50">
+          <div className="flex items-center justify-between gap-2 px-3.5 pt-2.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+              Description
+            </span>
+            <button
+              type="button"
+              onClick={async () => setCopied(await copyText(notes))}
+              className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-medium transition-colors ${
+                copied
+                  ? "border-success/40 bg-success-soft text-success"
+                  : "border-edge text-fg-muted hover:text-fg hover:bg-surface-hover"
+              }`}
+              aria-label={copied ? "Notes copied" : "Copy notes"}
+            >
+              {copied ? <IconCheck className="w-3 h-3" /> : <IconCopy className="w-3 h-3" />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <p className="px-3.5 pt-1.5 pb-3 max-h-56 overflow-y-auto text-sm text-fg-muted leading-relaxed whitespace-pre-wrap break-words select-text [scrollbar-width:thin]">
+            {notes}
+          </p>
+        </div>
+      ) : null}
+    </motion.div>,
     document.body,
   );
 }
 
 /**
- * Shows a task's notes in a card beside it while the pointer rests on the
- * task, with a button that copies them. One card per view:
+ * Shows a card beside a task while the pointer rests on it: its project,
+ * title, when it happens and its notes, with a button that copies them.
+ * One card per view:
  *
  *   const notes = useNotesPeek();
- *   <div {...notes.bind(task, "09:00 – 10:00")}> … <NotesButton …/> </div>
+ *   <div {...notes.bind(task, "09:00 – 10:00", meta)}> … <NotesButton …/> </div>
  *   {notes.card}
+ *
+ * `meta` is optional: `{ project: { name, colorClass }, badges: [{ label, tone }] }`.
+ * By default only tasks with notes get a card; `allTasks` gives every task
+ * one (the calendar, whose blocks are too small to read).
  *
  * `bind` opens the card after a short rest (so sweeping across the calendar
  * does not flash cards) and closes it a moment after the pointer leaves,
  * unless it moved onto the card. `pin` opens it at once and keeps it open
  * until a click elsewhere: the way in on a phone, or from the keyboard.
  */
-export function useNotesPeek({ openDelay = 400, closeDelay = 180 } = {}) {
-  const [peek, setPeek] = useState(null); // { task, rect, when, pinned }
+export function useNotesPeek({ openDelay = 400, closeDelay = 180, allTasks = false } = {}) {
+  const [peek, setPeek] = useState(null); // { task, rect, when, meta, pinned }
   const openTimer = useRef(0);
   const closeTimer = useRef(0);
 
@@ -423,29 +490,29 @@ export function useNotesPeek({ openDelay = 400, closeDelay = 180 } = {}) {
   const keep = useCallback(() => clearTimeout(closeTimer.current), []);
 
   const bind = useCallback(
-    (task, when = "") => {
-      if (!task?.notes) return {};
+    (task, when = "", meta = null) => {
+      if (!task || (!allTasks && !task.notes)) return {};
       return {
         onMouseEnter: (e) => {
           const el = e.currentTarget;
           clearTimeout(closeTimer.current);
           clearTimeout(openTimer.current);
           openTimer.current = setTimeout(() => {
-            setPeek((p) => (p?.pinned ? p : { task, when, rect: el.getBoundingClientRect(), pinned: false }));
+            setPeek((p) => (p?.pinned ? p : { task, when, meta, rect: el.getBoundingClientRect(), pinned: false }));
           }, openDelay);
         },
         onMouseLeave: hide,
       };
     },
-    [openDelay, hide],
+    [openDelay, hide, allTasks],
   );
 
-  const pin = useCallback((task, el, when = "") => {
+  const pin = useCallback((task, el, when = "", meta = null) => {
     if (!task?.notes || !el) return;
     clearTimers();
     const anchor = el.closest?.("[data-block]") || el;
     setPeek((p) =>
-      p?.pinned && p.task === task ? null : { task, when, rect: anchor.getBoundingClientRect(), pinned: true },
+      p?.pinned && p.task === task ? null : { task, when, meta, rect: anchor.getBoundingClientRect(), pinned: true },
     );
   }, []);
 
@@ -508,6 +575,7 @@ export function AddTaskPopover({
 
   useEffect(() => {
     const handler = (e) => {
+      if (isInsideFloatingMenu(e.target)) return;
       if (ref.current && !ref.current.contains(e.target)) onClose();
     };
     document.addEventListener("mousedown", handler);
@@ -811,6 +879,7 @@ export function TaskEditPopover({
 
   useEffect(() => {
     const handler = (e) => {
+      if (isInsideFloatingMenu(e.target)) return;
       if (ref.current && !ref.current.contains(e.target)) onClose();
     };
     document.addEventListener("mousedown", handler);
@@ -942,10 +1011,11 @@ export function TaskEditPopover({
 
 /* ── Color Lines (vertical bars for task colors) ───────── */
 
-export function TaskColorLines({ manualColor, conditionalColor }) {
-  if (!manualColor && !conditionalColor) return null;
+export function TaskColorLines({ projectClass = "", manualColor, conditionalColor }) {
+  if (!projectClass && !manualColor && !conditionalColor) return null;
   return (
     <div className="flex gap-0.5 shrink-0 self-stretch">
+      {projectClass ? <div className={`w-[3px] rounded-full ${projectClass}`} /> : null}
       {manualColor ? (
         <div
           className="w-[3px] rounded-full"

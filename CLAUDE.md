@@ -56,6 +56,19 @@ README.md has the commands.
   `text.js`, `tree.js`, `sanitize.js`) is shared with the browser.
 - The page keeps its state in the query string (`?view=`, `?folder=`,
   `?doc=`, `?tab=`, `?subject=`) so links and reloads keep their place.
+  `NotebookApp` only maps the URL onto `NotebookWorkspace({ params,
+  setParams })`, which holds the notebook itself; never read the router
+  inside the workspace or its children.
+- The floating notebook (`QuickNotebook`, mounted once in the root layout)
+  is a button at the bottom right of every signed-in screen except the
+  notebook itself. It opens `NotebookWorkspace` in a window with its place
+  kept in its own state (`patchParams()` from `src/lib/notebook/client.js`),
+  so the page underneath never navigates. The workspace is loaded with
+  `next/dynamic` on first open, keeping it out of every screen's bundle.
+  Notebook dialogs sit at z-70 so they open above the window (z-65).
+- The editor turns "- " or "* " at the start of a line into a bulleted list
+  and "1. " into a numbered one (`autoList()` in `RichTextEditor`, run on
+  input, not keydown, because phone keyboards do not report the key).
 - Besides the note views the sidebar has two of its own: `?view=quotes` and
   `?view=posts`. Both load their own lists (they are not part of
   `GET /api/notebook`, which only returns their `counts`), so a big
@@ -298,15 +311,22 @@ README.md has the commands.
   duplicate or be deleted from its "⋮" menu (`TaskEditPopover`). The menu
   edits the project of the task itself: a cycle task without one follows its
   cycle, and the empty choice says so ("Same as its cycle"). The picker is
-  `ProjectSelect` with `projectOptionsFrom()`; a copy is built by
+  `ProjectSelect` (the app's `Dropdown`) with `projectOptionsFrom()`. Its
+  menu is portaled, so a popover holding it must ignore clicks inside it
+  (`isInsideFloatingMenu()`) or it closes before the pick lands. A copy is built by
   `duplicateTaskFields()` so the calendar and the list make the same one (it
   copies the stored block length, never the estimate, which the API may
   refuse as a length). All of it lives in
   `src/components/weekplan/WeekPlanShared.jsx`.
 - Notes show in a card beside a task while the pointer rests on it, with a
   Copy button (`useNotesPeek()` + `NotesButton`, one card per view; tapping
-  the notes icon pins it, for phones). Do not put notes back into `title`
-  tooltips: nothing can be copied from those.
+  the notes icon pins it, for phones). The calendar passes `allTasks` and a
+  `meta` (project, badges), so every block gets the card: project, title,
+  time, status and the notes as its description. Do not put notes back
+  into `title` tooltips: nothing can be copied from those.
+- A calendar block's left line is its project's colour (`TaskColorLines`
+  `projectClass`, from the task's own project or its cycle's), followed by
+  the cycle's own colours when it has them.
 - The calendar also accepts a task dragged in from outside it (the Tasks
   column of the split view). HTML5 drag data cannot be read before the drop,
   so the source leaves its payload in `src/lib/plannerDrag.js` and marks the
@@ -361,8 +381,9 @@ README.md has the commands.
 
 ## The planner
 
-- Four sections in `TABS` (`src/app/planner/page.js`): tasks, calendar,
-  schedule and **routines**, which holds habits and cycles behind
+- Four sections in `TABS` (`src/app/planner/page.js`): tasks, calendar
+  (`DEFAULT_TAB`: what a bare `/planner` opens), schedule and **routines**,
+  which holds habits and cycles behind
   `ROUTINE_VIEWS` (`?view=habits|cycles`). They are still two features in the
   registry, so `tabFeature` picks the one the open view needs.
 - A **cycle** is a recurring task. Only the name changed: the model is still
