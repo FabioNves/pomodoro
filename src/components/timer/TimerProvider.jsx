@@ -232,6 +232,13 @@ export function TimerProvider({ children }) {
     if (current.phase === "focus") {
       // The alarm first, so a notification problem cannot silence it.
       soundsRef.current.alarm();
+      // No break: the session is done the moment the focus ends, so save it
+      // now rather than waiting on a Finish click. Saving notifies too.
+      if (current.breakMinutes <= 0) {
+        commit(freshRun(current));
+        completeSession(current);
+        return;
+      }
       const ended = endFocus(current);
       const auto = settingsRef.current.autoStartBreak && ended.breakMinutes > 0;
       commit(auto ? startBreakOn(ended) : ended);

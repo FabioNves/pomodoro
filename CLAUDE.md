@@ -175,6 +175,15 @@ README.md has the commands.
   leaks cannot be pointed at anyone else's media. It is the one notebook
   route without `requireUser()`; never widen it to serve anything the
   signature does not name.
+- A link post from YouTube, Vimeo, Instagram or TikTok plays inside the
+  viewer: `embedFor()` in `src/lib/notebook/posts.js` turns the link into a
+  player URL (and, for YouTube, a thumbnail for the grid); anything else
+  still opens in the browser. A new host needs three things: a case in
+  `embedFor()`, its player host in the `frame-src` of `next.config.mjs`, and
+  a check in the desktop app. YouTube refuses frames without an http(s)
+  referrer ("Error 153"), so `native/desktop/main.js` names the website
+  (`POMODRIVE_WEB_URL`) as the referrer of YouTube requests; the iOS app's
+  capacitor:// origin has no such fix.
 - Media URLs are relative, and only `fetch` and axios are redirected inside
   the app shells, so every `src` goes through `apiUrl()` from
   `src/lib/platform.js`. Forget that and the picture is simply missing in
@@ -318,6 +327,18 @@ README.md has the commands.
   copies the stored block length, never the estimate, which the API may
   refuse as a length). All of it lives in
   `src/components/weekplan/WeekPlanShared.jsx`.
+- The same menu sets when the task starts and ends (two time fields; the
+  end becomes `durationMinutes`, sent only when it differs from what the
+  calendar draws). It has no estimate field any more. A click anywhere else
+  closes it; with unsaved edits it asks Save / Discard / Keep editing and
+  swallows that click. Its outside-click listener is a capture-phase one on
+  purpose: calendar blocks stop mousedown from bubbling, so a bubbling
+  listener never hears a click on another block.
+- A calendar block resizes from either edge: the top moves its start, the
+  bottom its end. The grab zones reach `RESIZE_REACH_PX` past the block (its
+  content is clipped, not the block), and its title row is
+  `pointer-events-none` with only its buttons taking the pointer, so a press
+  near the top edge reaches the zone under the title.
 - Notes show in a card beside a task while the pointer rests on it, with a
   Copy button (`useNotesPeek()` + `NotesButton`, one card per view; tapping
   the notes icon pins it, for phones). The calendar passes `allTasks` and a
@@ -425,6 +446,9 @@ README.md has the commands.
   the context a page registered with `setSessionContext({ projectId, title,
   tasks })`. Pages react to a save by watching `completedAt`; they must not
   post a session themselves, or one session is written twice.
+- With a 0-minute break there is nothing after the focus, so the provider
+  saves the session the moment the focus ends and goes back to idle,
+  without waiting for "Finish session".
 - The timer is reached from the dashboard, not from the navbar: `NAV_ITEMS`
   in `src/components/Navbar.jsx` deliberately has no Timer entry, and
   `TimerBadge` is the way back to a running session.

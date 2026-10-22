@@ -30,7 +30,9 @@ const nextConfig = {
                   key: "Content-Security-Policy",
                   value: [
                     "script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/client https://apis.google.com https://www.gstatic.com",
-                    "frame-src https://accounts.google.com/gsi/",
+                    // Google sign-in, then the players saved link posts
+                    // embed (embedFor() in src/lib/notebook/posts.js).
+                    "frame-src https://accounts.google.com/gsi/ https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com https://www.instagram.com https://www.tiktok.com",
                     "connect-src 'self' https://accounts.google.com/gsi/",
                     "object-src 'none'",
                     "base-uri 'self'",

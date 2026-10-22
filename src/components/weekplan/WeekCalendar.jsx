@@ -10,7 +10,8 @@
 //   week tasks when dropped on a time.
 // - Click-and-drag on empty grid space selects a range, then the add-task
 //   popover asks which task goes into that block.
-// - Drag a block's bottom edge to change its length.
+// - Drag a block's top or bottom edge (or just past it) to change when it
+//   starts or ends.
 // - A task dragged in from outside (the Tasks panel of the planner's split
 //   view, see src/lib/plannerDrag.js) becomes a week task where it lands.
 // - Resting the pointer on a task with notes shows them in a card with a
@@ -43,6 +44,7 @@ const MIN_BLOCK = 15;
 const CLICK_BLOCK = 60; // plain click (no drag) selects this many minutes
 const INITIAL_SCROLL_HOUR = 7;
 const GUTTER_PX = 56;
+const RESIZE_REACH_PX = 4; // a resize edge also grabs this far outside the block
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const snapTo = (m) => Math.round(m / SNAP) * SNAP;
@@ -199,9 +201,9 @@ export default function WeekCalendar({
   const selRef = useRef(null); // { day, anchor, moved }
   const [selection, setSelection] = useState(null); // { day, start, end, done }
 
-  // Resizing a block from its bottom edge.
+  // Resizing a block from its top or bottom edge.
   const resizeRef = useRef(null);
-  const [resizing, setResizing] = useState(null); // { taskId, duration }
+  const [resizing, setResizing] = useState(null); // { taskId, start, duration }
 
   // Edge auto-scroll shared by drag, range selection and resizing.
   const edgeScrollRef = useRef(null);
@@ -251,11 +253,13 @@ export default function WeekCalendar({
         // blocks too; dropping or ticking one materialises it.
         for (const task of dayTasks[d] || []) {
           if (task.startMinute == null) continue;
-          const start = clamp(Number(task.startMinute) || 0, 0, DAY_MINUTES - MIN_BLOCK);
-          const dur =
-            resizing && String(resizing.taskId) === String(task._id)
-              ? resizing.duration
-              : taskDuration(task);
+          const live = resizing && String(resizing.taskId) === String(task._id) ? resizing : null;
+          const start = clamp(
+            live ? live.start : Number(task.startMinute) || 0,
+            0,
+            DAY_MINUTES - MIN_BLOCK,
+          );
+          const dur = live ? live.duration : taskDuration(task);
           const end = clamp(start + dur, start + MIN_BLOCK, DAY_MINUTES);
           entries.push({ task, start, end });
         }
@@ -537,21 +541,25 @@ export default function WeekCalendar({
 
   useEffect(() => () => endSelectionListeners.current?.(), []);
 
-  /* ── Resize from the bottom edge ─────────────────────── */
+  /* ── Resize from the top or bottom edge ──────────────── */
 
-  const handleResizeStart = (e, task, dayIdx, start) => {
+  // `edge` is "top" (moves the start, the end stays) or "bottom" (moves the
+  // end). The moving edge snaps to the grid, not the length.
+  const handleResizeStart = (e, task, dayIdx, start, end, edge) => {
     e.preventDefault();
     e.stopPropagation();
-    const initial = taskDuration(task);
+    notesPeek.close();
     resizeRef.current = {
       task,
       dayIdx,
-      start,
-      initial,
+      edge,
+      start0: start,
+      end0: end,
       y0: e.clientY,
-      duration: initial,
+      start,
+      duration: end - start,
     };
-    setResizing({ taskId: task._id, duration: initial });
+    setResizing({ taskId: task._id, start, duration: end - start });
     // Pointer travel plus whatever the grid auto-scrolled underneath it.
     const scrollTop0 = scrollRef.current?.scrollTop ?? 0;
     const applyResize = (clientY) => {
@@ -559,14 +567,20 @@ export default function WeekCalendar({
       if (!r) return;
       const scrolled = (scrollRef.current?.scrollTop ?? 0) - scrollTop0;
       const delta = yToMinute(clientY + scrolled - r.y0);
-      const dur = clamp(
-        snapTo(r.initial + delta),
-        MIN_BLOCK,
-        DAY_MINUTES - r.start,
-      );
+      let nextStart = r.start0;
+      let nextEnd = r.end0;
+      if (r.edge === "top") {
+        nextStart = clamp(snapTo(r.start0 + delta), 0, r.end0 - MIN_BLOCK);
+      } else {
+        nextEnd = clamp(snapTo(r.end0 + delta), r.start0 + MIN_BLOCK, DAY_MINUTES);
+      }
+      const dur = nextEnd - nextStart;
+      r.start = nextStart;
       r.duration = dur;
       setResizing((cur) =>
-        cur && cur.duration === dur ? cur : { taskId: r.task._id, duration: dur },
+        cur && cur.start === nextStart && cur.duration === dur
+          ? cur
+          : { taskId: r.task._id, start: nextStart, duration: dur },
       );
     };
     const onMove = (ev) => {
@@ -580,9 +594,11 @@ export default function WeekCalendar({
       const r = resizeRef.current;
       resizeRef.current = null;
       setResizing(null);
-      if (r && r.duration !== r.initial) {
-        onUpdateTask?.(r.dayIdx, r.task._id, { durationMinutes: r.duration });
-      }
+      if (!r) return;
+      const updates = {};
+      if (r.start !== r.start0) updates.startMinute = r.start;
+      if (r.duration !== r.end0 - r.start0) updates.durationMinutes = r.duration;
+      if (Object.keys(updates).length) onUpdateTask?.(r.dayIdx, r.task._id, updates);
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -619,7 +635,7 @@ export default function WeekCalendar({
     if (task._virtual) return null;
     const key = `cal-edit-${dayIdx}-${task._id}`;
     return (
-      <div className="relative shrink-0">
+      <div className="relative shrink-0 pointer-events-auto">
         <button
           ref={(el) => {
             editBtnRefs.current[key] = el;
@@ -726,6 +742,11 @@ export default function WeekCalendar({
     const height = Math.max(minuteToY(end - start), 18);
     const showTime = height >= 34;
     const isResizing = resizing && String(resizing.taskId) === String(task._id);
+    const resizable = !task.completed && !task._virtual;
+    // How far into the block each edge grabs; short blocks keep most of
+    // their middle for dragging. Both also reach RESIZE_REACH_PX past it.
+    const topGrab = Math.round(clamp(height / 5, 3, 6));
+    const bottomGrab = Math.round(clamp(height / 4, 4, 10));
     const when = `${dayNames[dayIdx] || ""} · ${minutesToTime(start)} – ${minutesToTime(end)}`;
     return (
       <div
@@ -742,23 +763,27 @@ export default function WeekCalendar({
           left: `calc(${(lane / lanes) * 100}% + 2px)`,
           width: `calc(${100 / lanes}% - 4px)`,
         }}
-        className={`group absolute rounded-md border px-1.5 py-0.5 text-[11px] leading-tight overflow-hidden shadow-sm select-none ${blockTone(task)} ${
+        // Not clipped itself (the content is), so the resize edges can reach
+        // a little past it: the pointer only has to be near the edge.
+        className={`group absolute rounded-md border px-1.5 py-0.5 text-[11px] leading-tight shadow-sm select-none ${blockTone(task)} ${
           draggable ? "cursor-grab active:cursor-grabbing" : ""
         } ${isResizing ? "ring-2 ring-focus/40" : ""}`}
       >
-        <div className="flex items-start gap-1 h-full">
+        <div className="flex items-start gap-1 h-full overflow-hidden">
           <TaskColorLines
             projectClass={colors.projectClass}
             manualColor={colors.manualColor}
             conditionalColor={colors.conditionalColor}
           />
           <div className="flex-1 min-w-0">
-            {/* Above the resize strip: on a short block the strip would
-                otherwise cover the tick box and the task menu. */}
-            <div className="relative z-10 flex items-center gap-1">
+            {/* Above the resize edges, but only its buttons take the
+                pointer: the title lets a press through to the edge (or to
+                the block, for a drag), and on a short block the edges
+                would otherwise cover the tick box and the task menu. */}
+            <div className="relative z-10 flex items-center gap-1 pointer-events-none">
               <button
                 type="button"
-                className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center transition-colors ${
+                className={`pointer-events-auto w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center transition-colors ${
                   task.completed
                     ? "bg-success border-success text-white"
                     : "border-edge hover:border-success"
@@ -776,7 +801,11 @@ export default function WeekCalendar({
               >
                 {task.taskName}
               </span>
-              <NotesButton task={task} onPin={(el) => notesPeek.pin(task, el, when, peekMetaFor(task))} />
+              <NotesButton
+                task={task}
+                className="pointer-events-auto"
+                onPin={(el) => notesPeek.pin(task, el, when, peekMetaFor(task))}
+              />
               {renderEditControls(task, dayIdx)}
             </div>
             {showTime ? (
@@ -786,14 +815,31 @@ export default function WeekCalendar({
             ) : null}
           </div>
         </div>
-        {!task.completed && !task._virtual ? (
-          <div
-            className="absolute left-0 right-0 bottom-0 h-2 cursor-ns-resize"
-            draggable={false}
-            onMouseDown={(e) => handleResizeStart(e, task, dayIdx, start)}
-            onDragStart={(e) => e.preventDefault()}
-            aria-hidden="true"
-          />
+        {resizable ? (
+          <>
+            <div
+              className="absolute left-0 right-0 cursor-ns-resize"
+              style={{ top: -RESIZE_REACH_PX, height: topGrab + RESIZE_REACH_PX }}
+              draggable={false}
+              onMouseDown={(e) => handleResizeStart(e, task, dayIdx, start, end, "top")}
+              onDragStart={(e) => e.preventDefault()}
+              aria-hidden="true"
+            />
+            <div
+              className="absolute left-0 right-0 cursor-ns-resize flex items-end justify-center"
+              style={{ bottom: -RESIZE_REACH_PX, height: bottomGrab + RESIZE_REACH_PX }}
+              draggable={false}
+              onMouseDown={(e) => handleResizeStart(e, task, dayIdx, start, end, "bottom")}
+              onDragStart={(e) => e.preventDefault()}
+              aria-hidden="true"
+            >
+              {/* A grip that shows the edge can be pulled. */}
+              <span
+                className="w-6 h-[3px] rounded-full bg-current opacity-0 group-hover:opacity-30 transition-opacity"
+                style={{ marginBottom: RESIZE_REACH_PX + 2 }}
+              />
+            </div>
+          </>
         ) : null}
       </div>
     );

@@ -1,13 +1,14 @@
 "use client";
 
 // Full-screen viewer for a saved post: the image or video large, its note
-// and link beside it, and arrow keys to move through the collection.
+// and link beside it, and arrow keys to move through the collection. A link
+// post from a site with a player (embedFor()) plays in the viewer too.
 
 import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiUrl, openExternal } from "@/lib/platform";
-import { platformLabel, formatBytes, formatDuration } from "@/lib/notebook/posts";
+import { embedFor, platformLabel, formatBytes, formatDuration } from "@/lib/notebook/posts";
 import {
   ActionButton,
   IconChevronRight,
@@ -32,6 +33,9 @@ export default function PostViewer({ post, hasPrev, hasNext, onPrev, onNext, onC
   }, [post, hasPrev, hasNext, onPrev, onNext, onClose]);
 
   if (typeof document === "undefined") return null;
+
+  // A link from YouTube, Vimeo, Instagram or TikTok plays right here.
+  const embed = post && !post.url ? embedFor(post.sourceUrl) : null;
 
   return createPortal(
     <AnimatePresence>
@@ -125,6 +129,25 @@ export default function PostViewer({ post, hasPrev, hasNext, onPrev, onNext, onC
                 />
               ) : post.kind === "image" && post.url ? (
                 <img src={apiUrl(post.url)} alt={post.title || "Saved post"} className="max-h-full max-w-full rounded-xl object-contain" />
+              ) : embed ? (
+                // A size container, so the player can be as large as the
+                // space allows in either direction and keep its shape.
+                <div className="w-full h-full flex items-center justify-center" style={{ containerType: "size" }}>
+                  <iframe
+                    key={embed.src}
+                    src={embed.src}
+                    title={post.title || `${platformLabel(post.platform)} post`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    // YouTube refuses to play in a frame that sends no referrer.
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    className="block rounded-xl bg-black border-0"
+                    style={{
+                      width: `min(100cqw, calc(100cqh * ${embed.ratio}))`,
+                      aspectRatio: String(embed.ratio),
+                    }}
+                  />
+                </div>
               ) : (
                 <div className="max-w-md w-full rounded-2xl bg-surface border border-edge p-6 text-center space-y-3">
                   <p className="text-sm text-fg">{post.title || post.sourceUrl}</p>

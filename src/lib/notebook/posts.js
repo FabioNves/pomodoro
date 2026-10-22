@@ -35,6 +35,92 @@ export function detectPlatform(url) {
   return "other";
 }
 
+/* ── embedding a link post ───────────────────────────── */
+
+const YOUTUBE_ID = /^[\w-]{11}$/;
+
+/** "1h2m3s", "90s" or "90" -> seconds, or 0. */
+function startSeconds(value) {
+  const raw = String(value || "").trim();
+  if (/^\d+$/.test(raw)) return Number(raw);
+  const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(raw);
+  return m ? Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0) : 0;
+}
+
+function youtubeEmbed(url, host) {
+  const parts = url.pathname.split("/").filter(Boolean);
+  let id = null;
+  let vertical = false;
+  if (host === "youtu.be") id = parts[0];
+  else if (parts[0] === "watch") id = url.searchParams.get("v");
+  else if (["shorts", "live", "embed", "v"].includes(parts[0])) {
+    id = parts[1];
+    vertical = parts[0] === "shorts";
+  }
+  const list = url.searchParams.get("list");
+  const params = new URLSearchParams({ rel: "0", autoplay: "1" });
+  if (id && YOUTUBE_ID.test(id)) {
+    const start = startSeconds(url.searchParams.get("t") || url.searchParams.get("start"));
+    if (start) params.set("start", String(start));
+    if (list) params.set("list", list);
+    return {
+      provider: "youtube",
+      // The no-cookie host: nothing is stored until the reader presses play.
+      src: `https://www.youtube-nocookie.com/embed/${id}?${params}`,
+      thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+      ratio: vertical ? 9 / 16 : 16 / 9,
+    };
+  }
+  if (list && /^[\w-]+$/.test(list)) {
+    params.set("list", list);
+    return { provider: "youtube", src: `https://www.youtube-nocookie.com/embed/videoseries?${params}`, thumb: null, ratio: 16 / 9 };
+  }
+  return null;
+}
+
+/**
+ * How a link post plays inside the viewer, or null when its site has no
+ * player we can frame (it then opens in the browser): `{ provider, src,
+ * thumb, ratio }`, ratio being width / height. Every `src` host here must
+ * also be allowed in the `frame-src` of next.config.mjs, and YouTube needs
+ * the referrer fix in native/desktop/main.js to play in the desktop app.
+ */
+export function embedFor(sourceUrl) {
+  let url;
+  try {
+    url = new URL(String(sourceUrl || "").trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  const host = url.hostname.toLowerCase().replace(/^(www|m|music)\./, "");
+  const parts = url.pathname.split("/").filter(Boolean);
+
+  if (["youtube.com", "youtu.be", "youtube-nocookie.com"].includes(host)) return youtubeEmbed(url, host);
+
+  if (host === "vimeo.com" && /^\d+$/.test(parts[0] || "")) {
+    // An unlisted video carries its key as the next segment.
+    const key = /^[0-9a-f]+$/i.test(parts[1] || "") ? `&h=${parts[1]}` : "";
+    return { provider: "vimeo", src: `https://player.vimeo.com/video/${parts[0]}?autoplay=1${key}`, thumb: null, ratio: 16 / 9 };
+  }
+
+  if (host === "instagram.com" && ["p", "reel", "reels", "tv"].includes(parts[0]) && /^[\w-]+$/.test(parts[1] || "")) {
+    const type = parts[0] === "p" ? "p" : "reel";
+    // The embed page carries the account and the caption around the media.
+    return { provider: "instagram", src: `https://www.instagram.com/${type}/${parts[1]}/embed/`, thumb: null, ratio: 0.62 };
+  }
+
+  // Short share links (vm.tiktok.com/…) only resolve on TikTok's side.
+  if (host === "tiktok.com") {
+    const at = parts.indexOf("video");
+    const id = at >= 0 ? parts[at + 1] : null;
+    if (id && /^\d+$/.test(id)) {
+      return { provider: "tiktok", src: `https://www.tiktok.com/player/v1/${id}?autoplay=1`, thumb: null, ratio: 9 / 16 };
+    }
+  }
+  return null;
+}
+
 /** image | video | link */
 export const POST_KINDS = ["image", "video", "link"];
 

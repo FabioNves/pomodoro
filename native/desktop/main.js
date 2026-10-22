@@ -12,6 +12,7 @@ const {
   net,
   shell,
   ipcMain,
+  session,
 } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -24,6 +25,9 @@ const WWW = path.join(__dirname, "www");
 // Live reload: ELECTRON_DEV_URL=http://localhost:3500 npm start
 const DEV_URL = process.env.ELECTRON_DEV_URL;
 const SMOKE = process.argv.includes("--smoke");
+// The website, named as the referrer of embedded YouTube players (see
+// allowYouTubeEmbeds()).
+const WEB_ORIGIN = process.env.POMODRIVE_WEB_URL || "https://pomodrive.vercel.app";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -93,6 +97,22 @@ async function serveApp(request) {
   return new Response(fileResponse.body, {
     status: 200,
     headers: { "content-type": type },
+  });
+}
+
+/* ── embedded players ────────────────────────────────────────────────── */
+
+// YouTube will not play in a frame unless the request names an http(s)
+// page it is embedded in ("Error 153"), and the app:// origin does not
+// count. Saved posts embed YouTube videos, so name the website instead.
+function allowYouTubeEmbeds() {
+  const filter = {
+    urls: ["https://www.youtube-nocookie.com/*", "https://www.youtube.com/*"],
+  };
+  session.defaultSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
+    const headers = details.requestHeaders;
+    if (!/^https?:/.test(headers.Referer || "")) headers.Referer = `${WEB_ORIGIN}/`;
+    callback({ requestHeaders: headers });
   });
 }
 
@@ -261,6 +281,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     app.setAppUserModelId("com.pomodrive.app"); // Windows notifications
     protocol.handle(APP_SCHEME, serveApp);
+    allowYouTubeEmbeds();
     createWindow();
     if (SMOKE) runSmokeTest();
 

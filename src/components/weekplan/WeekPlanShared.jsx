@@ -838,10 +838,52 @@ export function AddTaskPopover({
 
 /* ── Task Edit Popover ─────────────────────────────────── */
 
+const DAY_END = 24 * 60;
+// The shortest block the API accepts (durationMinutes min).
+const MIN_TASK_MINUTES = 5;
+
+/** End of a block as a clock time; the end of the day reads "00:00". */
+function endToTime(m) {
+  return m >= DAY_END ? "00:00" : minutesToTime(m);
+}
+
+/** An end time after `start`; "00:00" is midnight at the end of the day. */
+function endFromTime(str, start) {
+  const m = timeToMinutes(str);
+  if (m == null) return null;
+  return m === 0 && start > 0 ? DAY_END : m;
+}
+
 /**
- * The task "⋮" menu: edit its name, time, project and notes, duplicate it,
- * or delete it. `projectId` is the project the task shows under (its own, or
- * that of its cycle); `projectOptions` come from projectOptionsFrom().
+ * Lets the click that triggered the "save your changes?" prompt go no
+ * further: its mousedown is stopped by the caller, the click that follows
+ * is swallowed here, so nothing underneath opens, toggles or starts a drag.
+ */
+function swallowNextClick() {
+  const swallow = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  document.addEventListener("click", swallow, true);
+  // No click follows a press that ends somewhere else; drop the trap after
+  // the button comes up either way.
+  document.addEventListener(
+    "mouseup",
+    () => setTimeout(() => document.removeEventListener("click", swallow, true), 0),
+    { capture: true, once: true },
+  );
+}
+
+/**
+ * The task "⋮" menu: edit its name, when it starts and ends, project and
+ * notes, duplicate it, or delete it. `projectId` is the project the task
+ * shows under (its own, or that of its cycle); `projectOptions` come from
+ * projectOptionsFrom().
+ *
+ * A click anywhere else closes it. With unsaved edits it asks first (Save,
+ * Discard, Keep editing) and holds that click back, so nothing underneath
+ * reacts to it. The listener runs in the capture phase because the calendar
+ * blocks stop mousedown from bubbling (to keep range selection off them).
  */
 export function TaskEditPopover({
   task,
@@ -855,16 +897,52 @@ export function TaskEditPopover({
   projectOptions = [],
 }) {
   const ref = useRef(null);
-  const [name, setName] = useState(task?.taskName || "");
-  const [project, setProject] = useState(projectId || null);
-  const [time, setTime] = useState(
-    task?.estimatedTime ? String(task.estimatedTime) : "",
-  );
-  const [notes, setNotes] = useState(task?.notes || "");
-  const [startTime, setStartTime] = useState(
-    task?.startMinute != null ? minutesToTime(task.startMinute) : "",
-  );
+  const saveRef = useRef(null);
+  const [initial] = useState(() => {
+    const start = task?.startMinute != null ? task.startMinute : null;
+    return {
+      name: task?.taskName || "",
+      project: projectId || null,
+      notes: task?.notes || "",
+      start: start != null ? minutesToTime(start) : "",
+      end: start != null ? endToTime(Math.min(DAY_END, start + taskDuration(task))) : "",
+    };
+  });
+  const [name, setName] = useState(initial.name);
+  const [project, setProject] = useState(initial.project);
+  const [notes, setNotes] = useState(initial.notes);
+  const [startTime, setStartTime] = useState(initial.start);
+  const [endTime, setEndTime] = useState(initial.end);
+  const [confirming, setConfirming] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, ready: false });
+
+  const startMin = startTime ? timeToMinutes(startTime) : null;
+  const endMin = startMin != null && endTime ? endFromTime(endTime, startMin) : null;
+  const length = startMin != null && endMin != null ? endMin - startMin : null;
+  const timeError =
+    startMin != null && (length == null || length < MIN_TASK_MINUTES)
+      ? "Ends after it starts"
+      : null;
+  const canSave = Boolean(name.trim()) && !timeError;
+  const dirty =
+    name !== initial.name ||
+    (project || null) !== initial.project ||
+    notes !== initial.notes ||
+    startTime !== initial.start ||
+    endTime !== initial.end;
+
+  // A new start keeps the block's length, as calendar apps do; a first
+  // start takes the length the calendar already draws for the task.
+  const changeStart = (value) => {
+    setStartTime(value);
+    const next = value ? timeToMinutes(value) : null;
+    if (next == null) {
+      setEndTime("");
+      return;
+    }
+    const keep = length != null && length > 0 ? length : taskDuration(task);
+    setEndTime(endToTime(Math.min(DAY_END, next + keep)));
+  };
 
   useLayoutEffect(() => {
     if (!ref.current || !anchorRef?.current) return;
@@ -880,20 +958,50 @@ export function TaskEditPopover({
   useEffect(() => {
     const handler = (e) => {
       if (isInsideFloatingMenu(e.target)) return;
-      if (ref.current && !ref.current.contains(e.target)) onClose();
+      if (!ref.current || ref.current.contains(e.target)) return;
+      const onAnchor = anchorRef?.current?.contains(e.target);
+      if (!dirty) {
+        // The "⋮" button toggles the menu itself.
+        if (!onAnchor) onClose();
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      swallowNextClick();
+      setConfirming(true);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      // An open project list closes first.
+      if (document.querySelector("[data-dropdown-menu]")) return;
+      if (confirming) setConfirming(false);
+      else if (dirty) setConfirming(true);
+      else onClose();
+    };
+    document.addEventListener("mousedown", handler, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", handler, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose, anchorRef, dirty, confirming]);
+
+  useEffect(() => {
+    if (confirming) saveRef.current?.focus();
+  }, [confirming]);
 
   const handleSave = () => {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed || timeError) return;
+    const timesEdited = startTime !== initial.start || endTime !== initial.end;
     onSave({
       taskName: trimmed,
-      estimatedTime: time ? Number(time) || 0 : 0,
       notes,
-      startMinute: startTime ? timeToMinutes(startTime) : null,
+      startMinute: startMin,
+      // The length only when the times were edited and it differs from
+      // what the calendar draws, so a block sized from its estimate is not
+      // pinned to it.
+      ...(timesEdited && length != null && length !== taskDuration(task) ? { durationMinutes: length } : {}),
       // Only sent when changed. `projectId` is the project of the task
       // itself; a cycle task without one follows its cycle.
       ...((project || null) !== (projectId || null) ? { projectId: project || null } : {}),
@@ -921,36 +1029,53 @@ export function TaskEditPopover({
           autoFocus
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) handleSave();
-            if (e.key === "Escape") onClose();
           }}
         />
-        <input
-          type="number"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          placeholder="Time (min)"
-          min="0"
-          className="w-full px-2 py-1.5 rounded-lg bg-surface-2 border border-edge text-sm outline-none"
-        />
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-fg-subtle shrink-0">Start</span>
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-surface-2 border border-edge text-sm text-fg outline-none"
-            aria-label="Start time"
-          />
-          {startTime ? (
-            <button
-              type="button"
-              className="text-xs text-fg-subtle hover:text-danger shrink-0"
-              onClick={() => setStartTime("")}
-              title="Remove start time"
-            >
-              Clear
-            </button>
-          ) : null}
+        <div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="min-w-0">
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle mb-0.5">
+                Starts
+              </span>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => changeStart(e.target.value)}
+                className="w-full min-w-0 px-2 py-1.5 rounded-lg bg-surface-2 border border-edge text-sm text-fg outline-none"
+              />
+            </label>
+            <label className="min-w-0">
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle mb-0.5">
+                Ends
+              </span>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                disabled={!startTime}
+                title={startTime ? undefined : "Pick a start time first"}
+                aria-invalid={timeError ? true : undefined}
+                className={`w-full min-w-0 px-2 py-1.5 rounded-lg bg-surface-2 border text-sm text-fg outline-none disabled:opacity-50 ${
+                  timeError ? "border-danger" : "border-edge"
+                }`}
+              />
+            </label>
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-1 min-h-[16px] text-[11px]">
+            <span className={timeError ? "text-danger" : "text-fg-subtle"}>
+              {timeError || (length != null ? formatMinutes(length) : "No time yet")}
+            </span>
+            {startTime ? (
+              <button
+                type="button"
+                className="text-fg-subtle hover:text-danger shrink-0"
+                onClick={() => changeStart("")}
+                title="Remove the time"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
         </div>
         {projectOptions.length ? (
           <ProjectSelect
@@ -967,11 +1092,47 @@ export function TaskEditPopover({
           rows={3}
           className="w-full px-2 py-1.5 rounded-lg bg-surface-2 border border-edge text-sm outline-none resize-none"
         />
+        {confirming ? (
+          <div
+            role="alertdialog"
+            aria-label="Unsaved changes"
+            className="rounded-lg border border-warning/50 bg-warning-soft p-2"
+          >
+            <p className="text-xs font-medium text-fg">Save your changes?</p>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              <button
+                ref={saveRef}
+                type="button"
+                className="flex-1 px-2 py-1 rounded-md bg-primary hover:bg-primary-hover text-primary-fg text-xs font-medium disabled:opacity-50"
+                onClick={handleSave}
+                disabled={!canSave}
+                title={canSave ? undefined : timeError || "Give the task a name"}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="px-2 py-1 rounded-md border border-danger/40 text-danger text-xs font-medium hover:bg-danger-soft"
+                onClick={onClose}
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                className="px-2 py-1 rounded-md text-fg-muted text-xs font-medium hover:text-fg hover:bg-surface-hover"
+                onClick={() => setConfirming(false)}
+              >
+                Keep editing
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="flex gap-2 pt-0.5">
           <button
             type="button"
-            className="flex-1 px-2 py-1.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-xs font-medium"
+            className="flex-1 px-2 py-1.5 rounded-lg bg-primary hover:bg-primary-hover text-primary-fg text-xs font-medium disabled:opacity-50"
             onClick={handleSave}
+            disabled={!canSave}
           >
             Save
           </button>
@@ -1003,6 +1164,7 @@ export function TaskEditPopover({
             <IconTrash className="w-3.5 h-3.5" />
           </button>
         </div>
+        )}
       </div>
     </div>,
     document.body,

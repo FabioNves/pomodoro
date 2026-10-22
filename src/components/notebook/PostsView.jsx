@@ -16,6 +16,7 @@ import {
   PLATFORMS,
   POST_LIMITS,
   detectPlatform,
+  embedFor,
   platformLabel,
   formatBytes,
   formatDuration,
@@ -233,7 +234,11 @@ function PostTile({ post, ctx, layout }) {
   // apiUrl(): inside the mobile and desktop shells the page is served from
   // the bundle, so a relative media path has to point back at the API.
   const raw = post.thumbUrl || (post.kind === "image" ? post.url : null);
-  const thumb = raw ? apiUrl(raw) : null;
+  // A link that plays in the viewer shows as a video, with the site's own
+  // thumbnail where it has a public one (an absolute URL: no apiUrl()).
+  const embed = useMemo(() => (post.url ? null : embedFor(post.sourceUrl)), [post.url, post.sourceUrl]);
+  const thumb = raw ? apiUrl(raw) : embed?.thumb || null;
+  const playable = post.kind === "video" || Boolean(embed);
   const open = () => ctx.onOpen(post);
 
   if (layout === "list") {
@@ -293,7 +298,7 @@ function PostTile({ post, ctx, layout }) {
             <IconLink className="w-7 h-7 text-fg-subtle" />
           </div>
         )}
-        {post.kind === "video" ? (
+        {playable ? (
           <span className="absolute inset-0 flex items-center justify-center">
             <span className="w-10 h-10 rounded-full bg-black/55 text-white flex items-center justify-center backdrop-blur-sm">
               <IconPlay className="w-4 h-4 ml-0.5" />
