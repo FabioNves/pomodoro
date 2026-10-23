@@ -29,6 +29,7 @@ import {
   duplicateTaskFields,
   formatMinutes,
   minutesToTime,
+  timeRangeLabel,
   projectOptionsFrom,
   taskDuration,
   useNotesPeek,
@@ -245,28 +246,37 @@ export default function WeekCalendar({
 
   /* ── Derived per-day data ─────────────────────────────── */
 
-  const timedByDay = useMemo(
-    () =>
-      Array.from({ length: 7 }, (_, d) => {
-        const entries = [];
-        // Auto-scheduled routines with a time of day render as (dashed)
-        // blocks too; dropping or ticking one materialises it.
-        for (const task of dayTasks[d] || []) {
-          if (task.startMinute == null) continue;
-          const live = resizing && String(resizing.taskId) === String(task._id) ? resizing : null;
-          const start = clamp(
-            live ? live.start : Number(task.startMinute) || 0,
-            0,
-            DAY_MINUTES - MIN_BLOCK,
-          );
-          const dur = live ? live.duration : taskDuration(task);
-          const end = clamp(start + dur, start + MIN_BLOCK, DAY_MINUTES);
-          entries.push({ task, start, end });
+  // A task that runs past midnight (23:00 for 2 hours) draws to the end of
+  // its day and continues at the top of the next day's column. Both parts
+  // stand for the same task: `ownerDay` is the day it belongs to, and
+  // `fullStart` / `fullEnd` its whole span in that day's minutes.
+  const timedByDay = useMemo(() => {
+    const buckets = Array.from({ length: 7 }, () => []);
+    for (let d = 0; d < 7; d++) {
+      // Auto-scheduled routines with a time of day render as (dashed)
+      // blocks too; dropping or ticking one materialises it.
+      for (const task of dayTasks[d] || []) {
+        if (task.startMinute == null) continue;
+        const live = resizing && String(resizing.taskId) === String(task._id) ? resizing : null;
+        const start = clamp(
+          live ? live.start : Number(task.startMinute) || 0,
+          0,
+          DAY_MINUTES - MIN_BLOCK,
+        );
+        const dur = live ? live.duration : taskDuration(task);
+        const end = clamp(start + dur, start + MIN_BLOCK, start + DAY_MINUTES);
+        const span = { task, ownerDay: d, fullStart: start, fullEnd: end };
+        if (end <= DAY_MINUTES) {
+          buckets[d].push({ ...span, start, end });
+          continue;
         }
-        return layoutDay(entries);
-      }),
-    [dayTasks, resizing],
-  );
+        buckets[d].push({ ...span, start, end: DAY_MINUTES, part: "head" });
+        // The last day's overflow belongs to next week's plan.
+        if (d < 6) buckets[d + 1].push({ ...span, start: 0, end: end - DAY_MINUTES, part: "tail" });
+      }
+    }
+    return buckets.map(layoutDay);
+  }, [dayTasks, resizing]);
 
   const stripByDay = useMemo(
     () =>
@@ -348,7 +358,9 @@ export default function WeekCalendar({
     return info;
   };
 
-  const handleDragStart = (e, task, fromDay, timed) => {
+  // `offsetBase`: minutes of the task above the grabbed part (for the part
+  // that continues after midnight, everything before 00:00).
+  const handleDragStart = (e, task, fromDay, timed, offsetBase = 0) => {
     notesPeek.close();
     if (!canDrag(task)) {
       e.preventDefault();
@@ -358,7 +370,7 @@ export default function WeekCalendar({
     let grabOffsetMin = 0;
     if (timed) {
       const rect = e.currentTarget.getBoundingClientRect();
-      grabOffsetMin = yToMinute(e.clientY - rect.top);
+      grabOffsetMin = offsetBase + yToMinute(e.clientY - rect.top);
     }
     dragInfoRef.current = { task, fromDay, duration, grabOffsetMin };
     e.dataTransfer.effectAllowed = "move";
@@ -375,11 +387,8 @@ export default function WeekCalendar({
     if (!info || !col) return null;
     const rect = col.getBoundingClientRect();
     const pointerMin = yToMinute(e.clientY - rect.top);
-    return clamp(
-      snapTo(pointerMin - info.grabOffsetMin),
-      0,
-      DAY_MINUTES - info.duration,
-    );
+    // A late start is fine: the rest of the block continues the next day.
+    return clamp(snapTo(pointerMin - info.grabOffsetMin), 0, DAY_MINUTES - SNAP);
   };
 
   const handleColumnDragOver = (e, dayIdx) => {
@@ -572,7 +581,8 @@ export default function WeekCalendar({
       if (r.edge === "top") {
         nextStart = clamp(snapTo(r.start0 + delta), 0, r.end0 - MIN_BLOCK);
       } else {
-        nextEnd = clamp(snapTo(r.end0 + delta), r.start0 + MIN_BLOCK, DAY_MINUTES);
+        // Pulling the end past midnight continues the task the next day (up to 24 h).
+        nextEnd = clamp(snapTo(r.end0 + delta), r.start0 + MIN_BLOCK, r.start0 + DAY_MINUTES);
       }
       const dur = nextEnd - nextStart;
       r.start = nextStart;
@@ -631,9 +641,11 @@ export default function WeekCalendar({
   // of a moved cycle task answers for the same occurrence as the original.
   const duplicateTask = (task, dayIdx) => onAddTask?.(dayIdx, duplicateTaskFields(task));
 
-  const renderEditControls = (task, dayIdx) => {
+  // `part` keeps the menus of a task's two halves (before and after
+  // midnight) apart; `dayIdx` is always the day the task belongs to.
+  const renderEditControls = (task, dayIdx, part = "") => {
     if (task._virtual) return null;
-    const key = `cal-edit-${dayIdx}-${task._id}`;
+    const key = `cal-edit-${dayIdx}-${task._id}${part ? `-${part}` : ""}`;
     return (
       <div className="relative shrink-0 pointer-events-auto">
         <button
@@ -735,7 +747,10 @@ export default function WeekCalendar({
     );
   };
 
-  const renderBlock = ({ task, start, end, lane, lanes }, dayIdx) => {
+  // `columnDay` is the column it's drawn in; for the part of a task after
+  // midnight that's the day after `ownerDay`, the day the task belongs to.
+  const renderBlock = ({ task, start, end, lane, lanes, ownerDay, fullStart, fullEnd, part }, columnDay) => {
+    const dayIdx = ownerDay ?? columnDay;
     const colors = colorsFor(task);
     const draggable = canDrag(task);
     const top = minuteToY(start);
@@ -747,13 +762,17 @@ export default function WeekCalendar({
     // their middle for dragging. Both also reach RESIZE_REACH_PX past it.
     const topGrab = Math.round(clamp(height / 5, 3, 6));
     const bottomGrab = Math.round(clamp(height / 4, 4, 10));
-    const when = `${dayNames[dayIdx] || ""} · ${minutesToTime(start)} – ${minutesToTime(end)}`;
+    const range = timeRangeLabel(fullStart, fullEnd);
+    const when = `${dayNames[dayIdx] || ""} · ${range}`;
+    // Resize edges work on the whole task: the start is only on the first
+    // part (the top of the continuation is midnight), the end on both.
+    const resizeArgs = [task, dayIdx, fullStart, fullEnd];
     return (
       <div
-        key={task._id}
+        key={`${task._id}${part ? `-${part}` : ""}`}
         data-block
         draggable={draggable}
-        onDragStart={(e) => handleDragStart(e, task, dayIdx, true)}
+        onDragStart={(e) => handleDragStart(e, task, dayIdx, true, part === "tail" ? DAY_MINUTES - fullStart : 0)}
         onDragEnd={clearDrag}
         onMouseDown={(e) => e.stopPropagation()}
         {...notesPeek.bind(task, when, peekMetaFor(task))}
@@ -767,7 +786,9 @@ export default function WeekCalendar({
         // a little past it: the pointer only has to be near the edge.
         className={`group absolute rounded-md border px-1.5 py-0.5 text-[11px] leading-tight shadow-sm select-none ${blockTone(task)} ${
           draggable ? "cursor-grab active:cursor-grabbing" : ""
-        } ${isResizing ? "ring-2 ring-focus/40" : ""}`}
+        } ${isResizing ? "ring-2 ring-focus/40" : ""} ${
+          part === "head" ? "rounded-b-none border-b-dashed" : part === "tail" ? "rounded-t-none border-t-dashed" : ""
+        }`}
       >
         <div className="flex items-start gap-1 h-full overflow-hidden">
           <TaskColorLines
@@ -788,7 +809,7 @@ export default function WeekCalendar({
                     ? "bg-success border-success text-white"
                     : "border-edge hover:border-success"
                 }`}
-                onClick={() => toggleTask(task, dayIdx, { start, end })}
+                onClick={() => toggleTask(task, dayIdx, { start: fullStart, end: fullEnd })}
                 onMouseDown={(e) => e.stopPropagation()}
                 aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
               >
@@ -806,30 +827,33 @@ export default function WeekCalendar({
                 className="pointer-events-auto"
                 onPin={(el) => notesPeek.pin(task, el, when, peekMetaFor(task))}
               />
-              {renderEditControls(task, dayIdx)}
+              {renderEditControls(task, dayIdx, part)}
             </div>
             {showTime ? (
               <div className="text-[10px] text-fg-subtle mt-0.5">
-                {minutesToTime(start)} – {minutesToTime(end)}
+                {part === "tail" ? `Continued · ${range}` : range}
               </div>
             ) : null}
           </div>
         </div>
         {resizable ? (
           <>
+            {part !== "tail" ? (
             <div
               className="absolute left-0 right-0 cursor-ns-resize"
               style={{ top: -RESIZE_REACH_PX, height: topGrab + RESIZE_REACH_PX }}
               draggable={false}
-              onMouseDown={(e) => handleResizeStart(e, task, dayIdx, start, end, "top")}
+              onMouseDown={(e) => handleResizeStart(e, ...resizeArgs, "top")}
               onDragStart={(e) => e.preventDefault()}
               aria-hidden="true"
             />
+            ) : null}
+            {part !== "head" ? (
             <div
               className="absolute left-0 right-0 cursor-ns-resize flex items-end justify-center"
               style={{ bottom: -RESIZE_REACH_PX, height: bottomGrab + RESIZE_REACH_PX }}
               draggable={false}
-              onMouseDown={(e) => handleResizeStart(e, task, dayIdx, start, end, "bottom")}
+              onMouseDown={(e) => handleResizeStart(e, ...resizeArgs, "bottom")}
               onDragStart={(e) => e.preventDefault()}
               aria-hidden="true"
             >
@@ -839,6 +863,7 @@ export default function WeekCalendar({
                 style={{ marginBottom: RESIZE_REACH_PX + 2 }}
               />
             </div>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -978,8 +1003,18 @@ export default function WeekCalendar({
             {visibleDays.map((dayIdx) => {
               const blocks = timedByDay[dayIdx] || [];
               const isToday = dayIdx === todayDow;
-              const preview =
-                dragPreview && dragPreview.day === dayIdx ? dragPreview : null;
+              // The dragged block, split at midnight like the blocks themselves.
+              const preview = !dragPreview
+                ? null
+                : dragPreview.day === dayIdx
+                  ? {
+                      ...dragPreview,
+                      top: dragPreview.start,
+                      length: Math.min(dragPreview.duration, DAY_MINUTES - dragPreview.start),
+                    }
+                  : dragPreview.day === dayIdx - 1 && dragPreview.start + dragPreview.duration > DAY_MINUTES
+                    ? { ...dragPreview, top: 0, length: dragPreview.start + dragPreview.duration - DAY_MINUTES }
+                    : null;
               const sel = selection && selection.day === dayIdx ? selection : null;
               return (
                 <div
@@ -1005,13 +1040,12 @@ export default function WeekCalendar({
                     <div
                       className="absolute left-0.5 right-0.5 rounded-md border-2 border-dashed border-primary/60 bg-primary/10 pointer-events-none"
                       style={{
-                        top: minuteToY(preview.start),
-                        height: Math.max(minuteToY(preview.duration), 18),
+                        top: minuteToY(preview.top),
+                        height: Math.max(minuteToY(preview.length), 18),
                       }}
                     >
                       <div className="px-1.5 py-0.5 text-[10px] text-primary">
-                        {minutesToTime(preview.start)} –{" "}
-                        {minutesToTime(preview.start + preview.duration)}
+                        {timeRangeLabel(preview.start, preview.start + preview.duration)}
                       </div>
                     </div>
                   ) : null}

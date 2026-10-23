@@ -51,6 +51,20 @@ export function minutesToTime(m) {
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
+/**
+ * Clock time for a minute that may run past midnight (a task that starts at
+ * 23:00 and lasts 2 hours ends at minute 1500 → "01:00").
+ */
+export function clockTime(m) {
+  if (m == null || Number.isNaN(m)) return "";
+  return minutesToTime(((Math.round(m) % 1440) + 1440) % 1440);
+}
+
+/** "23:00 – 01:00 (next day)" for a block from `start` to `end` minutes. */
+export function timeRangeLabel(start, end) {
+  return `${clockTime(start)} – ${clockTime(end)}${end > 1440 ? " (next day)" : ""}`;
+}
+
 /** "09:30" → 570, or null for an empty/invalid value. */
 export function timeToMinutes(str) {
   if (!str || typeof str !== "string") return null;
@@ -842,16 +856,19 @@ const DAY_END = 24 * 60;
 // The shortest block the API accepts (durationMinutes min).
 const MIN_TASK_MINUTES = 5;
 
-/** End of a block as a clock time; the end of the day reads "00:00". */
+/** End of a block as a clock time; past midnight it wraps ("01:00" the next day). */
 function endToTime(m) {
-  return m >= DAY_END ? "00:00" : minutesToTime(m);
+  return clockTime(m);
 }
 
-/** An end time after `start`; "00:00" is midnight at the end of the day. */
+/**
+ * An end time after `start`. A time at or before the start is the next day:
+ * starting 23:00 and ending 01:00 is a 2-hour task that runs past midnight.
+ */
 function endFromTime(str, start) {
   const m = timeToMinutes(str);
   if (m == null) return null;
-  return m === 0 && start > 0 ? DAY_END : m;
+  return m <= start ? m + DAY_END : m;
 }
 
 /**
@@ -905,7 +922,7 @@ export function TaskEditPopover({
       project: projectId || null,
       notes: task?.notes || "",
       start: start != null ? minutesToTime(start) : "",
-      end: start != null ? endToTime(Math.min(DAY_END, start + taskDuration(task))) : "",
+      end: start != null ? endToTime(start + Math.min(DAY_END, taskDuration(task))) : "",
     };
   });
   const [name, setName] = useState(initial.name);
@@ -941,7 +958,7 @@ export function TaskEditPopover({
       return;
     }
     const keep = length != null && length > 0 ? length : taskDuration(task);
-    setEndTime(endToTime(Math.min(DAY_END, next + keep)));
+    setEndTime(endToTime(next + Math.min(DAY_END, keep)));
   };
 
   useLayoutEffect(() => {
@@ -1063,7 +1080,10 @@ export function TaskEditPopover({
           </div>
           <div className="flex items-center justify-between gap-2 mt-1 min-h-[16px] text-[11px]">
             <span className={timeError ? "text-danger" : "text-fg-subtle"}>
-              {timeError || (length != null ? formatMinutes(length) : "No time yet")}
+              {timeError ||
+                (length != null
+                  ? `${formatMinutes(length)}${endMin != null && endMin > DAY_END ? " · ends the next day" : ""}`
+                  : "No time yet")}
             </span>
             {startTime ? (
               <button

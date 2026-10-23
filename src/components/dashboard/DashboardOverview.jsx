@@ -13,6 +13,7 @@ import QuoteSlotMachine from "@/components/quotes/QuoteSlotMachine";
 import { useDashboardSettings } from "@/hooks/useDashboardSettings";
 import {
   minutesToTime,
+  timeRangeLabel,
   taskDuration,
   formatMinutes,
 } from "@/components/weekplan/WeekPlanShared";
@@ -306,14 +307,23 @@ export default function DashboardOverview({
     const done = days.reduce((s, x) => s + x.done, 0);
     const pct = total ? Math.round((done / total) * 100) : 0;
     const today = days[todayDow];
-    const timed = today.tasks
-      .filter((t) => t.startMinute != null)
-      .map((t) => ({
-        task: t,
-        start: Number(t.startMinute),
-        end: Math.min(1440, Number(t.startMinute) + taskDuration(t)),
-      }))
-      .sort((a, b) => a.start - b.start);
+    // A task may run past midnight (23:00 for 2 h ends at 01:00 the next
+    // day), so yesterday's late task can still be on today's list.
+    const span = (t) => {
+      const start = Number(t.startMinute);
+      return { start, end: start + Math.min(1440, taskDuration(t)) };
+    };
+    const carriedOver = todayDow > 0
+      ? days[todayDow - 1].tasks
+          .filter((t) => t.startMinute != null && span(t).end > 1440)
+          .map((t) => ({ task: t, start: 0, end: span(t).end - 1440, label: `until ${minutesToTime(span(t).end - 1440)} (from yesterday)` }))
+      : [];
+    const timed = [
+      ...carriedOver,
+      ...today.tasks
+        .filter((t) => t.startMinute != null)
+        .map((t) => ({ task: t, ...span(t), label: timeRangeLabel(span(t).start, span(t).end) })),
+    ].sort((a, b) => a.start - b.start);
     const untimed = today.tasks.filter((t) => t.startMinute == null);
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const next = timed.find((b) => b.end > nowMin && !b.task.completed);
@@ -548,12 +558,12 @@ export default function DashboardOverview({
               <div className="h-[400px]">{todaySlot}</div>
             ) : weekSummary.timed.length || weekSummary.untimed.length ? (
               <div className="space-y-1.5">
-                {weekSummary.timed.map(({ task, start, end }) => {
+                {weekSummary.timed.map(({ task, start, end, label }) => {
                   const isNow =
                     weekSummary.nowMin >= start && weekSummary.nowMin < end;
                   return (
                     <div
-                      key={task._id}
+                      key={`${task._id}-${start}`}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs ${
                         task.completed
                           ? "bg-success-soft border-success/30 text-fg-subtle"
@@ -563,7 +573,7 @@ export default function DashboardOverview({
                       }`}
                     >
                       <span className="tabular-nums text-fg-subtle shrink-0">
-                        {minutesToTime(start)}–{minutesToTime(end)}
+                        {label}
                       </span>
                       <span
                         className={`truncate flex-1 ${task.completed ? "line-through" : "font-medium"}`}
