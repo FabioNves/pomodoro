@@ -27,6 +27,7 @@ import {
 import { getWeekStartOf, dayIndexOf, weekLabel } from "@/utils/timeUtils";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
 import { requestNotificationPermission } from "@/utils/notifications";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 // Where each dashboard section sends the user.
 const ROUTES = {
@@ -255,7 +256,7 @@ export default function DashboardPage() {
     [router],
   );
 
-  if (!hasMounted || !user) return null;
+  if (!hasMounted || !user) return <BrandLoader screen />;
 
   // Optional project + task row under the timer controls, inside the panel.
   const activeProjectId = activeProject.projectId;

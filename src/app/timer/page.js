@@ -6,6 +6,7 @@ import PomodoroTimer from "@/components/PomodoroTimer";
 import Navbar from "@/components/Navbar";
 import { LockedScreen } from "@/components/access/Gate";
 import { requestNotificationPermission } from "@/utils/notifications";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 export default function TimerPage() {
   const [user, setUser] = useState(null);
@@ -36,7 +37,7 @@ export default function TimerPage() {
     router.replace("/");
   };
 
-  if (!hasMounted || !user) return null;
+  if (!hasMounted || !user) return <BrandLoader screen />;
 
   return (
     <div className="min-h-screen transition-colors duration-300">

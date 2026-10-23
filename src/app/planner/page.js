@@ -42,6 +42,7 @@ import { compareMilestones, idOf } from "@/lib/milestones";
 import { originDayAfterMove } from "@/lib/weekPlanView";
 import { LockedScreen } from "@/components/access/Gate";
 import { useAccess } from "@/lib/access/client";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 /* ╔══════════════════════════════════════════════════════╗
    ║  Shared icons                                        ║
@@ -3596,7 +3597,7 @@ function PlannerPageInner() {
 
 export default function PlannerPage() {
   return (
-    <Suspense fallback={<div className="w-screen min-h-screen" />}>
+    <Suspense fallback={<BrandLoader screen />}>
       <PlannerPageInner />
     </Suspense>
   );

@@ -11,6 +11,7 @@ import { jwtDecode } from "jwt-decode";
 import Navbar from "@/components/Navbar";
 import BusinessApp from "@/components/business/BusinessApp";
 import { LockedScreen } from "@/components/access/Gate";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 export default function BusinessPage() {
   const [user, setUser] = useState(null);
@@ -40,17 +41,13 @@ export default function BusinessPage() {
     router.replace("/");
   };
 
-  if (!hasMounted || !user) return null;
+  if (!hasMounted || !user) return <BrandLoader screen />;
 
   return (
     <div className="w-screen min-h-screen transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pb-8">
-        <Suspense
-          fallback={
-            <div className="w-full max-w-6xl mx-auto px-4 text-sm text-fg-muted">Loading…</div>
-          }
-        >
+        <Suspense fallback={<BrandLoader />}>
           <LockedScreen
             feature="business"
             title="Business"

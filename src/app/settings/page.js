@@ -17,6 +17,7 @@ import {
   FACE_STYLES,
   formatTimer,
 } from "@/lib/timerSettings";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 /** On/off switch drawn with the theme tokens. */
 function Toggle({ checked, onChange, label }) {
@@ -181,7 +182,7 @@ export default function SettingsPage() {
   };
 
   if (!hasMounted) {
-    return null;
+    return <BrandLoader screen />;
   }
 
   const currentTheme = themes.find((t) => t.id === theme) || themes[0];

@@ -6,7 +6,7 @@
 // code and we send the user back to the app with a pomodrive://auth deep link.
 
 import { useState } from "react";
-import Image from "next/image";
+import BrandLogo from "@/components/brand/BrandLogo";
 import { GoogleCredentialButton } from "@/components/auth/SignInButton";
 import { authDeepLink, createHandoffCode } from "@/lib/auth";
 
@@ -34,21 +34,12 @@ export default function NativeAuthPage() {
     <div className="min-h-[70vh] flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-surface/80 backdrop-blur-sm rounded-2xl p-8 border border-edge shadow-2xl text-center space-y-6">
         <div className="flex justify-center">
-          <Image
-            src="/logo/pomodrive-svg/pomoDrive-logo-light.svg"
-            alt="PomoDRIVE"
-            width={160}
-            height={64}
-            className="h-14 w-auto block dark:hidden"
-            priority
-          />
-          <Image
-            src="/logo/pomodrive-svg/pomoDrive-logo.svg"
-            alt="PomoDRIVE"
-            width={160}
-            height={64}
-            className="h-14 w-auto hidden dark:block"
-            priority
+          {/* Winds up while the sign-in is being handed to the app. */}
+          <BrandLogo
+            layout="stacked"
+            motion={status === "working" ? "windup" : "bounce"}
+            loop={status === "working"}
+            className="h-16 w-auto"
           />
         </div>
 

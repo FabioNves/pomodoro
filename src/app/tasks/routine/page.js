@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import Navbar from "@/components/Navbar";
 import RoutineTasksView from "@/components/RoutineTasksView";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 function IconBack({ className = "" }) {
   return (
@@ -105,7 +106,7 @@ function RoutineTasksPage() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="w-screen min-h-screen" />}>
+    <Suspense fallback={<BrandLoader screen />}>
       <RoutineTasksPage />
     </Suspense>
   );

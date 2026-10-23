@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import BrandLogo from "@/components/brand/BrandLogo";
+import BrandLoader from "@/components/brand/BrandLoader";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { jwtDecode } from "jwt-decode";
@@ -52,7 +53,7 @@ export default function App() {
     });
   };
 
-  if (!hasMounted) return null;
+  if (!hasMounted) return <BrandLoader screen />;
 
   // Show welcome page with public timer when logged out
   if (!user) {
@@ -107,22 +108,7 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <Image
-                src="/logo/pomodrive-svg/pomoDrive-logo-light.svg"
-                alt="PomoDRIVE Logo"
-                width={192}
-                height={80}
-                className="h-20 md:h-48 w-auto block dark:hidden"
-                priority
-              />
-              <Image
-                src="/logo/pomodrive-svg/pomoDrive-logo.svg"
-                alt="PomoDRIVE Logo"
-                width={192}
-                height={80}
-                className="h-20 md:h-48 w-auto hidden dark:block"
-                priority
-              />
+              <BrandLogo layout="stacked" motion="bounce" delay={0.5} className="h-24 md:h-40 w-auto" />
             </motion.div>
 
             {/* Subtitle */}
@@ -267,5 +253,5 @@ export default function App() {
   }
 
   // Logged in: the dashboard is the home screen (see the redirect effect above).
-  return null;
+  return <BrandLoader screen />;
 }

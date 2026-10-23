@@ -501,6 +501,32 @@ README.md has the commands.
   OpenAI and MCP wrappers already call them. Attribute background work to a
   user with `withUsageContext()`.
 
+## The logo
+
+- The app draws the logo inline with `<BrandLogo layout="icon|horizontal|stacked">`
+  (`src/components/brand`), never an `<img>` of a logo file. Its colours are
+  CSS variables per `[data-theme]` from `logoCss()`, which the root layout
+  puts in `<head>`: the right theme shows from the first paint, Dark when
+  none is set, and nothing waits on `useTheme()` (whose state is "dark"
+  until hydration, which would flash the wrong logo).
+- One source in `src/lib/brand`: `logoArt.js` is the drawing (from the
+  designer's files in `public/logo/pomodrive-new/*.svg`; the tomato is one
+  drawing placed in each layout by `fit`), `logo.js` the colours per theme
+  (`LOGO_PALETTES`, each role a token of that theme) and the two motions.
+  A new theme needs a palette there.
+- Motions: `bounce` plays once when a screen opens (the navbar is rendered
+  by each page, so its logo bounces on every screen); `windup`, on a loop,
+  is waiting. Anything a screen waits on renders `<BrandLoader>` (`screen`
+  for a whole page) rather than `null` or a "Loading…" line: the
+  `!hasMounted || !user` gates, Suspense fallbacks and `LockedScreen` while
+  the plan's verdict loads. Reduced motion stops both.
+- The files (each theme's SVG, PNG, animated SVG and WebP under
+  `public/logo/pomodrive-new/<theme>/`, the manifest icons in `app/`,
+  `src/app/favicon.ico` and `native/desktop/build/icon.png`) are built from
+  the same module by `npm run build:logos`. Change the module, then run it;
+  never edit those files by hand. `public/logo/pomodrive-png` and
+  `pomodrive-svg` are the old logo, no longer used.
+
 ## Layout
 
 - `src/` shared frontend plus API routes (the website)

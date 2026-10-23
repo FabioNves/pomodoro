@@ -14,6 +14,7 @@ import AdminConnections from "@/components/admin/AdminConnections";
 import AdminUsage from "@/components/admin/AdminUsage";
 import AdminUsers from "@/components/admin/AdminUsers";
 import AdminSubscriptions from "@/components/admin/AdminSubscriptions";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 const TABS = [
   { key: "connections", label: "Connections", Icon: IconPlug },
@@ -106,13 +107,13 @@ export default function AdminPage() {
     router.replace("/");
   };
 
-  if (!hasMounted || !user) return null;
+  if (!hasMounted || !user) return <BrandLoader screen />;
 
   return (
     <div className="w-screen min-h-screen transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pb-8">
-        <Suspense fallback={<div className="container mx-auto px-4 max-w-6xl text-sm text-fg-muted">Loading…</div>}>
+        <Suspense fallback={<BrandLoader />}>
           <AdminScreen />
         </Suspense>
       </main>

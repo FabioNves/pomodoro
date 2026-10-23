@@ -9,6 +9,7 @@ import { useAccess } from "@/lib/access/client";
 import { IconLock } from "@/components/access/Gate";
 import TimerBadge from "@/components/timer/TimerBadge";
 import UserMenu from "@/components/nav/UserMenu";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 /* ── Nav icon components ───────────────────────────────── */
 
@@ -200,16 +201,9 @@ const Navbar = ({ user, onLogout }) => {
               transition={{ type: "spring", stiffness: 400, damping: 17 }}
             >
               <Link href="/" className="flex items-center space-x-3">
-                <img
-                  src="/logo/pomodrive-svg/pomoDrive-horizontal-light.svg"
-                  alt="PomoDRIVE"
-                  className="h-7 block dark:hidden"
-                />
-                <img
-                  src="/logo/pomodrive-svg/pomoDrive-horizontal.svg"
-                  alt="PomoDRIVE"
-                  className="h-7 hidden dark:block"
-                />
+                {/* Every page renders its own navbar, so the logo bounces
+                    each time a screen opens; it waits for the bar to slide in. */}
+                <BrandLogo layout="horizontal" motion="bounce" delay={0.35} className="h-8 w-auto" />
               </Link>
             </motion.div>
 

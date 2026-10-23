@@ -9,16 +9,22 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/logo/pomodrive-png/icon-192x192.png",
+      "src": "/logo/pomodrive-new/app/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/logo/pomodrive-png/icon-512x512.png",
+      "src": "/logo/pomodrive-new/app/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/logo/pomodrive-new/app/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "categories": ["productivity", "utilities"],
@@ -30,7 +36,7 @@
       "url": "/timer",
       "icons": [
         {
-          "src": "/logo/pomodrive-png/icon-192x192.png",
+          "src": "/logo/pomodrive-new/app/icon-192.png",
           "sizes": "192x192"
         }
       ]
@@ -42,7 +48,7 @@
       "url": "/analytics",
       "icons": [
         {
-          "src": "/logo/pomodrive-png/icon-192x192.png",
+          "src": "/logo/pomodrive-new/app/icon-192.png",
           "sizes": "192x192"
         }
       ]

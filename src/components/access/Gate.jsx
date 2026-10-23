@@ -11,6 +11,7 @@ import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { useAccess, useFeatureGate } from "@/lib/access/client";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 export function IconLock({ className = "w-3 h-3" }) {
   return (
@@ -101,7 +102,7 @@ export function LockedScreen({ feature, title, description, children }) {
   // otherwise start requests that a locked plan answers with 403. A
   // snapshot that predates the feature has no verdict for it: wait for the
   // fresh one too, rather than judging by the catalogue default.
-  if (signedIn && loading && (!me || !known)) return null;
+  if (signedIn && loading && (!me || !known)) return <BrandLoader />;
   if (hidden) notFound();
   if (!locked && !disabled) return children;
   return (

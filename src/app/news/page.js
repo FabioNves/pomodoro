@@ -10,6 +10,7 @@ import { jwtDecode } from "jwt-decode";
 import Navbar from "@/components/Navbar";
 import NewsDashboard from "@/components/news/NewsDashboard";
 import { LockedScreen } from "@/components/access/Gate";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 export default function NewsPage() {
   const [user, setUser] = useState(null);
@@ -39,13 +40,13 @@ export default function NewsPage() {
     router.replace("/");
   };
 
-  if (!hasMounted || !user) return null;
+  if (!hasMounted || !user) return <BrandLoader screen />;
 
   return (
     <div className="w-screen min-h-screen transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pb-8">
-        <Suspense fallback={<div className="container mx-auto px-4 max-w-4xl text-sm text-fg-muted">Loading…</div>}>
+        <Suspense fallback={<BrandLoader />}>
           <LockedScreen
             feature="news_briefing"
             title="News briefing"

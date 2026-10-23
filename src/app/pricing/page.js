@@ -15,6 +15,7 @@ import { formatPrice } from "@/lib/access/features";
 import { openExternal } from "@/lib/platform";
 import { Spinner } from "@/components/news/newsUi";
 import { IconLock } from "@/components/access/Gate";
+import BrandLoader from "@/components/brand/BrandLoader";
 
 function IconCheck({ className = "w-4 h-4" }) {
   return (
@@ -160,7 +161,7 @@ export default function PricingPage() {
     router.replace("/");
   };
 
-  if (!hasMounted) return null;
+  if (!hasMounted) return <BrandLoader screen />;
 
   const signedIn = Boolean(user);
   const onPremium = signedIn && (access.role === "premium" || access.role === "admin");

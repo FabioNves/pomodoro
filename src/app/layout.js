@@ -11,6 +11,7 @@ import QuickNotebook from "../components/notebook/QuickNotebook";
 import { AccessProvider } from "../lib/access/client";
 import { TimerProvider } from "../components/timer/TimerProvider";
 import { ThemeProvider } from "../hooks/useTheme";
+import { logoCss } from "../lib/brand/logo";
 import {
   THEME_IDS,
   DARK_THEME_IDS,
@@ -89,7 +90,7 @@ export const metadata = {
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
-    apple: "/logo/pomodrive-png/pomoDrive-icon.png",
+    apple: "/logo/pomodrive-new/app/apple-touch-icon.png",
   },
   manifest: "/site.webmanifest",
   openGraph: {
@@ -139,6 +140,9 @@ export default function RootLayout({ children }) {
             `,
           }}
         />
+        {/* The logo's colours per theme and its motions (src/lib/brand/logo.js):
+            in the head, so <BrandLogo> is right from the first paint. */}
+        <style id="pd-logo" dangerouslySetInnerHTML={{ __html: logoCss() }} />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} antialiased`}

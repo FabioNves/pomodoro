@@ -13,7 +13,8 @@
     "mobile:ios": "npm run mobile:sync && cap open ios",
     "desktop:dev": "npm run build:static && npm --prefix native/desktop start",
     "desktop:smoke": "npm --prefix native/desktop run smoke",
-    "desktop:build": "npm run build:static && npm --prefix native/desktop run dist"
+    "desktop:build": "npm run build:static && npm --prefix native/desktop run dist",
+    "build:logos": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/build-logos.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
