@@ -57,6 +57,10 @@ export const STALL_RESUME_MS = 45 * 1000;
 export const ABANDON_MS = 30 * 60 * 1000;
 // Below this there is not enough time to search and summarise an edition.
 export const MIN_GENERATION_MS = 100 * 1000;
+// An edition the search provider turned away for going too fast waits this
+// long and is tried once more, after the editions still waiting their turn.
+export const RATE_LIMIT_RETRY_MS = 60 * 1000;
+const MAX_EDITION_ATTEMPTS = 2;
 
 const defaultLog = (m) => console.log(`[news] ${m}`);
 
@@ -90,6 +94,7 @@ const RUN_FATAL_CODES = new Set([
   "ai_auth",
   "mcp_auth",
   "mcp_tool_not_found",
+  "mcp_quota_exceeded",
 ]);
 
 /**
@@ -113,6 +118,8 @@ function safeMessage(code, detail) {
     mcp_connect_failed: "The MCP server could not be reached.",
     mcp_auth: "The MCP server rejected its credentials. Check its API key.",
     mcp_rate_limited: "The search provider is rate limiting requests. Try again in a few minutes.",
+    mcp_quota_exceeded:
+      "The search provider's plan limit is used up. Briefings resume when the plan renews, or raise its limit.",
     mcp_tool_not_found: "The MCP server exposes no web-search tool.",
     mcp_search_failed: "Every web search failed. Try again shortly.",
     internal: "Something went wrong while building the briefing.",
@@ -512,6 +519,18 @@ async function saveEdition(briefingId, key, patch) {
   await Briefing.updateOne({ _id: briefingId, "editions.key": key }, { $set: set });
 }
 
+/**
+ * Sleep `ms`, touching the run's heartbeat as it goes, so a run that is only
+ * waiting out a rate limit is not taken for a lost one and resumed twice.
+ */
+async function waitKeepingRunAlive(briefingId, ms) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(20000, until - Date.now())));
+    await Briefing.updateOne({ _id: briefingId }, { $set: { heartbeatAt: new Date() } });
+  }
+}
+
 /** Fail every edition still waiting, with the reason the run cannot go on. */
 async function failRemaining(briefingId, code, message) {
   const now = new Date();
@@ -534,14 +553,20 @@ async function failRemaining(briefingId, code, message) {
  * Claim the next waiting edition. The update only matches while that
  * edition is still pending, so of two invocations racing for it exactly one
  * gets it; the loser moves on to the edition after.
+ *
+ * An edition queued again after a rate limit is not due before its
+ * notBefore. When only such editions are left the answer is
+ * { waitUntil } (epoch ms) instead of a claim.
  */
 async function claimNextEdition(briefingId) {
   for (let attempt = 0; attempt <= MAX_EDITIONS; attempt += 1) {
     const current = await Briefing.findById(briefingId).select({ status: 1, editions: 1 }).lean();
     if (!current || current.status !== "generating") return null;
-    const next = (current.editions || []).find((e) => e.status === "pending");
-    if (!next) return null;
     const now = new Date();
+    const pending = (current.editions || []).filter((e) => e.status === "pending");
+    if (!pending.length) return null;
+    const next = pending.find((e) => !e.notBefore || new Date(e.notBefore) <= now);
+    if (!next) return { waitUntil: Math.min(...pending.map((e) => new Date(e.notBefore).getTime())) };
     const claimed = await Briefing.findOneAndUpdate(
       { _id: briefingId, status: "generating", editions: { $elemMatch: { key: next.key, status: "pending" } } },
       { $set: { "editions.$.status": "generating", "editions.$.startedAt": now, heartbeatAt: now } },
@@ -774,6 +799,20 @@ async function runEdition(briefing, key, { pref, topicDocs, feedback, shown, log
     return { status: "ready" };
   } catch (error) {
     if (error instanceof RetrievalError) {
+      // Too fast, not broken: the MCP layer already waited and retried each
+      // search, so give the provider a minute and try the whole edition once
+      // more, after the editions still waiting their turn.
+      if (error.code === "rate_limited" && (edition.attempts || 0) + 1 < MAX_EDITION_ATTEMPTS) {
+        log(`${tag} rate limited; trying again in ${RATE_LIMIT_RETRY_MS / 1000} s`);
+        await saveEdition(briefing._id, key, {
+          status: "pending",
+          attempts: (edition.attempts || 0) + 1,
+          notBefore: new Date(Date.now() + RATE_LIMIT_RETRY_MS),
+          note: "The search provider asked to slow down; this edition is tried again in a minute.",
+          stats: { ...stats, durationMs: Date.now() - startedAt, warnings },
+        });
+        return { status: "deferred" };
+      }
       return fail(`mcp_${error.code}`, error.message);
     }
     console.error("[news] unexpected generation error", error);
@@ -800,6 +839,15 @@ export async function runNextEdition(briefingId, { log = defaultLog, budgetMs, c
   for (let guard = 0; guard <= MAX_EDITIONS; guard += 1) {
     if (ran > 0 && (chain || hardStop - Date.now() < MIN_GENERATION_MS)) break;
     const claim = await claimNextEdition(briefingId);
+    if (claim?.waitUntil) {
+      // Only editions cooling down after a rate limit are left. Wait here
+      // when the edition still fits afterwards; otherwise leave it to the
+      // next invocation (the hand-off below, or a resume once quiet).
+      const wait = Math.max(0, claim.waitUntil - Date.now());
+      if (hardStop - Date.now() - wait < MIN_GENERATION_MS) break;
+      await waitKeepingRunAlive(briefingId, wait);
+      continue;
+    }
     if (!claim) break;
     if (!context) context = await loadRunContext(claim.briefing);
 

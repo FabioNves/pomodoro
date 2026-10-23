@@ -47,6 +47,10 @@ const editionRunSchema = new mongoose.Schema(
     stats: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
     startedAt: { type: Date, default: null },
     completedAt: { type: Date, default: null },
+    // An edition the search provider turned away is queued again once
+    // (attempts counts the tries) and not started before notBefore.
+    attempts: { type: Number, default: 0 },
+    notBefore: { type: Date, default: null },
   },
   { _id: false },
 );

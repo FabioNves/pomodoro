@@ -154,16 +154,23 @@ export async function retrieveCandidates({
   // of countries names them in its queries instead (the planner does that).
   const locale = { country: countries.length === 1 ? countries[0] : "", language };
   const localised = Boolean(locale.country || locale.language);
+  // The MCP layer paces each provider and waits out "rate limited" answers
+  // itself (src/lib/mcp/throttle.js), up to this deadline.
+  const searchOpts = { maxResults: 10, recencyDays, timeoutMs: 25000, deadlineAt: searchDeadline };
   const searchTasks = queries.map((q) => async () => {
-    let res = await searchNews(q.query, { maxResults: 10, recencyDays, timeoutMs: 25000, ...locale });
+    let res = await searchNews(q.query, { ...searchOpts, ...locale });
     if (!res.ok && !["not_configured", "connect_failed", "auth"].includes(res.error?.code)) {
-      // Different tool or a transient error: give web search one chance.
-      res = await searchWeb(q.query, { maxResults: 10, recencyDays, timeoutMs: 25000, ...locale });
+      // Different tool or a transient error: give web search one chance. A
+      // provider that is out of patience or allowance is not asked again:
+      // only a different one can help.
+      const limited = ["rate_limited", "quota_exceeded"].includes(res.error?.code);
+      const fallback = await searchWeb(q.query, { ...searchOpts, ...locale, ...(limited ? { avoidServer: res.server } : {}) });
+      if (fallback.error?.code !== "same_server") res = fallback;
     }
     if (!res.ok && localised && res.error?.code === "tool_error") {
       // A provider that refuses the region or language for this query still
       // finds something useful without it; the query text is already local.
-      res = await searchWeb(q.query, { maxResults: 10, recencyDays, timeoutMs: 25000 });
+      res = await searchWeb(q.query, searchOpts);
     }
     return { q, res };
   });
@@ -228,7 +235,7 @@ export async function retrieveCandidates({
   if (!stats.searchesOk && queries.length) {
     const first = failures[0] || {};
     const code = first.code || "search_failed";
-    const fatal = ["not_configured", "connect_failed", "auth", "tool_not_found", "rate_limited"].includes(code)
+    const fatal = ["not_configured", "connect_failed", "auth", "tool_not_found", "rate_limited", "quota_exceeded"].includes(code)
       ? code
       : "search_failed";
     throw new RetrievalError(
@@ -238,9 +245,11 @@ export async function retrieveCandidates({
           ? "The MCP server rejected the request (check its API key)."
           : fatal === "rate_limited"
             ? "The search provider is rate limiting requests. Try again in a few minutes."
-            : fatal === "tool_not_found"
-              ? first.message || "The MCP server exposes no search tool."
-              : `Every search failed: ${first.message || "unknown error"}`,
+            : fatal === "quota_exceeded"
+              ? "The search provider's plan limit is used up."
+              : fatal === "tool_not_found"
+                ? first.message || "The MCP server exposes no search tool."
+                : `Every search failed: ${first.message || "unknown error"}`,
       fatal,
     );
   }
@@ -338,6 +347,7 @@ export async function retrieveCandidates({
   const freshExcerptCutoff = now - 24 * 3600000;
 
   let fetchUnavailable = false;
+  let fetchQuotaSpent = false;
   const toFetch = candidates.slice(0, fetchLimit).filter((c) => {
     const k = knownByKey.get(c.key);
     if (k?.excerpt && k.excerptFetchedAt && new Date(k.excerptFetchedAt).getTime() > freshExcerptCutoff) {
@@ -349,9 +359,12 @@ export async function retrieveCandidates({
   const fetchDeadline = Math.min(deadlineAt, Date.now() + 70000);
   const fetchResults = await pool(
     toFetch.map((c) => async () => {
-      if (fetchUnavailable) return { skipped: true };
-      const res = await fetchPage(c.url, { maxChars: 4500, timeoutMs: 20000 });
+      if (fetchUnavailable || fetchQuotaSpent) return { skipped: true };
+      const res = await fetchPage(c.url, { maxChars: 4500, timeoutMs: 20000, deadlineAt: fetchDeadline });
       if (!res.ok && res.error?.code === "tool_not_found") fetchUnavailable = true;
+      // A used-up plan refuses every page after this one too.
+      if (!res.ok && res.error?.code === "quota_exceeded") fetchQuotaSpent = true;
+      if (!res.ok) log(`page fetch failed [${c.url}]: ${res.error?.code} ${res.error?.message}`);
       return { c, res };
     }),
     3,
@@ -370,6 +383,7 @@ export async function retrieveCandidates({
     }
   }
   if (fetchUnavailable) warnings.push("The MCP server has no page-fetch tool; stories are summarised from search snippets.");
+  else if (fetchQuotaSpent) warnings.push("The page-fetch provider's plan limit is used up; stories are summarised from search snippets.");
   else if (stats.pagesFailed && !stats.pagesFetched && toFetch.length) warnings.push("Article pages could not be fetched; stories are summarised from search snippets.");
 
   /* ── 5. record the articles ─────────────────────────────────────── */

@@ -18,7 +18,8 @@ export class McpError extends Error {
    * @param {string} message
    * @param {{code?: string, cause?: unknown, tool?: string}} [opts]
    *   code: not_configured | connect_failed | tool_not_found | tool_error |
-   *         timeout | malformed_result | unavailable
+   *         timeout | malformed_result | unavailable | rate_limited |
+   *         quota_exceeded | auth
    */
   constructor(message, { code = "unavailable", cause, tool } = {}) {
     super(message);
@@ -310,6 +311,14 @@ export async function callTool(name, args = {}, { timeoutMs, server } = {}) {
       if (status === 429) {
         throw new McpError(`The MCP server is rate limiting requests (HTTP 429)`, {
           code: "rate_limited",
+          cause: error,
+          tool: name,
+        });
+      }
+      // Tavily's "your plan's usage limit is reached": waiting will not help.
+      if (status === 432 || status === 433) {
+        throw new McpError(`The search provider's plan limit is used up (HTTP ${status})`, {
+          code: "quota_exceeded",
           cause: error,
           tool: name,
         });

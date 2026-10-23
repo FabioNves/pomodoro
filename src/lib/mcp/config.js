@@ -63,6 +63,16 @@ function key(name, suffix) {
   return name === DEFAULT_SERVER ? `MCP_SERVER_${suffix}` : `MCP_SERVER_${name.toUpperCase()}_${suffix}`;
 }
 
+/**
+ * Requests a minute this app sends one server: MCP_SERVER_<NAME>_RPM, else
+ * MCP_RPM, else 60. Providers cap their keys per minute (a Tavily
+ * development key at 100, Brave's free plan at one a second), and a briefing
+ * edition makes some twenty calls in a burst; see src/lib/mcp/throttle.js.
+ */
+function serverRpm(name) {
+  return intEnv(key(name, "RPM"), intEnv("MCP_RPM", 60));
+}
+
 function readServer(name) {
   const url = (process.env[key(name, "URL")] || "").trim();
   const command = (process.env[key(name, "COMMAND")] || "").trim();
@@ -82,6 +92,7 @@ function readServer(name) {
     args: parseArgs(process.env[key(name, "ARGS")]),
     env: parseJsonEnv(key(name, "ENV")),
     timeoutMs: intEnv("MCP_TIMEOUT_MS", 30000),
+    rpm: serverRpm(name),
     // A stdio server has to be spawned first, and a command like
     // "npx -y some-mcp-server" may resolve and install the package before it
     // says anything, so it gets far longer than an HTTP handshake needs.
@@ -116,7 +127,7 @@ export function listMcpServers() {
  */
 export function getMcpConfig(name) {
   if (name) {
-    return readServer(name) || { name, transport: null, url: "", headers: {}, command: "", args: [], env: {}, timeoutMs: intEnv("MCP_TIMEOUT_MS", 30000), connectTimeoutMs: intEnv("MCP_CONNECT_TIMEOUT_MS", 15000), clientInfo: { name: "pomodrive-news-briefing", version: "1.0.0" } };
+    return readServer(name) || { name, transport: null, url: "", headers: {}, command: "", args: [], env: {}, timeoutMs: intEnv("MCP_TIMEOUT_MS", 30000), rpm: serverRpm(name), connectTimeoutMs: intEnv("MCP_CONNECT_TIMEOUT_MS", 15000), clientInfo: { name: "pomodrive-news-briefing", version: "1.0.0" } };
   }
   const servers = listMcpServers();
   const chosen = servers.find((s) => s.name === DEFAULT_SERVER) || servers[0];

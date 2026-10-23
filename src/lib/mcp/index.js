@@ -27,6 +27,7 @@ import {
 import { getConnection, callTool, pingServer, McpError } from "@/lib/mcp/client";
 import { resolveCapabilities, buildSearchArgs, buildFetchArgs } from "@/lib/mcp/capabilities";
 import { parseSearchResult, parseFetchResult, textBlocks, canonicalizeUrl } from "@/lib/mcp/normalize";
+import { takeTurn, backOff, retryDelay, MAX_RATE_RETRIES } from "@/lib/mcp/throttle";
 
 export { McpError, isMcpConfigured };
 
@@ -224,12 +225,55 @@ function payloadError(result) {
   return null;
 }
 
+/**
+ * "rate_limited" passes in a minute and is worth waiting for; a plan's
+ * allowance that is used up ("quota_exceeded": Tavily answers 432/433, others
+ * talk of credits or quota) lasts until the plan renews, so nothing retries it.
+ */
 function classify(text, status) {
   if (status === 429) return "rate_limited";
+  if (status === 432 || status === 433) return "quota_exceeded";
   if (status === 401 || status === 403) return "auth";
-  if (/rate limit|too many requests|quota|credits/i.test(text)) return "rate_limited";
+  if (/rate limit|too many requests/i.test(text)) return "rate_limited";
+  if (/quota|credits|usage limit|exceeds your plan/i.test(text)) return "quota_exceeded";
   if (/unauthori[sz]ed|invalid api key|forbidden/i.test(text)) return "auth";
   return "tool_error";
+}
+
+/** How long a call may wait for its turn and for retries when the caller set no deadline. */
+const DEFAULT_WAIT_MS = 45000;
+
+/**
+ * Call a server's tool at the server's pace (throttle.js) and turn its
+ * answer into { result } or { error }. A "rate limited" answer pauses every
+ * caller of that server and is retried, up to MAX_RATE_RETRIES times, while
+ * the retry can still start before `deadlineAt`.
+ */
+async function invoke(target, args, { timeoutMs, deadlineAt }) {
+  const { server } = target;
+  const { tool } = target.cap;
+  const { rpm } = getMcpConfig(server);
+  const until = deadlineAt || Date.now() + DEFAULT_WAIT_MS;
+  let last = null;
+  for (let attempt = 0; attempt <= MAX_RATE_RETRIES; attempt += 1) {
+    if (!(await takeTurn(server, rpm, until))) {
+      return {
+        error: last || { code: "rate_limited", message: `No free slot on "${server}" before the deadline.`, tool },
+      };
+    }
+    let failure;
+    try {
+      const result = await callTool(tool, args, { timeoutMs, server });
+      failure = errorFromResult(result, tool);
+      if (!failure) return { result };
+    } catch (error) {
+      failure = toError(error);
+    }
+    if (failure.code !== "rate_limited") return { error: failure };
+    last = failure;
+    backOff(server, retryDelay(failure.message, attempt));
+  }
+  return { error: last };
 }
 
 function errorFromResult(result, tool) {
@@ -254,12 +298,20 @@ function errorFromResult(result, tool) {
  * @param {"web"|"news"} kind
  * @param {string} query
  * @param {{ maxResults?: number, recencyDays?: number|null, timeoutMs?: number,
- *   country?: string, language?: string }} [opts]
+ *   country?: string, language?: string, deadlineAt?: number, avoidServer?: string }} [opts]
  *   recencyDays: null searches without any recency filter.
  *   country: ISO 3166-1 alpha-2 code; language: ISO 639-1 code. Each is sent
  *   only when the tool declares a matching parameter, in the form it accepts.
+ *   deadlineAt: epoch ms after which no wait for the server's pace or retry starts.
+ *   avoidServer: answer { ok: false, error: { code: "same_server" } } without
+ *   calling anything when the search would go to this server (a fallback
+ *   that would only ask the provider that just refused).
  */
-async function runSearch(kind, query, { maxResults = 10, recencyDays = 7, timeoutMs, country = "", language = "" } = {}) {
+async function runSearch(
+  kind,
+  query,
+  { maxResults = 10, recencyDays = 7, timeoutMs, country = "", language = "", deadlineAt, avoidServer } = {},
+) {
   const trimmed = String(query || "").trim();
   if (!trimmed) {
     return { ok: false, results: [], tool: null, server: null, error: { code: "bad_request", message: "Empty query" } };
@@ -277,6 +329,15 @@ async function runSearch(kind, query, { maxResults = 10, recencyDays = 7, timeou
   if (!target) {
     return { ok: false, results: [], tool: null, server: null, error: noTargetError(routed, "search") };
   }
+  if (avoidServer && target.server === avoidServer) {
+    return {
+      ok: false,
+      results: [],
+      tool: target.cap.tool,
+      server: target.server,
+      error: { code: "same_server", message: `Search would go to "${target.server}" again.` },
+    };
+  }
 
   const dedicatedNews = news && Boolean(routed.routing.searchNews);
   // The caller's window is used as given. A web search standing in for news
@@ -292,14 +353,13 @@ async function runSearch(kind, query, { maxResults = 10, recencyDays = 7, timeou
     extra: getExtraArgs().search,
   });
 
+  const { result, error } = await invoke(target, args, { timeoutMs, deadlineAt });
+  if (error) return { ok: false, results: [], tool: target.cap.tool, server: target.server, error };
   try {
-    const result = await callTool(target.cap.tool, args, { timeoutMs, server: target.server });
-    const failure = errorFromResult(result, target.cap.tool);
-    if (failure) return { ok: false, results: [], tool: target.cap.tool, server: target.server, error: failure };
     const { items, warnings } = parseSearchResult(result);
     return { ok: true, results: items, tool: target.cap.tool, server: target.server, warnings, error: null };
-  } catch (error) {
-    return { ok: false, results: [], tool: target.cap.tool, server: target.server, error: toError(error) };
+  } catch (parseError) {
+    return { ok: false, results: [], tool: target.cap.tool, server: target.server, error: toError(parseError) };
   }
 }
 
@@ -311,7 +371,7 @@ export function searchNews(query, opts) {
   return runSearch("news", query, opts);
 }
 
-export async function fetchPage(url, { maxChars = 8000, timeoutMs } = {}) {
+export async function fetchPage(url, { maxChars = 8000, timeoutMs, deadlineAt } = {}) {
   const canon = canonicalizeUrl(url);
   if (!canon) {
     return { ok: false, text: "", title: "", tool: null, server: null, error: { code: "bad_request", message: "Invalid URL" } };
@@ -329,10 +389,9 @@ export async function fetchPage(url, { maxChars = 8000, timeoutMs } = {}) {
   }
 
   const args = buildFetchArgs(target.cap, { url: canon.url, maxChars, extra: getExtraArgs().fetch });
+  const { result, error: failure } = await invoke(target, args, { timeoutMs, deadlineAt });
+  if (failure) return { ok: false, text: "", title: "", tool: target.cap.tool, server: target.server, error: failure };
   try {
-    const result = await callTool(target.cap.tool, args, { timeoutMs, server: target.server });
-    const failure = errorFromResult(result, target.cap.tool);
-    if (failure) return { ok: false, text: "", title: "", tool: target.cap.tool, server: target.server, error: failure };
     const { text, title } = parseFetchResult(result, { maxChars });
     if (!text) {
       return {

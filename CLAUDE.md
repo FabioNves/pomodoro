@@ -360,6 +360,19 @@ README.md has the commands.
   vars, tools are discovered at runtime, and each capability (web search,
   news search, page fetch) is routed to the server that serves it best. Do
   not call a search provider's REST API directly from feature code.
+- Every tool call goes through `invoke()` in `src/lib/mcp/index.js`, which
+  paces each server to its requests a minute (`MCP_RPM`,
+  `MCP_SERVER_<NAME>_RPM`, default 60; `src/lib/mcp/throttle.js`) and, on a
+  "rate limited" answer, pauses every caller of that server and retries
+  until the caller's `deadlineAt`. "Rate limited" (wait a minute) and
+  "quota_exceeded" (the plan's allowance is used up: nothing retries it, and
+  it stops the run like a rejected key) are different codes; keep them apart.
+  A search fallback never asks the provider that just refused (`avoidServer`).
+- An edition whose searches were still refused for rate limiting is queued
+  again once (`attempts`, `notBefore` a minute later) behind the editions
+  still waiting, rather than failed; an invocation with only such editions
+  left waits for them while it has the time, touching the heartbeat so the
+  run is not resumed twice.
 - Briefing kinds and their time windows live in `src/lib/news/kinds.js`. Add
   a window or change a reach there, never inline in retrieval or a prompt.
 - A run is made of **editions**: the reader keeps one list of them
