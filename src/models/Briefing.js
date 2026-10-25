@@ -31,6 +31,11 @@ const editionRunSchema = new mongoose.Schema(
     language: { type: String, default: "" },
     outputLanguage: { type: String, default: "en" },
     coverage: { type: String, enum: ["topics", "top"], default: "topics" },
+    // The hub sources the reader chose for this edition, as at the start.
+    sources: {
+      ids: { type: [String], default: [] },
+      mode: { type: String, enum: ["prefer", "only"], default: "prefer" },
+    },
     status: {
       type: String,
       enum: ["pending", "generating", "ready", "empty", "failed"],

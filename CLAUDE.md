@@ -356,10 +356,25 @@ README.md has the commands.
 
 ## AI news briefing
 
-- Retrieval goes through MCP only (`src/lib/mcp`): servers are named in env
-  vars, tools are discovered at runtime, and each capability (web search,
-  news search, page fetch) is routed to the server that serves it best. Do
-  not call a search provider's REST API directly from feature code.
+- Retrieval goes to the movez-studio **news hub** first: one
+  `POST /api/v1/news/search` per edition (`src/lib/newsHub/client.js`,
+  `NEWS_HUB_URL` + `NEWS_HUB_API_KEY`, a key from movez-studio Admin → News →
+  App keys). The hub owns the providers and their budgets (publisher feeds it
+  polls, Google News RSS, then capped NewsAPI.ai / Tavily) and brings the
+  article text of the strongest items. MCP (`src/lib/mcp`) is the fallback
+  when the hub fails or finds too little, and the only path without a hub;
+  `NEWS_RETRIEVAL` (`hub,mcp` by default) sets the order. Feature code never
+  calls a provider's REST API.
+- An edition's `sources` (`{ ids, mode: "prefer"|"only" }`) are hub source
+  slugs, chosen in the settings from `GET /api/news/sources` (the hub's
+  catalogue, cached). They are copied onto the run's edition when it starts
+  and passed to the hub as is. The hub's article keys equal
+  `canonicalizeUrl().key` here, so NewsArticle lines up with it: keep
+  `src/lib/mcp/normalize.js` and the hub's `src/lib/news/url.ts` identical
+  (movez-studio `scripts/news-url-fixture.json` checks both).
+- MCP servers (fallback) are named in env vars, tools are discovered at
+  runtime, and each capability (web search, news search, page fetch) is
+  routed to the server that serves it best.
 - Every tool call goes through `invoke()` in `src/lib/mcp/index.js`, which
   paces each server to its requests a minute (`MCP_RPM`,
   `MCP_SERVER_<NAME>_RPM`, default 60; `src/lib/mcp/throttle.js`) and, on a
@@ -400,7 +415,7 @@ README.md has the commands.
   `stalled` on the briefing and asks for the next edition itself.
 - The AI layer (`src/lib/ai`) only sees retrieved material and returns
   source ids; `src/lib/news/validate.js` maps ids back to stored articles and
-  drops anything unsupported. Keep that split: MCP retrieves, OpenAI
+  drops anything unsupported. Keep that split: the hub (or MCP) retrieves, OpenAI
   interprets, the app stores and presents.
 - News routes verify the session JWT with `requireUser()` from
   `src/lib/news/auth.js` (not the `user-id` header, which is unverified). It

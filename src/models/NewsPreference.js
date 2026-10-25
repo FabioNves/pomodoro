@@ -27,6 +27,12 @@ const editionSchema = new mongoose.Schema(
     // "topics": the reader's topics within this region. "top": the region's
     // most important news, whatever the reader follows.
     coverage: { type: String, enum: ["topics", "top"], default: "topics" },
+    // Publishers chosen from the news hub's catalogue (its source slugs):
+    // "prefer" ranks them first, "only" keeps the edition to them.
+    sources: {
+      ids: { type: [String], default: [] },
+      mode: { type: String, enum: ["prefer", "only"], default: "prefer" },
+    },
     // The briefings this one edition runs in: any of "daily", "weekly" and
     // "monthly" (a custom schedule runs the daily ones). Empty keeps the
     // edition without ever building it.

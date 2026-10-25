@@ -1,13 +1,16 @@
-// Retrieval: runs the planned searches through MCP, normalises and
-// de-duplicates what comes back, scores it, fetches the most promising pages
-// and records every article in NewsArticle. Server only.
+// Retrieval: asks the movez-studio news hub for the edition (one call; MCP
+// searches as the fallback), normalises and de-duplicates what comes back,
+// scores it, fetches the pages still missing their text and records every
+// article in NewsArticle. Server only.
 //
 // Partial failure is normal here: a search that fails is counted and
 // skipped, and the briefing is built from whatever succeeded. Only when
-// every search fails because the MCP server is unreachable does this throw.
+// nothing answered at all does this throw.
 
 import NewsArticle from "@/models/NewsArticle";
-import { searchNews, searchWeb, fetchPage } from "@/lib/mcp";
+import { searchNews, searchWeb, fetchPage, isMcpConfigured } from "@/lib/mcp";
+import { canonicalizeUrl } from "@/lib/mcp/normalize";
+import { hubNewsConfigured, hubSearch } from "@/lib/newsHub/client";
 import { kindMeta, candidateLimitFor } from "@/lib/news/kinds";
 import { hasCountryTld, isNationalOutlet } from "@/lib/news/locales";
 
@@ -106,6 +109,71 @@ function ageDays(date, now) {
 }
 
 /**
+ * Where to look, in order. NEWS_RETRIEVAL lists "hub" and/or "mcp"; by
+ * default the hub when it is configured, with MCP behind it.
+ */
+function retrievalOrder() {
+  const raw = (process.env.NEWS_RETRIEVAL || "").toLowerCase();
+  const wanted = raw ? raw.split(",").map((s) => s.trim()).filter((s) => s === "hub" || s === "mcp") : ["hub", "mcp"];
+  const order = wanted.filter((s) => s !== "hub" || hubNewsConfigured());
+  return order.length ? order : ["mcp"];
+}
+
+/** The whole edition as one hub search. */
+function searchViaHub({ queries, countries, language, recencyDays, maxAgeDays, sources, kind, storyCount, deadlineAt }) {
+  const days = recencyDays || maxAgeDays || 7;
+  return hubSearch(
+    {
+      queries: queries.map((q) => ({ text: q.query, tag: q.topic || q.purpose || "" })),
+      countries,
+      ...(language ? { language } : {}),
+      windowHours: Math.min(744, Math.max(1, Math.round(days * 24))),
+      ...(sources?.ids?.length ? { sources: { ids: sources.ids, mode: sources.mode === "only" ? "only" : "prefer" } } : {}),
+      limit: Math.min(60, candidateLimitFor(kind, storyCount) * 2),
+      // The text of the strongest items comes with the answer, so they need
+      // no page fetch here.
+      fullText: { top: Math.min(15, storyCount + 3), maxChars: 4500 },
+    },
+    { deadlineAt },
+  );
+}
+
+/** A hub item as a search result, merged into `byKey` like an MCP one. */
+function addHubItem(byKey, item, index, queries, stats) {
+  const key = item.urlKey || canonicalizeUrl(item.url)?.key;
+  if (!key || !item.title) return;
+  const matched = (item.matched || []).map((i) => queries[i]).filter(Boolean);
+  const hits = matched.filter((q) => q.purpose === "topic" && q.topic).map((q) => q.topic);
+  const tool = `hub:${item.via?.[0] || "store"}`;
+  stats.tools.add(tool);
+  const score = Math.min(1, Math.max(0, (Number(item.score) || 0) / 5));
+  const existing = byKey.get(key);
+  if (existing) {
+    existing.queryCount += Math.max(1, matched.length);
+    for (const h of hits) existing.hits.add(h);
+    if (!existing.excerpt && item.body) existing.excerpt = item.body.slice(0, 4500);
+    return;
+  }
+  byKey.set(key, {
+    title: item.title,
+    url: item.url,
+    key,
+    domain: item.domain,
+    publisher: item.publisher || item.source?.name || item.domain,
+    snippet: item.snippet || "",
+    excerpt: item.body ? item.body.slice(0, 4500) : "",
+    publishedAt: item.publishedAt ? new Date(item.publishedAt) : null,
+    publishedAtSource: item.publishedAtSource || "",
+    queryCount: Math.max(1, matched.length),
+    bestRank: index,
+    mcpScore: score,
+    hits: new Set(hits),
+    broad: !matched.length || matched.some((q) => q.purpose === "broad"),
+    tool,
+  });
+}
+
+/**
  * @param {object} params
  * @param {{query: string, topic: string, purpose: "topic"|"broad"}[]} params.queries
  * @param {"daily"|"weekly"|"custom"} params.kind
@@ -116,6 +184,7 @@ function ageDays(date, now) {
  * @param {(msg: string) => void} [params.log]
  * @param {string[]} [params.countries]          ISO alpha-2 codes of the edition's region
  * @param {string} [params.language]             ISO 639-1 code of the news to look for
+ * @param {{ids: string[], mode: "prefer"|"only"}|null} [params.sources]  hub source slugs the reader chose
  */
 export async function retrieveCandidates({
   queries,
@@ -127,6 +196,7 @@ export async function retrieveCandidates({
   log = () => {},
   countries = [],
   language = "",
+  sources = null,
 }) {
   const now = Date.now();
   const meta = kindMeta(kind);
@@ -148,8 +218,42 @@ export async function retrieveCandidates({
   };
 
   /* ── 1. search ─────────────────────────────────────────────────── */
+  // The movez-studio news hub first: one call for the whole edition, which
+  // it answers from the publisher feeds it polls, Google News, then its
+  // capped providers, and which brings the article text along. MCP is the
+  // fallback, or the only path without a hub (NEWS_RETRIEVAL).
   const searchDeadline = Math.min(deadlineAt, now + 110000);
   const failures = [];
+  const order = retrievalOrder();
+  const byKey = new Map();
+  let hubAnswered = false;
+
+  if (order.includes("hub")) {
+    const hub = await searchViaHub({ queries, countries, language, recencyDays, maxAgeDays, sources, kind, storyCount, deadlineAt: searchDeadline });
+    if (hub.ok) {
+      hubAnswered = true;
+      stats.hub = {
+        items: hub.items.length,
+        cache: hub.stats?.cache || "",
+        providers: Object.keys(hub.stats?.providers || {}),
+      };
+      stats.resultsRetrieved += hub.items.length;
+      for (const w of hub.warnings) warnings.push(`News hub: ${w}`);
+      hub.items.forEach((item, index) => addHubItem(byKey, item, index, queries, stats));
+      log(`news hub: ${hub.items.length} items (${hub.stats?.cache || "?"})`);
+    } else {
+      failures.push({ ...hub.error, hub: true });
+      log(`news hub search failed: ${hub.error.code} ${hub.error.message}`);
+      warnings.push(
+        order.includes("mcp")
+          ? "The news hub was unavailable; searched directly instead."
+          : `The news hub was unavailable (${hub.error.code}).`,
+      );
+    }
+  }
+
+  // MCP: without a hub, or when the hub failed or found too little.
+  const needMcp = order.includes("mcp") && (!hubAnswered || byKey.size < storyCount) && Date.now() < searchDeadline - 5000;
   // A search can be pinned to one country only. An edition covering a group
   // of countries names them in its queries instead (the planner does that).
   const locale = { country: countries.length === 1 ? countries[0] : "", language };
@@ -157,7 +261,7 @@ export async function retrieveCandidates({
   // The MCP layer paces each provider and waits out "rate limited" answers
   // itself (src/lib/mcp/throttle.js), up to this deadline.
   const searchOpts = { maxResults: 10, recencyDays, timeoutMs: 25000, deadlineAt: searchDeadline };
-  const searchTasks = queries.map((q) => async () => {
+  const searchTasks = (needMcp ? queries : []).map((q) => async () => {
     let res = await searchNews(q.query, { ...searchOpts, ...locale });
     if (!res.ok && !["not_configured", "connect_failed", "auth"].includes(res.error?.code)) {
       // Different tool or a transient error: give web search one chance. A
@@ -176,7 +280,6 @@ export async function retrieveCandidates({
   });
   const searchResults = await pool(searchTasks, 3, () => Date.now() < searchDeadline);
 
-  const byKey = new Map();
   for (const item of searchResults) {
     if (item?.skipped) {
       stats.searchesSkipped += 1;
@@ -232,17 +335,21 @@ export async function retrieveCandidates({
   if (stats.searchesFailed && stats.searchesOk) {
     warnings.push(`${stats.searchesFailed} of ${queries.length} searches failed; the briefing uses the remaining results.`);
   }
-  if (!stats.searchesOk && queries.length) {
-    const first = failures[0] || {};
+  // Fatal only when nothing answered: a hub that found nothing makes an
+  // empty edition, not a failed one.
+  if (!stats.searchesOk && !hubAnswered && queries.length) {
+    // The MCP failure when MCP ran, otherwise the hub's.
+    const first = failures.find((f) => !f.hub) || failures[0] || {};
+    const who = first.hub ? "The news hub" : "The MCP server";
     const code = first.code || "search_failed";
     const fatal = ["not_configured", "connect_failed", "auth", "tool_not_found", "rate_limited", "quota_exceeded"].includes(code)
       ? code
       : "search_failed";
     throw new RetrievalError(
       fatal === "connect_failed"
-        ? `The MCP server could not be reached: ${first.message || "connection failed"}`
+        ? `${who} could not be reached: ${first.message || "connection failed"}`
         : fatal === "auth"
-          ? "The MCP server rejected the request (check its API key)."
+          ? `${who} rejected the request (check its API key).`
           : fatal === "rate_limited"
             ? "The search provider is rate limiting requests. Try again in a few minutes."
             : fatal === "quota_exceeded"
@@ -349,6 +456,11 @@ export async function retrieveCandidates({
   let fetchUnavailable = false;
   let fetchQuotaSpent = false;
   const toFetch = candidates.slice(0, fetchLimit).filter((c) => {
+    // The hub already brought this article's text.
+    if (c.excerpt) {
+      c.excerptFetchedAt = new Date();
+      return false;
+    }
     const k = knownByKey.get(c.key);
     if (k?.excerpt && k.excerptFetchedAt && new Date(k.excerptFetchedAt).getTime() > freshExcerptCutoff) {
       c.excerpt = k.excerpt;
@@ -357,8 +469,11 @@ export async function retrieveCandidates({
     return true;
   });
   const fetchDeadline = Math.min(deadlineAt, Date.now() + 70000);
+  // Pages are only fetched through MCP; with the hub alone, what it did not
+  // bring stays a snippet.
+  const canFetch = order.includes("mcp") && isMcpConfigured();
   const fetchResults = await pool(
-    toFetch.map((c) => async () => {
+    (canFetch ? toFetch : []).map((c) => async () => {
       if (fetchUnavailable || fetchQuotaSpent) return { skipped: true };
       const res = await fetchPage(c.url, { maxChars: 4500, timeoutMs: 20000, deadlineAt: fetchDeadline });
       if (!res.ok && res.error?.code === "tool_not_found") fetchUnavailable = true;
@@ -384,7 +499,7 @@ export async function retrieveCandidates({
   }
   if (fetchUnavailable) warnings.push("The MCP server has no page-fetch tool; stories are summarised from search snippets.");
   else if (fetchQuotaSpent) warnings.push("The page-fetch provider's plan limit is used up; stories are summarised from search snippets.");
-  else if (stats.pagesFailed && !stats.pagesFetched && toFetch.length) warnings.push("Article pages could not be fetched; stories are summarised from search snippets.");
+  else if (canFetch && stats.pagesFailed && !stats.pagesFetched && toFetch.length) warnings.push("Article pages could not be fetched; stories are summarised from search snippets.");
 
   /* ── 5. record the articles ─────────────────────────────────────── */
   if (candidates.length) {

@@ -218,6 +218,10 @@ export function resolveEditions(pref, kind) {
       language,
       outputLanguage: outputLanguageOf({ language, output: raw.output }, userLanguage),
       coverage: raw.coverage === "top" ? "top" : "topics",
+      sources: {
+        ids: [...new Set((raw.sources?.ids || []).map((s) => String(s).toLowerCase()))].slice(0, 50),
+        mode: raw.sources?.mode === "only" ? "only" : "prefer",
+      },
       status: "pending",
     };
   });
@@ -671,6 +675,7 @@ async function runEdition(briefing, key, { pref, topicDocs, feedback, shown, log
       log,
       countries,
       language,
+      sources: edition.sources?.ids?.length ? { ids: [...edition.sources.ids], mode: edition.sources.mode } : null,
     });
     Object.assign(stats, retrieval.stats, { mcpServer: retrieval.stats.tools.join(", ") });
     delete stats.tools;

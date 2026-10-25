@@ -7,7 +7,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { browserTimeZone } from "@/lib/news/client";
+import { browserTimeZone, newsApi } from "@/lib/news/client";
 import { useAccess } from "@/lib/access/client";
 import ConnectionStatus from "@/components/admin/ConnectionStatus";
 import {
@@ -111,6 +111,96 @@ function KindChips({ kinds, onToggle }) {
         </Chip>
       ))}
     </div>
+  );
+}
+
+// The news hub's source catalogue, loaded once for every edition card.
+let catalogueRequest = null;
+function loadCatalogue() {
+  if (!catalogueRequest) {
+    catalogueRequest = newsApi("/api/news/sources").catch((error) => {
+      catalogueRequest = null;
+      throw error;
+    });
+  }
+  return catalogueRequest;
+}
+
+/**
+ * The publishers an edition prefers or is limited to, picked from the news
+ * hub's catalogue (stored as its source slugs). Hidden without a hub.
+ */
+function SourcePicker({ edition, onChange }) {
+  const [catalogue, setCatalogue] = useState(null); // { sources, available }
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    loadCatalogue()
+      .then((data) => live && setCatalogue(data))
+      .catch(() => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  if (failed) return <p className="text-[11px] text-fg-subtle">Sources could not be loaded right now.</p>;
+  if (!catalogue?.available) return null;
+
+  const chosen = edition.sources?.ids || [];
+  const mode = edition.sources?.mode === "only" ? "only" : "prefer";
+  const byId = new Map(catalogue.sources.map((s) => [s.id, s]));
+  const countries = edition.countries || [];
+  // Offer the sources of this edition's region and language first.
+  const fits = (s) =>
+    (!countries.length || s.countries.some((c) => countries.includes(c))) &&
+    (!edition.language || !s.languages.length || s.languages.includes(edition.language));
+  const options = catalogue.sources.filter((s) => !chosen.includes(s.id) && fits(s));
+  const set = (patch) => onChange({ sources: { ids: chosen, mode, ...patch } });
+
+  return (
+    <Field label="Sources">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {chosen.length ? (
+          chosen.map((id) => (
+            <Chip key={id} onRemove={() => set({ ids: chosen.filter((x) => x !== id) })} removeLabel={`Remove ${byId.get(id)?.name || id}`}>
+              {byId.get(id)?.name || id}
+            </Chip>
+          ))
+        ) : (
+          <Chip title="Any reputable outlet">Any source</Chip>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <select
+          value=""
+          aria-label="Add a source to this edition"
+          onChange={(e) => e.target.value && set({ ids: [...chosen, e.target.value] })}
+          disabled={chosen.length >= 50 || !options.length}
+          className={`${SELECT_CLASS} sm:w-auto sm:flex-1`}
+        >
+          <option value="">{options.length ? "Add a source…" : "No more sources for this region"}</option>
+          {options.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name} ({s.domain}){s.paywalled ? " · paywall" : ""}
+            </option>
+          ))}
+        </select>
+        {chosen.length ? (
+          <select
+            value={mode}
+            aria-label="How the chosen sources are used"
+            onChange={(e) => set({ mode: e.target.value })}
+            className={`${SELECT_CLASS} sm:w-auto`}
+          >
+            <option value="prefer">Prefer these, others too</option>
+            <option value="only">Only these</option>
+          </select>
+        ) : null}
+      </div>
+      {mode === "only" && chosen.length ? (
+        <p className="text-[11px] text-fg-subtle">Only these publishers: a quiet week may bring fewer stories.</p>
+      ) : null}
+    </Field>
   );
 }
 
@@ -260,6 +350,8 @@ function EditionRow({ edition, index, total, userLanguage, onChange, onRemove, o
           </select>
         </Field>
       </div>
+
+      <SourcePicker edition={edition} onChange={onChange} />
     </div>
   );
 }
@@ -316,6 +408,7 @@ export default function NewsSettings({ preferences, onSave, saving, status, stat
     output: "source",
     coverage: "topics",
     kinds,
+    sources: { ids: [], mode: "prefer" },
   });
   const addEdition = () => setEditions([...editions, blankEdition(["daily"])]);
   const addPerLanguage = () => {

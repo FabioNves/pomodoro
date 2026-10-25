@@ -58,6 +58,16 @@ const editionInput = z.object({
     .refine((v) => v === "source" || isKnownLanguage(v), "Unknown output language")
     .default("source"),
   coverage: z.enum(["topics", "top"]).default("topics"),
+  // News hub source slugs (see src/lib/newsHub/client.js).
+  sources: z
+    .object({
+      ids: z
+        .array(z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,60}$/, "Unknown source"))
+        .max(50)
+        .default([]),
+      mode: z.enum(["prefer", "only"]).default("prefer"),
+    })
+    .default({ ids: [], mode: "prefer" }),
   // The briefings this edition runs in. Empty is allowed: the edition is
   // kept, but no run builds it.
   kinds: z.array(z.enum(["daily", "weekly", "monthly"])).max(3).default(["daily"]),
@@ -203,6 +213,10 @@ function editionsDto(list) {
     output: e.output || "source",
     coverage: e.coverage === "top" ? "top" : "topics",
     kinds: editionKinds(e),
+    sources: {
+      ids: [...new Set(e.sources?.ids || [])],
+      mode: e.sources?.mode === "only" ? "only" : "prefer",
+    },
   }));
 }
 
