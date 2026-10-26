@@ -101,6 +101,7 @@ export const preferencesUpdateSchema = z
     includeWorthKnowing: z.boolean(),
     language: z.string().trim().toLowerCase().refine(isKnownLanguage, "Unknown language"),
     editions: z.array(editionInput).max(MAX_EDITIONS),
+    hubTopics: z.array(z.string().trim().regex(/^[a-z0-9-]{1,40}$/)).max(40),
   })
   .partial()
   .strict();
@@ -202,6 +203,7 @@ export function applyPreferenceUpdate(pref, update) {
   }
   if (update.language !== undefined) pref.language = update.language;
   if (update.editions) pref.editions = uniqueKeys(update.editions);
+  if (update.hubTopics) pref.hubTopics = [...new Set(update.hubTopics)];
   return pref;
 }
 
@@ -246,6 +248,7 @@ export function preferencesDto(pref) {
     includeWorthKnowing: pref.includeWorthKnowing !== false,
     language: isKnownLanguage(pref.language) ? pref.language : "en",
     editions: editionsDto(pref.editions),
+    hubTopics: [...(pref.hubTopics || [])],
     updatedAt: pref.updatedAt || null,
   };
 }

@@ -102,6 +102,9 @@ const newsPreferenceSchema = new mongoose.Schema(
     // A kind with no editions builds a single worldwide edition covering the
     // reader's topics, which is what a briefing was before editions existed.
     editions: { type: [editionSchema], default: [] },
+    // Topics of the news hub's stories (Stories tab) the reader follows:
+    // keys of the hub's topic list, the same in every app. Empty = all.
+    hubTopics: { type: [String], default: [] },
 
     // Period keys of the last scheduled generation per kind, so the
     // scheduler never produces the same cycle twice.

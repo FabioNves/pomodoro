@@ -162,6 +162,9 @@ export function savedStoryDto(s) {
     language: s.language || "",
     outputLanguage: s.outputLanguage || "",
     countries: s.countries || [],
+    hub: Boolean(s.hub),
+    whyItMatters: s.whyItMatters || "",
+    sources: (s.sources || []).map((x) => ({ title: x.title || "", url: x.url || "", publisher: x.publisher || "" })),
     savedAt: s.createdAt,
   };
 }

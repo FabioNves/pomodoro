@@ -5,10 +5,17 @@ import mongoose from "mongoose";
 const savedStorySchema = new mongoose.Schema(
   {
     user: { type: String, required: true, index: true },
+    // A briefing story, or a news hub story (its hub id, also an ObjectId).
     story: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "BriefingStory",
       required: true,
+    },
+    hub: { type: Boolean, default: false },
+    whyItMatters: { type: String, default: "" },
+    sources: {
+      type: [new mongoose.Schema({ title: String, url: String, publisher: String }, { _id: false })],
+      default: [],
     },
     briefing: { type: mongoose.Schema.Types.ObjectId, ref: "Briefing" },
     headline: { type: String, default: "" },

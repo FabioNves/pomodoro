@@ -365,6 +365,14 @@ README.md has the commands.
   when the hub fails or finds too little, and the only path without a hub;
   `NEWS_RETRIEVAL` (`hub,mcp` by default) sets the order. Feature code never
   calls a provider's REST API.
+- The **Stories** tab shows the hub's own daily and weekly stories (written
+  each morning in movez-studio per language and topic), read per edition
+  (language + regions) through `GET /api/news/hub` (`src/lib/news/hubStories.js`),
+  kept to `NewsPreference.hubTopics` (keys of the hub's topic list, shared with
+  Lexis; empty = all). No AI per reader: a translation is made once per story
+  and language (`HubStoryTranslation`, `POST /api/news/hub/translate`), and a
+  saved hub story is copied into `SavedStory` (`hub: true`, story = hub id)
+  from the hub, never from the browser.
 - An edition's `sources` (`{ ids, mode: "prefer"|"only" }`) are hub source
   slugs, chosen in the settings from `GET /api/news/sources` (the hub's
   catalogue, cached). They are copied onto the run's edition when it starts

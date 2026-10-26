@@ -98,3 +98,36 @@ export async function hubStatus() {
   const res = await call("/api/v1/news/status", { timeoutMs: 15000, label: "status" });
   return res.ok ? { ok: true, ...res.data } : res;
 }
+
+/**
+ * The hub's written stories of a period ("daily" | "weekly", key "latest"
+ * or "2026-10-26" / "2026-W43") for languages, topics and countries:
+ * `{ ok, periodKey, digests: [{ language, topic, topicName, trends,
+ * stories: [{ id, rank, headline, summary, whyItMatters, countries,
+ * coverage, sources }] }] }`.
+ */
+export async function hubStories({ period = "daily", key: periodKey = "latest", languages = [], topics = [], countries = [] } = {}) {
+  const params = new URLSearchParams({ period, key: periodKey });
+  if (languages.length) params.set("languages", languages.join(","));
+  if (topics.length) params.set("topics", topics.join(","));
+  if (countries.length) params.set("countries", countries.join(","));
+  const res = await call(`/api/v1/news/stories?${params}`, { timeoutMs: 20000, label: "stories" });
+  if (!res.ok) return res;
+  return {
+    ok: true,
+    periodKey: res.data?.periodKey || null,
+    digests: Array.isArray(res.data?.digests) ? res.data.digests : [],
+  };
+}
+
+/** One hub story by id (to save it). */
+export async function hubStory(id) {
+  const res = await call(`/api/v1/news/stories/${encodeURIComponent(id)}`, { timeoutMs: 15000, label: "story" });
+  return res.ok ? { ok: true, story: res.data?.story || null } : res;
+}
+
+/** The hub's topic list (the same in every app). */
+export async function hubTopics() {
+  const res = await call("/api/v1/news/topics", { timeoutMs: 15000, label: "topics" });
+  return res.ok ? { ok: true, topics: Array.isArray(res.data?.topics) ? res.data.topics : [] } : res;
+}

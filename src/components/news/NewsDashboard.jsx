@@ -19,6 +19,7 @@ import BriefingView from "@/components/news/BriefingView";
 import GenerateMenu from "@/components/news/GenerateMenu";
 import BriefingHistory from "@/components/news/BriefingHistory";
 import SavedStories from "@/components/news/SavedStories";
+import HubStories from "@/components/news/HubStories";
 import TopicsManager from "@/components/news/TopicsManager";
 import NewsSettings from "@/components/news/NewsSettings";
 import {
@@ -30,10 +31,12 @@ import {
   IconRefresh,
   IconSettings,
   IconTag,
+  IconTrend,
 } from "@/components/news/newsUi";
 
 const TABS = [
   { key: "briefing", label: "Briefing", Icon: IconNews },
+  { key: "stories", label: "Stories", Icon: IconTrend },
   { key: "history", label: "History", Icon: IconHistory },
   { key: "saved", label: "Saved", Icon: IconBookmark },
   { key: "topics", label: "Topics", Icon: IconTag },
@@ -536,6 +539,8 @@ export default function NewsDashboard() {
             }
           />
         ) : null}
+
+        {tab === "stories" ? <HubStories onSavedChanged={() => setSavedKey((k) => k + 1)} /> : null}
 
         {tab === "saved" ? <SavedStories refreshKey={savedKey} onChanged={(storyId, saved) => patchStory(storyId, { saved })} /> : null}
 
