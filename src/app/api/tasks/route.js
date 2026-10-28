@@ -34,6 +34,8 @@ const createTaskSchema = z.object({
   parentTaskId: objectIdSchema.optional(),
   milestoneId: objectIdSchema.nullable().optional(),
   scheduledDate: dateSchema,
+  startMinute: z.number().int().min(0).max(1439).nullable().optional(),
+  durationMinutes: z.number().int().min(5).max(1440).nullable().optional(),
   scheduledForLater: z.boolean().optional(),
   // Planned span (the timeline); independent of scheduledDate.
   startDate: dateSchema,
@@ -47,6 +49,8 @@ const patchTaskSchema = z.object({
   // null moves the task to "Unassigned"; subtasks follow their parent.
   milestoneId: objectIdSchema.nullable().optional(),
   scheduledDate: dateSchema,
+  startMinute: z.number().int().min(0).max(1439).nullable().optional(),
+  durationMinutes: z.number().int().min(5).max(1440).nullable().optional(),
   startDate: dateSchema,
   endDate: dateSchema,
 });
@@ -156,6 +160,8 @@ export async function POST(req) {
       order: nextOrder,
       ...(scheduledDate ? { scheduledDate: new Date(scheduledDate) } : {}),
       ...(typeof scheduledForLater === "boolean" ? { scheduledForLater } : {}),
+      startMinute: body.data.startMinute ?? null,
+      durationMinutes: body.data.durationMinutes ?? null,
       startDate: toDate(startDate),
       endDate: toDate(endDate),
       ...(identity.userId
@@ -184,6 +190,8 @@ export async function PATCH(req) {
     const identQuery = identityQuery(identityValidation.data);
     const has = (k) => Object.prototype.hasOwnProperty.call(body.data, k);
     const scheduledDateSet = {
+      ...(has("startMinute") ? { startMinute: body.data.startMinute } : {}),
+      ...(has("durationMinutes") ? { durationMinutes: body.data.durationMinutes } : {}),
       ...(has("scheduledDate")
         ? { scheduledDate: scheduledDate ? new Date(scheduledDate) : null }
         : {}),

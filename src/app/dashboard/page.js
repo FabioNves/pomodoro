@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import toast from "react-hot-toast";
+import { datedTaskPlacement, preferredWeekPlans } from "@/lib/calendarTasks.mjs";
 import Navbar from "@/components/Navbar";
 import TimerControls from "@/components/TimerControls";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
@@ -167,7 +168,7 @@ export default function DashboardPage() {
       setTasks(tks);
       setHabits(hbs);
       setEntries(ents);
-      setWeekPlans(plans);
+      setWeekPlans(preferredWeekPlans(plans));
       setSessions(sess);
       const routines = await Promise.all(
         prj.map((p) => safe(apiJson(`/api/routine-tasks?projectId=${p._id}`))),
@@ -224,6 +225,21 @@ export default function DashboardPage() {
     setPlan,
     createPlan,
   });
+
+  const updateDatedTask = useCallback(async (taskId, dayIdx, updates) => {
+    const start = weekStart;
+    if (!start) return;
+    try {
+      const updated = await apiJson("/api/tasks", {
+        method: "PATCH",
+        body: JSON.stringify({ id: taskId, ...datedTaskPlacement(start, dayIdx, updates) }),
+      });
+      setTasks((prev) => prev.map((task) => String(task._id) === String(updated._id) ? updated : task));
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not save the task’s calendar time. Please try again.");
+    }
+  }, [weekStart]);
 
   /* ── timer ────────────────────────────────────────── */
   const chooseProject = (projectId) => {
@@ -382,6 +398,7 @@ export default function DashboardPage() {
       onDeleteTask={weekActions.deleteTask}
       onUpdateTask={weekActions.updateTask}
       onMoveTask={weekActions.moveTask}
+      onUpdateDatedTask={updateDatedTask}
       visibleDays={visibleDays}
       compact
     />

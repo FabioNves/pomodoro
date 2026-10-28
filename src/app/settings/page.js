@@ -18,6 +18,7 @@ import {
   formatTimer,
 } from "@/lib/timerSettings";
 import BrandLoader from "@/components/brand/BrandLoader";
+import DragonSettings from "@/components/dragon/DragonSettings";
 
 /** On/off switch drawn with the theme tokens. */
 function Toggle({ checked, onChange, label }) {
@@ -599,6 +600,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Account Section */}
+        <DragonSettings />
         <div className="bg-surface rounded-lg p-6 border border-edge transition-colors duration-300 shadow-md">
           <h2 className="text-2xl font-semibold mb-4 text-fg">Account</h2>
 

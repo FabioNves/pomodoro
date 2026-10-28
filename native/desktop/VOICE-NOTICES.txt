@@ -1,0 +1,20 @@
+PomoDRIVE local speech components
+
+Vosk browser adapter (vosk-browser 0.0.8)
+Copyright Ciaran O'Reilly and contributors
+https://github.com/ccoreilly/vosk-browser
+License: Apache License, Version 2.0
+
+Vosk speech recognition toolkit and English model vosk-model-small-en-us-0.15
+Copyright Alpha Cephei Inc. and contributors
+https://alphacephei.com/vosk/
+https://alphacephei.com/vosk/models
+License: Apache License, Version 2.0
+
+These components are distributed without modifications. The complete Apache
+License, Version 2.0 is included in APACHE-2.0.txt in this directory.
+
+The bundled WASM toolkit includes Kaldi and its dependencies; their upstream
+licenses and attributions are available at https://github.com/alphacep/vosk-api
+and https://github.com/kaldi-asr/kaldi. Windows speech synthesis is provided by
+Windows using voices installed on the user's device.

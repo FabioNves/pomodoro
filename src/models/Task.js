@@ -15,6 +15,8 @@ const taskSchema = new mongoose.Schema({
   order: { type: Number, default: 0 },
   scheduledForLater: { type: Boolean, default: false },
   scheduledDate: { type: Date, default: null },
+  startMinute: { type: Number, default: null, min: 0, max: 1439 },
+  durationMinutes: { type: Number, default: null, min: 5, max: 1440 },
   // Planned span, shown on the timeline (scheduledDate stays the day the
   // task is placed on in the week plan). Both optional.
   startDate: { type: Date, default: null },

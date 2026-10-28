@@ -7,6 +7,7 @@ import React, {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
+import { useRowPopover } from "@/hooks/useRowPopover";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateSessionId } from "@/utils/sessionUtils";
 import Dropdown from "@/components/ui/Dropdown";
@@ -100,7 +101,7 @@ function ColorPicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const btnRef = useRef(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const popoverStyle = useRowPopover(open, btnRef, ref);
 
   useEffect(() => {
     if (!open) return;
@@ -113,10 +114,6 @@ function ColorPicker({ value, onChange }) {
   }, [open]);
 
   const handleOpen = () => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left });
-    }
     setOpen((v) => !v);
   };
 
@@ -140,7 +137,7 @@ function ColorPicker({ value, onChange }) {
           {open ? (
             <motion.div
               ref={ref}
-              style={{ position: "fixed", top: pos.top, left: pos.left }}
+              style={popoverStyle}
               className="bg-surface border border-edge rounded-xl shadow-xl p-2.5 z-[9999]"
               initial={{ opacity: 0, y: -6, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -189,7 +186,7 @@ function InlineColorSwatch({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const btnRef = useRef(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const popoverStyle = useRowPopover(open, btnRef, ref);
 
   useEffect(() => {
     if (!open) return;
@@ -202,10 +199,6 @@ function InlineColorSwatch({ value, onChange }) {
   }, [open]);
 
   const handleOpen = () => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.right - 170 });
-    }
     setOpen((v) => !v);
   };
 
@@ -229,7 +222,7 @@ function InlineColorSwatch({ value, onChange }) {
           {open ? (
             <motion.div
               ref={ref}
-              style={{ position: "fixed", top: pos.top, left: pos.left }}
+              style={popoverStyle}
               className="z-[10000] bg-surface border border-edge rounded-xl shadow-xl p-2.5"
               initial={{ opacity: 0, y: -4, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -521,7 +514,7 @@ function DropdownCell({ column, value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const btnRef = useRef(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const popoverStyle = useRowPopover(open, btnRef, ref);
   const colorRule = (column.colorRules || []).find((r) => r.value === value);
 
   useEffect(() => {
@@ -535,10 +528,6 @@ function DropdownCell({ column, value, onChange }) {
   }, [open]);
 
   const handleOpen = () => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left });
-    }
     setOpen((v) => !v);
   };
 
@@ -561,7 +550,7 @@ function DropdownCell({ column, value, onChange }) {
           {open ? (
             <motion.div
               ref={ref}
-              style={{ position: "fixed", top: pos.top, left: pos.left }}
+              style={popoverStyle}
               className="w-44 bg-surface border border-edge rounded-xl shadow-xl overflow-hidden z-[9999]"
               initial={{ opacity: 0, y: -6, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}

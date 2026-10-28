@@ -6,6 +6,7 @@
 // creates it on the spot, so nothing has to be added by hand.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { preferredWeekPlans, planTaskCount } from "@/lib/calendarTasks.mjs";
 import Dropdown from "@/components/ui/Dropdown";
 import { getWeekStartOf, weekLabel, weekRangeLabel, weeksOfYear } from "@/utils/timeUtils";
 
@@ -84,10 +85,12 @@ export default function WeekPicker({
   // created under the other week-start setting still show up.
   const rows = useMemo(
     () =>
-      weeksOfYear(year, weekStartsOn).map((start) => {
+      weeksOfYear(year, weekStartsOn).flatMap((start) => {
         const end = addDays(start, 6);
-        const plan = weekPlans.find((p) => p.weekStart >= start && p.weekStart <= end) || null;
-        return { start, end, plan, isCurrent: start === todayStart };
+        const matches = preferredWeekPlans(weekPlans.filter((p) => p.weekStart >= start && p.weekStart <= end));
+        return (matches.length ? matches : [null]).map((plan, index) => ({
+          start, end, plan, duplicate: index > 0, isCurrent: start === todayStart,
+        }));
       }),
     [year, weekStartsOn, weekPlans, todayStart],
   );
@@ -142,7 +145,7 @@ export default function WeekPicker({
           const busy = creating === row.start;
           return (
             <div
-              key={row.start}
+              key={row.plan?._id || row.start}
               role="option"
               aria-selected={isActive}
               tabIndex={0}
@@ -172,14 +175,14 @@ export default function WeekPicker({
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 truncate">
-                  <span className="truncate">{weekLabel(row.start)}</span>
+                  <span className="truncate">{weekLabel(row.start)}{row.duplicate ? " · saved copy" : ""}</span>
                   {row.isCurrent ? (
                     <span className="text-[9px] uppercase tracking-wide px-1 rounded bg-accent-soft text-accent shrink-0">
                       Now
                     </span>
                   ) : null}
                 </div>
-                <div className="text-[10px] text-fg-subtle">{weekRangeLabel(row.start)}</div>
+                <div className="text-[10px] text-fg-subtle">{weekRangeLabel(row.plan?.weekStart || row.start)}{row.plan ? ` · ${planTaskCount(row.plan)} tasks` : ""}</div>
               </div>
               {busy ? (
                 <Spinner className="w-3.5 h-3.5 text-fg-subtle" />

@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import { datedTaskPlacement, preferredWeekPlans } from "@/lib/calendarTasks.mjs";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1414,7 +1415,7 @@ function PlannerPageInner() {
     try {
       const data = await apiJson("/api/week-plans");
       if (mountedRef.current) {
-        setWeekPlans(data);
+        setWeekPlans(preferredWeekPlans(data));
         weekPlansLoadedRef.current = true;
       }
     } catch (e) {
@@ -2172,6 +2173,21 @@ function PlannerPageInner() {
     [refreshEntries],
   );
 
+  const updateDatedTask = useCallback(async (taskId, dayIdx, updates) => {
+    const start = weekPlans.find((p) => p._id === selectedWeekPlanId)?.weekStart;
+    if (!start) return;
+    try {
+      const updated = await apiJson("/api/tasks", {
+        method: "PATCH",
+        body: JSON.stringify({ id: taskId, ...datedTaskPlacement(start, dayIdx, updates) }),
+      });
+      setTasks((prev) => prev.map((task) => String(task._id) === String(updated._id) ? updated : task));
+    } catch (error) {
+      console.error(error);
+      window.alert("Could not save the task’s calendar time. Please try again.");
+    }
+  }, [weekPlans, selectedWeekPlanId]);
+
   /* ── schedule callbacks ────────────────────────────── */
 
   const createWeekPlan = useCallback(async (data) => {
@@ -2181,7 +2197,7 @@ function PlannerPageInner() {
         body: JSON.stringify(data),
       });
       if (mountedRef.current) {
-        setWeekPlans((prev) => [created, ...prev]);
+        setWeekPlans((prev) => preferredWeekPlans([created, ...prev.filter((p) => p._id !== created._id)]));
         setSelectedWeekPlanId(created._id);
       }
       return created;
@@ -3367,6 +3383,7 @@ function PlannerPageInner() {
             onDeleteTask={deleteWeekTask}
             onUpdateTask={updateWeekTask}
             onMoveTask={moveWeekTask}
+            onUpdateDatedTask={updateDatedTask}
             onEditWeek={(wp) => setEditingWeekPlan(wp)}
             split={view === "calendar" ? calendarSplit : undefined}
             onToggleSplit={view === "calendar" ? () => setCalendarSplit(!calendarSplit) : undefined}

@@ -23,6 +23,7 @@ import {
   projectOptionsFrom,
   useNotesPeek,
 } from "./weekplan/WeekPlanShared";
+import { datedTaskView } from "@/lib/calendarTasks.mjs";
 import WeekCalendar from "./weekplan/WeekCalendar";
 import { getProjectColorMeta } from "@/lib/projectColors";
 import {
@@ -57,6 +58,7 @@ export default function WeeklyRoutine({
   onDeleteTask,
   onUpdateTask,
   onMoveTask,
+  onUpdateDatedTask,
   onEditWeek,
   // "list" (project rows per day) or "calendar" (hour grid); chosen by the
   // planner tab that renders this component.
@@ -167,8 +169,9 @@ export default function WeeklyRoutine({
         0,
       );
       if (local < weekStart || local >= weekEnd) continue;
-      const dayOfWeek = Math.floor(
-        (local.getTime() - weekStart.getTime()) / 86400000,
+      const dayOfWeek = weekDates(weekPlan.weekStart).findIndex((date) =>
+        date.getFullYear() === local.getFullYear() &&
+        date.getMonth() === local.getMonth() && date.getDate() === local.getDate(),
       );
       if (dayOfWeek < 0 || dayOfWeek > 6) continue;
       out.push({ task: t, dayOfWeek });
@@ -294,7 +297,7 @@ export default function WeeklyRoutine({
         map[sectionKey][dayIdx].unshift(virtualRoutineTask(rt, dayIdx, pid));
       }
     }
-    // Inject dated Task entries (display-only; cannot be edited or dragged here).
+    // Dated tasks keep their calendar timing on the original task.
     for (const { task, dayOfWeek } of datedTasksInWeek) {
       const pid = task.project
         ? typeof task.project === "object"
@@ -306,15 +309,7 @@ export default function WeeklyRoutine({
         map[key] = {};
         for (let d = 0; d < 7; d++) map[key][d] = [];
       }
-      map[key][dayOfWeek].push({
-        _id: `__dated_${task._id}`,
-        _virtual: true,
-        _dated: true,
-        // Kept so the calendar can draw its project's line and name it.
-        project: pid,
-        taskName: task.title,
-        completed: false,
-      });
+      map[key][dayOfWeek].push(datedTaskView(task));
     }
     return map;
   }, [days, projectSections, getTaskProjectId, routineTasks, datedTasksInWeek, weekPlan?.weekStart]);
@@ -715,6 +710,7 @@ export default function WeeklyRoutine({
           onDeleteTask={onDeleteTask}
           onUpdateTask={onUpdateTask}
           onMoveTask={onMoveTask}
+          onUpdateDatedTask={onUpdateDatedTask}
         />
         </div>
       ) : (

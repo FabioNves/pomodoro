@@ -9,8 +9,8 @@ import React from "react";
 import TimerPanel from "./timer/TimerPanel";
 import { useTimerControls, useTimerDisplay } from "@/components/timer/TimerProvider";
 
-const TimerControls = ({ extra = null }) => {
-  const { run, seconds, total, settings, sounds } = useTimerDisplay();
+const TimerControls = ({ extra = null, quick = false }) => {
+  const { run, seconds, total, settings, sounds, active } = useTimerDisplay();
   const controls = useTimerControls();
   const onFocus = run.phase === "focus";
 
@@ -38,7 +38,13 @@ const TimerControls = ({ extra = null }) => {
       onPauseBreak={controls.pauseBreak}
       onFinish={controls.finish}
       finishLabel="Finish session"
-      extra={extra}
+      showReset={!quick}
+      extra={quick ? (
+        <div className="flex items-center justify-center gap-3">
+          <button type="button" onClick={controls.restart} disabled={!active} className="px-4 py-2 rounded-full border border-edge text-sm text-fg hover:bg-surface-hover disabled:opacity-40" aria-label="Restart timer">Restart</button>
+          <button type="button" onClick={controls.reset} disabled={!active} className="px-4 py-2 rounded-full border border-edge text-sm text-danger hover:bg-danger-soft disabled:opacity-40" aria-label="Stop timer">Stop</button>
+        </div>
+      ) : extra}
     />
   );
 };

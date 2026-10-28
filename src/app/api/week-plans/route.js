@@ -1,5 +1,7 @@
 import { connectToDB } from "@/lib/db";
 import WeekPlan from "@/models/WeekPlan";
+import { createHash } from "node:crypto";
+import { preferredWeekPlans } from "@/lib/calendarTasks.mjs";
 import { z } from "zod";
 import {
   validateIdentityHeaders,
@@ -68,7 +70,7 @@ export async function GET(req) {
     }
 
     const plans = await WeekPlan.find(identQuery).sort({ weekStart: -1 });
-    return Response.json(plans);
+    return Response.json(preferredWeekPlans(plans.map((plan) => plan.toObject())));
   } catch (error) {
     console.error("Error fetching week plans:", error);
     return jsonError(500, "Error fetching week plans");
@@ -87,14 +89,37 @@ export async function POST(req) {
 
     await connectToDB();
 
-    const plan = await WeekPlan.create({
+    // Reuse saved weeks, preferring the populated original over empty copies.
+    const existing = await WeekPlan.find({
+      ...identityQuery(ident.data), weekStart: body.data.weekStart,
+    }).lean();
+    if (existing.length) return Response.json(preferredWeekPlans(existing)[0]);
+
+    // Stable id makes simultaneous first requests converge on one document,
+    // even before a unique week index can be added to legacy databases.
+    const planId = createHash("sha256")
+      .update(JSON.stringify([identity.userId ? "user" : "session", identity.userId || identity.sessionId, body.data.weekStart]))
+      .digest("hex").slice(0, 24);
+    const initial = {
       name: body.data.name,
       weekStart: body.data.weekStart,
       projects: body.data.projects || [],
       ...(identity.userId
         ? { user: identity.userId, isTemporary: false }
         : { sessionId: identity.sessionId, isTemporary: true }),
-    });
+    };
+    let plan;
+    try {
+      plan = await WeekPlan.findOneAndUpdate(
+        { _id: planId, ...identityQuery(ident.data) },
+        { $setOnInsert: initial },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      plan = await WeekPlan.findOne({ _id: planId, ...identityQuery(ident.data) });
+      if (!plan) throw error;
+    }
 
     return Response.json(plan, { status: 201 });
   } catch (error) {

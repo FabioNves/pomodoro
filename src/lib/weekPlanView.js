@@ -2,6 +2,8 @@
 // the calendar shows (auto-scheduled routine tasks and dated todos). Mirrors
 // the merging done in WeeklyRoutine for the planner.
 
+import { datedTaskView } from "./calendarTasks.mjs";
+
 import {
   dateInWeek,
   routineFrequencies,
@@ -104,7 +106,7 @@ export function dayTasksForPlan({
     out.unshift(virtualRoutineTask(rt, dayIdx, idOf(rt.project)));
   }
 
-  // Todos with a scheduled date on this day (display only)
+  // Todos with a scheduled date on this day, including their saved time slot.
   if (weekStart) {
     const start = new Date(weekStart + "T00:00:00");
     const dayStart = new Date(start);
@@ -117,14 +119,7 @@ export function dayTasksForPlan({
       if (Number.isNaN(d.getTime())) continue;
       const local = new Date(d.getFullYear(), d.getMonth(), d.getDate());
       if (local < dayStart || local >= dayEnd) continue;
-      out.push({
-        _id: `__dated_${t._id}`,
-        _virtual: true,
-        _dated: true,
-        project: idOf(t.project),
-        taskName: t.title,
-        completed: false,
-      });
+      out.push(datedTaskView(t));
     }
   }
   return out;

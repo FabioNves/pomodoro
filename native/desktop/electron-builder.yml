@@ -6,9 +6,35 @@ directories:
   buildResources: build
 files:
   - main.js
+  - build/icon.png
   - preload.js
+  - voice.cjs
+  - local-ai.cjs
+  - from: ../../src/lib
+    to: .
+    filter:
+      - dragonActions.cjs
+  - voice.ps1
+  - voice-smoke.cjs
+  - voice-capture.js
+  - VOICE-NOTICES.txt
+  - AI-NOTICES.txt
+  - LLAMA-LICENSE.txt
+  - APACHE-2.0.txt
   - package.json
   - www/**/*
+extraResources:
+  - from: ai-runtime
+    to: ai-runtime
+    filter:
+      - '*.dll'
+      - llama-server.exe
+  - from: voice-assets
+    to: voice-assets
+    filter:
+      - english.tar.gz
+asarUnpack:
+  - voice.ps1
 protocols:
   - name: PomoDRIVE
     schemes:

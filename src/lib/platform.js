@@ -35,6 +35,11 @@ export function isNative() {
   return platform === "electron" || platform === "capacitor";
 }
 
+/** Windows companion bridge, absent on web and mobile. */
+export function getDesktopCompanion() {
+  return getPlatform() === 'electron' ? window.pomodrive?.companion : null;
+}
+
 // True when the page was loaded from the bundle inside a shell (app://,
 // capacitor://, https://localhost) rather than from a dev server over the
 // network. Only then must relative "/api" URLs be pointed at API_BASE.

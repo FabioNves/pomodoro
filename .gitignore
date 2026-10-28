@@ -46,3 +46,6 @@ next-env.d.ts
 /native/desktop/www/
 /native/desktop/release/
 node_modules/
+/native/desktop/voice-assets/
+/native/desktop/ai-runtime/
+/native/desktop/ai-models/

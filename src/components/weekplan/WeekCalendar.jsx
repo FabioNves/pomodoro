@@ -3,7 +3,7 @@
 // Google-Calendar-style week view for a week plan.
 //
 // - Hour rows for the whole day; tasks with a `startMinute` render as blocks.
-// - Tasks without a time (and auto-scheduled / dated virtuals) sit in the
+// - Tasks without a time sit in the
 //   "unscheduled" strip above the grid.
 // - Drag a block or strip chip onto an hour to (re)schedule it, or back onto
 //   the strip to clear its time. Auto-scheduled routine tasks become real
@@ -172,6 +172,7 @@ export default function WeekCalendar({
   onDeleteTask,
   onUpdateTask,
   onMoveTask,
+  onUpdateDatedTask,
   // Which day columns to render (0 = Monday). The dashboard shows just today.
   visibleDays = [0, 1, 2, 3, 4, 5, 6],
   compact = false,
@@ -324,7 +325,7 @@ export default function WeekCalendar({
   );
 
   const canDrag = (task) =>
-    !task.completed && (!task._virtual || (task._virtual && !task._dated));
+    !task.completed && (!task._dated || !!onUpdateDatedTask);
 
   /* ── Drag & drop ─────────────────────────────────────── */
 
@@ -424,7 +425,10 @@ export default function WeekCalendar({
     const { task, fromDay } = info;
     const projectId = getTaskProjectId?.(task) ?? null;
     if (task._virtual) {
-      if (task._dated) return;
+      if (task._dated) {
+        onUpdateDatedTask?.(task.sourceTaskId, toDay, { startMinute, durationMinutes: info.duration });
+        return;
+      }
       const otherDay = toDay !== fromDay;
       // Onto its own strip it is already there; anywhere else it becomes real.
       if (startMinute == null && !otherDay) return;
@@ -471,7 +475,7 @@ export default function WeekCalendar({
     const info = adoptExternalDrag(e);
     if (!info) return;
     // A dashed occurrence can only go to another day's strip.
-    if (info.task._virtual && (info.task._dated || info.fromDay === dayIdx)) return;
+    if (info.task._virtual && !info.task._dated && info.fromDay === dayIdx) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = info.external ? "copy" : "move";
     if (dragOverStrip !== dayIdx) setDragOverStrip(dayIdx);
@@ -608,7 +612,10 @@ export default function WeekCalendar({
       const updates = {};
       if (r.start !== r.start0) updates.startMinute = r.start;
       if (r.duration !== r.end0 - r.start0) updates.durationMinutes = r.duration;
-      if (Object.keys(updates).length) onUpdateTask?.(r.dayIdx, r.task._id, updates);
+      if (Object.keys(updates).length) {
+        if (r.task._dated) onUpdateDatedTask?.(r.task.sourceTaskId, r.dayIdx, updates);
+        else onUpdateTask?.(r.dayIdx, r.task._id, updates);
+      }
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -622,7 +629,10 @@ export default function WeekCalendar({
 
   const toggleTask = (task, dayIdx, block) => {
     if (task._virtual) {
-      if (task._dated) return;
+      if (task._dated) {
+        onUpdateDatedTask?.(task.sourceTaskId, dayIdx, { completed: !task.completed });
+        return;
+      }
       onAddTask?.(dayIdx, {
         routineTaskId: routineIdOf(task),
         projectId: getTaskProjectId?.(task) ?? null,
@@ -718,14 +728,12 @@ export default function WeekCalendar({
               ? "bg-success border-success text-white"
               : task._virtual && !task._dated
                 ? "border-dashed border-warning/70 hover:border-success"
-                : task._dated
-                  ? "border-edge opacity-40 cursor-default"
-                  : "border-edge hover:border-success"
+                : "border-edge hover:border-success"
           }`}
           onClick={() => toggleTask(task, dayIdx, null)}
           onMouseDown={(e) => e.stopPropagation()}
           aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
-          disabled={task._dated}
+          disabled={task._dated && !onUpdateDatedTask}
         >
           {task.completed ? <IconCheck className="w-2.5 h-2.5" /> : null}
         </button>
@@ -757,7 +765,7 @@ export default function WeekCalendar({
     const height = Math.max(minuteToY(end - start), 18);
     const showTime = height >= 34;
     const isResizing = resizing && String(resizing.taskId) === String(task._id);
-    const resizable = !task.completed && !task._virtual;
+    const resizable = !task.completed && (!task._virtual || (task._dated && !!onUpdateDatedTask));
     // How far into the block each edge grabs; short blocks keep most of
     // their middle for dragging. Both also reach RESIZE_REACH_PX past it.
     const topGrab = Math.round(clamp(height / 5, 3, 6));

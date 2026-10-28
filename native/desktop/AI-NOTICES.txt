@@ -1,0 +1,14 @@
+PomoDRIVE optional local AI
+
+Runtime: llama.cpp, build b11669 (Windows CPU x64)
+Copyright (c) 2023-2026 The ggml authors
+https://github.com/ggml-org/llama.cpp
+License: MIT; see LLAMA-LICENSE.txt.
+
+Model: Qwen3-1.7B, Q4_K_M quantization by Unsloth
+https://huggingface.co/unsloth/Qwen3-1.7B-GGUF
+Original model: https://huggingface.co/Qwen/Qwen3-1.7B
+License: Apache License, Version 2.0; see APACHE-2.0.txt.
+
+The optional model is installed separately and is not embedded in this
+installer. Recognition, text inference, and speech playback run on device.

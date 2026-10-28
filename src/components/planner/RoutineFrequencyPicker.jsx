@@ -7,6 +7,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRowPopover } from "@/hooks/useRowPopover";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DAY_KEYS,
@@ -49,10 +50,10 @@ export default function RoutineFrequencyPicker({ value, monthly, onChange, summa
   const others = selected.filter((v) => !DAY_KEYS.includes(v) && v !== "daily" && v !== "monthly");
 
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
   const [draft, setDraft] = useState({ type: "weekday", nth: 1, weekday: "mon", day: 15 });
   const ref = useRef(null);
   const btnRef = useRef(null);
+  const popoverStyle = useRowPopover(open, btnRef, ref);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -72,12 +73,6 @@ export default function RoutineFrequencyPicker({ value, monthly, onChange, summa
   }, [open]);
 
   const handleOpen = () => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      const width = 320;
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
-      setPos({ top: rect.bottom + 4, left });
-    }
     setOpen((v) => !v);
   };
 
@@ -163,7 +158,7 @@ export default function RoutineFrequencyPicker({ value, monthly, onChange, summa
                   ref={ref}
                   role="dialog"
                   aria-label="Frequency"
-                  style={{ position: "fixed", top: pos.top, left: pos.left }}
+                  style={popoverStyle}
                   className="w-80 max-h-[80vh] overflow-y-auto bg-surface border border-edge rounded-xl shadow-xl z-[9999] [scrollbar-width:thin]"
                   initial={{ opacity: 0, y: -6, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}

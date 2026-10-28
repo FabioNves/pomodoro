@@ -13,7 +13,14 @@ const {
   shell,
   ipcMain,
   session,
+  globalShortcut,
+  powerMonitor,
+  Tray,
+  Menu,
+  dialog,
 } = require("electron");
+const { createVoiceService } = require('./voice.cjs');
+const { createLocalAI } = require('./local-ai.cjs');
 const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
@@ -25,6 +32,10 @@ const WWW = path.join(__dirname, "www");
 // Live reload: ELECTRON_DEV_URL=http://localhost:3500 npm start
 const DEV_URL = process.env.ELECTRON_DEV_URL;
 const SMOKE = process.argv.includes("--smoke");
+const VOICE_SMOKE = SMOKE && process.argv.includes('--voice-smoke');
+if (VOICE_SMOKE) app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+// Isolate smoke runs from the installed app's lock, sign-in and preferences.
+if (SMOKE) app.setPath('userData', path.join(app.getPath('temp'), `pomodrive-smoke-${process.pid}`));
 // The website, named as the referrer of embedded YouTube players (see
 // allowYouTubeEmbeds()).
 const WEB_ORIGIN = process.env.POMODRIVE_WEB_URL || "https://pomodrive.vercel.app";
@@ -52,6 +63,35 @@ const MIME = {
 
 let mainWindow = null;
 let launchUrl = null;
+let tray = null;
+let quitting = false;
+let microphoneAllowed = false;
+const voice = createVoiceService();
+const localAI = createLocalAI({
+  runtimeDirectory: app.isPackaged ? path.join(process.resourcesPath, 'ai-runtime') : path.join(__dirname, 'ai-runtime'),
+  runtimeDirectories: [path.join(process.resourcesPath, 'ai-runtime'), path.join(path.dirname(app.getPath('exe')), 'resources', 'ai-runtime')],
+  modelDirectories: [path.resolve(app.getPath('appData'), '..', 'Local', 'PomoDRIVE', 'models')],
+  modelConfigPath: path.join(app.getPath('userData'), 'local-ai.json'),
+});
+const voiceAssets = app.isPackaged ? path.join(process.resourcesPath, 'voice-assets') : path.join(__dirname, 'voice-assets');
+const trustedUrl = (url) => {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === new URL(DEV_URL || `${APP_SCHEME}://${APP_HOST}`).origin &&
+      parsed.host === new URL(DEV_URL || `${APP_SCHEME}://${APP_HOST}`).host;
+  } catch { return false; }
+};
+function trustedSender(event) {
+  if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame || !trustedUrl(event.senderFrame.url))
+    throw new Error('Untrusted companion request.');
+}
+function stopCompanion() {
+  microphoneAllowed = false;
+  tray?.setToolTip('PomoDRIVE — microphone off');
+  voice.stop();
+  localAI.stop();
+  mainWindow?.webContents.send('companion-stop');
+}
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -89,6 +129,20 @@ function resolveFile(pathname) {
 
 async function serveApp(request) {
   const url = new URL(request.url);
+  if (url.host !== APP_HOST) return new Response('Not found', { status: 404 });
+  if (url.pathname.startsWith('/voice/')) {
+    const file = url.pathname === '/voice/vosk.js'
+      ? require.resolve('vosk-browser')
+      : url.pathname === '/voice/capture.js' ? path.join(__dirname, 'voice-capture.js')
+      : url.pathname === '/voice/english.tar.gz' ? path.join(voiceAssets, 'english.tar.gz')
+      : VOICE_SMOKE && url.pathname === '/voice/smoke.wav' ? path.join(voiceAssets, 'smoke.wav') : null;
+    if (!file || !fs.existsSync(file)) return new Response('Offline voice model is not installed. Run npm run desktop:voice:setup.', { status: 404 });
+    const response = await net.fetch(pathToFileURL(file).href);
+    return new Response(response.body, { headers: {
+      'content-type': url.pathname.endsWith('.js') ? 'text/javascript' : url.pathname.endsWith('.wav') ? 'audio/wav' : 'application/gzip',
+      'access-control-allow-origin': '*',
+    } });
+  }
   const file = resolveFile(url.pathname);
   if (!file) return new Response("Not found", { status: 404 });
   const fileResponse = await net.fetch(pathToFileURL(file).href);
@@ -125,6 +179,7 @@ function extractDeepLink(argv) {
 function deliverDeepLink(url) {
   if (!url) return;
   if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
     mainWindow.webContents.send("deep-link", url);
@@ -184,6 +239,16 @@ function createWindow() {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+  mainWindow.on('close', event => {
+    stopCompanion();
+    if (tray && !quitting) { event.preventDefault(); mainWindow.hide(); }
+  });
+  mainWindow.on('blur', stopCompanion);
+  mainWindow.on('minimize', stopCompanion);
+  mainWindow.webContents.on('render-process-gone', stopCompanion);
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, inPlace, isMainFrame) => {
+    if (isMainFrame && !inPlace) stopCompanion();
+  });
 
   if (DEV_URL) mainWindow.loadURL(DEV_URL);
   else mainWindow.loadURL(`${APP_SCHEME}://${APP_HOST}/`);
@@ -209,6 +274,8 @@ function runSmokeTest() {
   };
   const finish = (code) => {
     log(`[smoke] exit ${code}`);
+    quitting = true;
+    stopCompanion();
     app.exit(code);
   };
   log(`[smoke] www: ${WWW} (packaged: ${app.isPackaged})`);
@@ -224,6 +291,11 @@ function runSmokeTest() {
   contents.on("did-finish-load", async () => {
     try {
       await new Promise((resolve) => setTimeout(resolve, 4000));
+      if (VOICE_SMOKE) {
+        mainWindow.show(); mainWindow.focus();
+        const result = await require('./voice-smoke.cjs')(contents, { ai: process.argv.includes('--ai-smoke') });
+        log(`[smoke:voice] ${JSON.stringify(result)}`);
+      }
       const title = await contents.executeJavaScript("document.title");
       const text = await contents.executeJavaScript(
         "document.body.innerText.slice(0, 400)"
@@ -266,11 +338,59 @@ ipcMain.handle("get-launch-url", () => {
   return url;
 });
 
+ipcMain.handle('companion-info', event => {
+  trustedSender(event);
+  return { supported: process.platform === 'win32', smoke: SMOKE, modelReady: fs.existsSync(path.join(voiceAssets, 'english.tar.gz')),
+    shortcut: globalShortcut.isRegistered('Control+Alt+Space') ? 'Ctrl+Alt+Space' : null,
+    startup: app.getLoginItemSettings().openAtLogin };
+});
+ipcMain.handle('companion-microphone', (event, enabled) => {
+  if (quitting) return false;
+  trustedSender(event);
+  microphoneAllowed = enabled === true && mainWindow.isFocused() && mainWindow.isVisible();
+  tray?.setToolTip(`PomoDRIVE — microphone ${microphoneAllowed ? 'on' : 'off'}`);
+  return microphoneAllowed;
+});
+ipcMain.handle('companion-voices', async event => {
+  trustedSender(event);
+  return process.platform === 'win32' ? voice.voices() : [];
+});
+ipcMain.handle('companion-ai-status', event => { trustedSender(event); return localAI.status(); });
+ipcMain.handle('companion-ai-select-model', async event => {
+  trustedSender(event);
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Locate your downloaded Qwen3 1.7B model',
+    defaultPath: localAI.status().modelPath,
+    properties: ['openFile'], filters: [{ name: 'GGUF model', extensions: ['gguf'] }],
+  });
+  if (result.canceled || !result.filePaths[0]) return localAI.status();
+  return localAI.selectModel(result.filePaths[0]);
+});
+ipcMain.handle('companion-ai-ask', (event, text) => { trustedSender(event); return localAI.ask(text); });
+ipcMain.handle('companion-ai-stop', event => { if (quitting) return; trustedSender(event); localAI.stop(); });
+ipcMain.handle('companion-speak', (event, input) => {
+  trustedSender(event);
+  if (process.platform !== 'win32') throw new Error('Windows local voices are required.');
+  return voice.speak(input);
+});
+ipcMain.handle('companion-silence', event => { if (quitting) return; trustedSender(event); voice.stop(); });
+ipcMain.handle('companion-startup', (event, enabled) => {
+  trustedSender(event);
+  if (process.platform === 'win32' && app.isPackaged) app.setLoginItemSettings({ openAtLogin: enabled === true });
+  return app.getLoginItemSettings().openAtLogin;
+});
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", (_event, argv) => {
-    deliverDeepLink(extractDeepLink(argv));
+    const link = extractDeepLink(argv);
+    if (link) deliverDeepLink(link);
+    else if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
   });
   app.on("open-url", (event, url) => {
     event.preventDefault();
@@ -283,6 +403,33 @@ if (!app.requestSingleInstanceLock()) {
     protocol.handle(APP_SCHEME, serveApp);
     allowYouTubeEmbeds();
     createWindow();
+    // No video permissions, remote frames, or microphone use while inactive.
+    const mediaAllowed = (contents, details) => contents === mainWindow?.webContents && microphoneAllowed &&
+      mainWindow.isFocused() && trustedUrl(details?.requestingUrl || details?.securityOrigin || contents.getURL()) &&
+      details?.isMainFrame !== false && !(details?.mediaTypes || []).some(type => type !== 'audio') &&
+      (!details?.mediaType || details.mediaType === 'audio');
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+      callback(permission === 'media' ? mediaAllowed(contents, details) : permission === 'notifications' && contents === mainWindow?.webContents && trustedUrl(contents.getURL()));
+    });
+    session.defaultSession.setPermissionCheckHandler((contents, permission, _origin, details) =>
+      permission === 'media' ? mediaAllowed(contents, details) : permission === 'notifications' && contents === mainWindow?.webContents && trustedUrl(contents.getURL()));
+    if (!SMOKE && process.platform === 'win32') {
+      tray = new Tray(path.join(__dirname, 'build', 'icon.png'));
+      tray.setToolTip('PomoDRIVE — microphone off until you activate the dragon');
+      const show = () => { mainWindow.show(); mainWindow.restore(); mainWindow.focus(); };
+      tray.setContextMenu(Menu.buildFromTemplate([
+        { label: 'Open PomoDRIVE', click: show },
+        { label: 'Stop listening', click: stopCompanion },
+        { label: 'Quit', click: () => { quitting = true; app.quit(); } },
+      ]));
+      tray.on('double-click', show);
+      globalShortcut.register('Control+Alt+Space', () => {
+        show();
+        mainWindow.webContents.send('companion-toggle');
+      });
+    }
+    powerMonitor.on('lock-screen', stopCompanion);
+    powerMonitor.on('suspend', stopCompanion);
     if (SMOKE) runSmokeTest();
 
     app.on("activate", () => {
@@ -294,3 +441,5 @@ if (!app.requestSingleInstanceLock()) {
     if (process.platform !== "darwin") app.quit();
   });
 }
+app.on('before-quit', () => { quitting = true; stopCompanion(); });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); tray?.destroy(); });

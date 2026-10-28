@@ -103,6 +103,7 @@ export default function TimerPanel({
   onPauseBreak,
   onFinish,
   finishLabel = "Finish session",
+  showReset = true,
   extra = null,
 }) {
   const format = settings?.timerFormat || "digital";
@@ -215,7 +216,7 @@ export default function TimerPanel({
 
           {/* Reset only matters once a session is under way */}
           <AnimatePresence initial={false}>
-            {focusLocked ? (
+            {focusLocked && showReset ? (
               <motion.div
                 key="reset"
                 initial={{ opacity: 0, scale: 0.9 }}

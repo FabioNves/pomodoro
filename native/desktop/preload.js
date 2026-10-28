@@ -16,6 +16,28 @@ const version =
 contextBridge.exposeInMainWorld("pomodrive", {
   platform: "electron",
   version,
+  companion: {
+    info: () => ipcRenderer.invoke('companion-info'),
+    aiStatus: () => ipcRenderer.invoke('companion-ai-status'),
+    selectAIModel: () => ipcRenderer.invoke('companion-ai-select-model'),
+    ask: text => ipcRenderer.invoke('companion-ai-ask', text),
+    stopAI: () => ipcRenderer.invoke('companion-ai-stop'),
+    microphone: enabled => ipcRenderer.invoke('companion-microphone', enabled),
+    voices: () => ipcRenderer.invoke('companion-voices'),
+    speak: input => ipcRenderer.invoke('companion-speak', input),
+    silence: () => ipcRenderer.invoke('companion-silence'),
+    startup: enabled => ipcRenderer.invoke('companion-startup', enabled),
+    onEvent: handler => {
+      const toggle = () => handler('toggle');
+      const stop = () => handler('stop');
+      ipcRenderer.on('companion-toggle', toggle);
+      ipcRenderer.on('companion-stop', stop);
+      return () => {
+        ipcRenderer.removeListener('companion-toggle', toggle);
+        ipcRenderer.removeListener('companion-stop', stop);
+      };
+    },
+  },
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
   getLaunchUrl: () => ipcRenderer.invoke("get-launch-url"),
   onDeepLink: (handler) => {

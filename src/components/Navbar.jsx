@@ -231,9 +231,9 @@ const Navbar = ({ user, onLogout }) => {
                   Pricing
                 </Link>
               ) : null}
+              <TimerBadge />
               {user ? (
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <TimerBadge />
                   <UserMenu user={user} onLogout={handleLogout} showPricing={showPricing} />
                 </div>
               ) : (

@@ -369,6 +369,91 @@ ELECTRON_DEV_URL=http://localhost:3500 npm --prefix native/desktop start
 3. If the UI changed, rebuild the apps: `npm run desktop:build`, and
    `npm run mobile:sync` followed by a build in Android Studio / Xcode.
 
+## Windows dragon companion
+
+The desktop app includes an SVG dragon eye, local Windows speech synthesis,
+and Vosk speech recognition. Before building an installer, run:
+
+```bash
+cd native/desktop
+npm ci
+cd ../..
+npm run desktop:voice:setup
+npm run desktop:build
+```
+
+The setup downloads a checksum-pinned English model once (~40 MB compressed).
+It is packaged in `resources/voice-assets`; no speech service, account, or
+runtime download is used. Vosk's WASM engine ships through `vosk-browser`
+(Apache-2.0), and the small English model is Apache-2.0. Its browser adapter
+uses UUID v4 only; the separately shipped UUID dependency is overridden to a
+patched version. Audio and transcripts are not persisted. The model itself
+may be cached locally by Vosk in IndexedDB.
+
+Click the eye or press **Ctrl+Alt+Space** to expand and start listening.
+Minimizing the dragon releases the microphone and unloads Qwen; no separate
+Talk button is needed. Capture pauses during processing and voice replies,
+then resumes automatically while the panel is expanded. The compact panel
+contains only a status, the latest reply, and accessible icon controls for
+voice volume, settings and minimizing. Settings lists all supported actions.
+
+**Settings → Dragon companion** controls the greeting, follow-up, installed
+voice, volume, speed, glow, animation, inactivity timeout, and optional Windows
+startup. The optional launch greeting opens the dragon and starts listening
+after greeting. Escape, “go to sleep”, losing window focus, minimizing, hiding,
+locking, suspend, or inactivity minimizes the dragon and ends capture. The
+ten-minute session limit also minimizes it. Closing the Windows
+window leaves the app in the tray with its microphone off; choose Quit to exit.
+The shortcut needs that tray process running. It cannot launch a fully exited
+process. Windows startup is opt-in and available in installed builds.
+
+Run privacy/command regression checks with `node --test tests/dragon.test.mjs`.
+The desktop smoke harness additionally accepts `--voice-smoke`, using a synthetic
+microphone and `voice-assets/smoke.wav` (a locally synthesized “open settings”
+fixture) to verify the permission gate, track release, camera denial, and actual
+offline WASM inference. No real microphone is used by that test.
+
+### Optional Qwen3 1.7B local AI
+
+Run `npm run desktop:ai:setup` once on Windows x64 before packaging an AI-enabled
+installer. It installs the checksum-pinned llama.cpp b11669 CPU runtime in
+`native/desktop/ai-runtime`, and Unsloth's Qwen3-1.7B Q4_K_M model (~1.1 GB) in
+`%LOCALAPPDATA%/PomoDRIVE/models`. The model is shared across app upgrades and is
+not copied into the installer. Setup needs the internet; conversations do not.
+`POMODRIVE_MODEL_DIR` can override the model directory for development/testing.
+
+Settings → Dragon companion → Natural conversation enables local AI. When the
+model is unavailable, the app uses its existing command mode. The runtime binds
+only to 127.0.0.1, uses a random per-process API key, disables its web UI and
+network downloads, and runs only during a conversation. Stop, focus loss, sleep,
+or quitting cancels pending inference, unloads the model and clears its short
+in-memory conversation history. No conversation logging or cloud fallback is
+implemented. Context is capped at 2048 tokens to limit memory use; thinking is
+disabled for shorter voice responses.
+
+If detection fails after installing, Settings → Dragon companion includes
+**Locate existing model**, **Check again**, and diagnostics showing the model
+and runtime paths individually. Model discovery checks the Windows local app
+data folder, the Electron app-data location and the user's standard profile
+location even if the launch environment is missing `LOCALAPPDATA`. A manually
+selected model path is remembered in the app's `local-ai.json`; the model is
+reused in place without being copied or downloaded again.
+
+The AI chats about focus and motivation; it cannot read user tasks, files, or
+timer state. Clear timer and navigation requests execute immediately without
+confirmation; their single acknowledgement is displayed rather than repeated
+aloud. An explicit action request is required: model-suggested actions in
+response to advice or negated requests cannot change the app. Navigation is
+restricted to the shared page catalogue and the account's existing permissions.
+Only those fixed timer/navigation actions can be executed. Recognition and
+playback still take turns; this is not full-duplex
+voice. A failed Windows voice does not prevent listening or text replies.
+
+Run `node --test tests/dragon.test.mjs tests/local-ai.test.cjs` for regression
+checks, and `node tests/try-local-ai.cjs` to test actual local inference with
+synthetic text requests. Add `--ai-smoke` to the desktop voice smoke harness to
+check the packaged native bridge and model unloading too.
+
 ## Where the platform glue lives
 
 - `src/lib/platform.js`: platform detection, API redirection, external links, deep links

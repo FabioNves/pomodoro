@@ -6,6 +6,7 @@ import { Toaster } from "react-hot-toast";
 import ServiceWorkerRegistration from "../components/ServiceWorkerRegistration";
 import NativeBridge from "../components/NativeBridge";
 import UpdateBanner from "../components/UpdateBanner";
+import DragonCompanion from "../components/dragon/DragonCompanion";
 import ViewAsBar from "../components/access/ViewAsBar";
 import QuickNotebook from "../components/notebook/QuickNotebook";
 import { AccessProvider } from "../lib/access/client";
@@ -161,6 +162,7 @@ export default function RootLayout({ children }) {
                   {children}
                 </div>
                 <QuickNotebook />
+                <DragonCompanion />
               </TimerProvider>
             </AccessProvider>
           </GoogleOAuthProvider>

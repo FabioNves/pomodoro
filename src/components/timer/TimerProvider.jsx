@@ -288,6 +288,16 @@ export function TimerProvider({ children }) {
         soundsRef.current.stopAlarm();
         return freshRun(r);
       }),
+      restart: on((r) => {
+        soundsRef.current.stopAlarm();
+        soundsRef.current.start();
+        return startFocusOn(blankRun({
+          focusMinutes: r.focusMinutes,
+          breakMinutes: r.breakMinutes,
+          context: r.context,
+          owner: currentOwner(),
+        }));
+      }),
       /** Finish now: save what was done and go back to idle. */
       finish() {
         const current = runRef.current;
