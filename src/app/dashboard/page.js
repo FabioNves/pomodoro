@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { jwtDecode } from "jwt-decode";
 import toast from "react-hot-toast";
-import { datedTaskPlacement, preferredWeekPlans } from "@/lib/calendarTasks.mjs";
+import { datedTaskPlacement, preferredWeekPlans, combinedWeekPlans, applyWeekPlanUpdate } from "@/lib/calendarTasks.mjs";
 import Navbar from "@/components/Navbar";
 import TimerControls from "@/components/TimerControls";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
@@ -188,16 +188,12 @@ export default function DashboardPage() {
   const weekStartsOn = weekSettings.weekStartsOn;
   const weekStart = getWeekStartOf(new Date(), weekStartsOn);
   const currentWeekPlan =
-    weekPlans.find((wp) => wp.weekStart === weekStart) || null;
+    combinedWeekPlans(weekPlans).find((wp) => wp.weekStart === weekStart) || null;
   const weekPlan = currentWeekPlan || weekPlans[0] || null;
 
   const setPlan = useCallback((updated) => {
-    if (!updated?._id) return;
-    setWeekPlans((prev) =>
-      prev.some((wp) => wp._id === updated._id)
-        ? prev.map((wp) => (wp._id === updated._id ? updated : wp))
-        : [updated, ...prev],
-    );
+    if (!Array.isArray(updated) && !updated?._id) return;
+    setWeekPlans((prev) => applyWeekPlanUpdate(prev, updated));
   }, []);
 
   // Created on demand the first time something is added to today's column.

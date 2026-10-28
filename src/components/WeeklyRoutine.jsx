@@ -156,7 +156,7 @@ export default function WeeklyRoutine({
     weekEnd.setDate(weekEnd.getDate() + 7);
     const out = [];
     for (const t of tasks || []) {
-      if (!t.scheduledDate || t.completed) continue;
+      if (!t.scheduledDate) continue;
       const d = new Date(t.scheduledDate);
       if (Number.isNaN(d.getTime())) continue;
       const local = new Date(

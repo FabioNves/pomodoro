@@ -4,10 +4,47 @@ import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import mongoose from "mongoose";
-import { datedTaskView, datedTaskPlacement, preferredWeekPlans } from "../src/lib/calendarTasks.mjs";
+import { datedTaskView, datedTaskPlacement, preferredWeekPlans, combinedWeekPlans, weekTaskOwner, applyWeekPlanUpdate } from "../src/lib/calendarTasks.mjs";
 
 const owner = "calendar-test-user";
 const id = "123456789012345678901234";
+
+test("week 43 and four copies of week 44 render once each, preserving every distinct task and time", () => {
+  const plans = [
+    { _id: "43a", weekStart: "2026-10-19", days: [{ dayOfWeek: 0, tasks: [{ _id: "a", startMinute: 540 }] }] },
+    { _id: "43b", weekStart: "2026-10-19", days: [] },
+    { _id: "44a", weekStart: "2026-10-26", days: [{ dayOfWeek: 1, tasks: [{ _id: "b", startMinute: 600 }] }] },
+    { _id: "44b", weekStart: "2026-10-26", days: [{ dayOfWeek: 2, tasks: [{ _id: "c", startMinute: 720 }] }] },
+    { _id: "44c", weekStart: "2026-10-26", days: [] },
+    { _id: "44d", weekStart: "2026-10-26", days: [] },
+  ];
+  const weeks = combinedWeekPlans(plans);
+  assert.equal(weeks.length, 2);
+  const week = weeks.find((p) => p.weekStart === "2026-10-26");
+  assert.equal(week.days[1].tasks[0].startMinute, 600);
+  assert.equal(week.days[2].tasks[0].startMinute, 720);
+  assert.equal(weekTaskOwner(week, "c"), "44b");
+  const optimistic = { ...week, days: week.days.map((day) => ({ ...day, tasks: day.tasks.map((task) => ({ ...task, completed: true })) })) };
+  const updated = applyWeekPlanUpdate(plans, optimistic);
+  assert.equal(updated.find((p) => p._id === "44b").days[2].tasks[0].completed, true);
+  assert.equal(updated.find((p) => p._id === "44a").days[2].tasks.length, 0);
+  assert.equal(plans[3].days[0].tasks[0].completed, undefined);
+});
+
+test("calendar and dashboard retain completed dated tasks, with their time and completion state", async () => {
+  // Load the real dashboard view helper with its pure routine dependency.
+  const routines = await import("../src/lib/routineSchedule.js");
+  const source = (await fs.readFile(new URL("../src/lib/weekPlanView.js", import.meta.url), "utf8"))
+    .replace(/import\s+[\s\S]*?\s+from\s+["'][^"']+["'];/g, "")
+    .replace(/export \{ routineFrequencies \};/, "")
+    .replace(/export /g, "");
+  const dayTasksForPlan = new Function("datedTaskView", ...Object.keys(routines), `${source}; return dayTasksForPlan;`)(datedTaskView, ...Object.values(routines));
+  const task = { _id: id, title: "Send email", completed: true, scheduledDate: "2026-10-28", startMinute: 570, durationMinutes: 45 };
+  const shown = dayTasksForPlan({ weekPlan: { weekStart: "2026-10-26", days: [] }, tasks: [task], dayIdx: 2 });
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].completed, true);
+  assert.equal(shown[0].startMinute, 570);
+});
 const request = (body) => new Request("http://localhost/api/test", {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
 });

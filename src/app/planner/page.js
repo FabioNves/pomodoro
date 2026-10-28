@@ -8,7 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { datedTaskPlacement, preferredWeekPlans } from "@/lib/calendarTasks.mjs";
+import { datedTaskPlacement, preferredWeekPlans, combinedWeekPlans, weekTaskOwner } from "@/lib/calendarTasks.mjs";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1495,7 +1495,7 @@ function PlannerPageInner() {
       window.removeEventListener("planner:open-routines", handler);
   }, [setRoutinesView]);
 
-  const selectedWeekPlan = weekPlans.find((w) => w._id === selectedWeekPlanId);
+  const selectedWeekPlan = combinedWeekPlans(weekPlans).find((w) => w._sourcePlans.some((p) => p._id === selectedWeekPlanId));
 
   // Fetch routine tasks for linked projects when week plan changes
   useEffect(() => {
@@ -2248,13 +2248,14 @@ function PlannerPageInner() {
       const ok = window.confirm(`Delete "${weekLabel(plan.weekStart)}"?`);
       if (!ok) return;
       try {
-        await apiJson("/api/week-plans", {
+        const ids = new Set((plan._sourcePlans || [plan]).map((copy) => copy._id));
+        await Promise.all([...ids].map((id) => apiJson("/api/week-plans", {
           method: "DELETE",
-          body: JSON.stringify({ id: plan._id }),
-        });
+          body: JSON.stringify({ id }),
+        })));
         if (mountedRef.current) {
-          setWeekPlans((prev) => prev.filter((w) => w._id !== plan._id));
-          if (selectedWeekPlanId === plan._id) setSelectedWeekPlanId(null);
+          setWeekPlans((prev) => prev.filter((w) => !ids.has(w._id)));
+          if (ids.has(selectedWeekPlanId)) setSelectedWeekPlanId(null);
         }
       } catch (e) {
         console.error(e);
@@ -2265,24 +2266,26 @@ function PlannerPageInner() {
 
   const updateWeekPlan = useCallback(
     async (id, updates) => {
+      const group = combinedWeekPlans(weekPlans).find((plan) => plan._sourcePlans.some((copy) => copy._id === id));
+      const ids = new Set(group?._sourcePlans.map((copy) => copy._id) || [id]);
       setWeekPlans((prev) =>
-        prev.map((wp) => (wp._id === id ? { ...wp, ...updates } : wp)),
+        prev.map((wp) => (ids.has(wp._id) ? { ...wp, ...updates } : wp)),
       );
       try {
-        const updated = await apiJson("/api/week-plans", {
+        const updated = await Promise.all([...ids].map((copyId) => apiJson("/api/week-plans", {
           method: "PATCH",
-          body: JSON.stringify({ id, ...updates }),
-        });
+          body: JSON.stringify({ id: copyId, ...updates }),
+        })));
         if (mountedRef.current)
           setWeekPlans((prev) =>
-            prev.map((wp) => (wp._id === updated._id ? updated : wp)),
+            prev.map((wp) => updated.find((copy) => copy._id === wp._id) || wp),
           );
       } catch (e) {
         console.error(e);
         refreshWeekPlans();
       }
     },
-    [refreshWeekPlans],
+    [weekPlans, refreshWeekPlans],
   );
 
   const addWeekTask = useCallback(
@@ -2340,9 +2343,10 @@ function PlannerPageInner() {
   const updateWeekTask = useCallback(
     async (dayOfWeek, taskId, updates) => {
       if (!selectedWeekPlanId) return;
+      const ownerPlanId = weekTaskOwner(selectedWeekPlan, taskId);
       setWeekPlans((prev) =>
         prev.map((wp) => {
-          if (wp._id !== selectedWeekPlanId) return wp;
+          if (wp._id !== ownerPlanId) return wp;
           const days = wp.days.map((d) => {
             if (d.dayOfWeek !== dayOfWeek) return d;
             return {
@@ -2366,7 +2370,7 @@ function PlannerPageInner() {
         const updated = await apiJson("/api/week-plans/tasks", {
           method: "PATCH",
           body: JSON.stringify({
-            weekPlanId: selectedWeekPlanId,
+            weekPlanId: ownerPlanId,
             dayOfWeek,
             taskId,
             ...updates,
@@ -2381,7 +2385,7 @@ function PlannerPageInner() {
         refreshWeekPlans();
       }
     },
-    [selectedWeekPlanId, refreshWeekPlans],
+    [selectedWeekPlanId, selectedWeekPlan, refreshWeekPlans],
   );
 
   const moveWeekTask = useCallback(
@@ -2394,6 +2398,7 @@ function PlannerPageInner() {
       durationMinutes,
     }) => {
       if (!selectedWeekPlanId) return;
+      const ownerPlanId = weekTaskOwner(selectedWeekPlan, taskId);
       if (typeof taskId !== "string" || taskId.startsWith("temp_")) return;
       // Calendar placement is only changed when explicitly provided.
       const timing = {
@@ -2403,7 +2408,7 @@ function PlannerPageInner() {
       // Optimistic update: pull from `fromDay`, push to `toDay` with new project
       setWeekPlans((prev) =>
         prev.map((wp) => {
-          if (wp._id !== selectedWeekPlanId) return wp;
+          if (wp._id !== ownerPlanId) return wp;
           let movedTask = null;
           const days = wp.days.map((d) => {
             if (d.dayOfWeek !== fromDayOfWeek) return d;
@@ -2446,7 +2451,7 @@ function PlannerPageInner() {
         const updated = await apiJson("/api/week-plans/tasks/move", {
           method: "POST",
           body: JSON.stringify({
-            weekPlanId: selectedWeekPlanId,
+            weekPlanId: ownerPlanId,
             fromDayOfWeek,
             toDayOfWeek,
             taskId,
@@ -2463,15 +2468,16 @@ function PlannerPageInner() {
         refreshWeekPlans();
       }
     },
-    [selectedWeekPlanId, refreshWeekPlans],
+    [selectedWeekPlanId, selectedWeekPlan, refreshWeekPlans],
   );
 
   const toggleWeekTask = useCallback(
     async (dayOfWeek, taskId, completed) => {
       if (!selectedWeekPlanId) return;
+      const ownerPlanId = weekTaskOwner(selectedWeekPlan, taskId);
       setWeekPlans((prev) =>
         prev.map((wp) => {
-          if (wp._id !== selectedWeekPlanId) return wp;
+          if (wp._id !== ownerPlanId) return wp;
           const days = wp.days.map((d) => {
             if (d.dayOfWeek !== dayOfWeek) return d;
             return {
@@ -2488,7 +2494,7 @@ function PlannerPageInner() {
         await apiJson("/api/week-plans/tasks", {
           method: "PATCH",
           body: JSON.stringify({
-            weekPlanId: selectedWeekPlanId,
+            weekPlanId: ownerPlanId,
             dayOfWeek,
             taskId,
             completed,
@@ -2499,15 +2505,16 @@ function PlannerPageInner() {
         refreshWeekPlans();
       }
     },
-    [selectedWeekPlanId, refreshWeekPlans],
+    [selectedWeekPlanId, selectedWeekPlan, refreshWeekPlans],
   );
 
   const deleteWeekTask = useCallback(
     async (dayOfWeek, taskId) => {
       if (!selectedWeekPlanId) return;
+      const ownerPlanId = weekTaskOwner(selectedWeekPlan, taskId);
       setWeekPlans((prev) =>
         prev.map((wp) => {
-          if (wp._id !== selectedWeekPlanId) return wp;
+          if (wp._id !== ownerPlanId) return wp;
           const days = wp.days.map((d) => {
             if (d.dayOfWeek !== dayOfWeek) return d;
             return {
@@ -2522,7 +2529,7 @@ function PlannerPageInner() {
         await apiJson("/api/week-plans/tasks", {
           method: "DELETE",
           body: JSON.stringify({
-            weekPlanId: selectedWeekPlanId,
+            weekPlanId: ownerPlanId,
             dayOfWeek,
             taskId,
           }),
@@ -2532,7 +2539,7 @@ function PlannerPageInner() {
         refreshWeekPlans();
       }
     },
-    [selectedWeekPlanId, refreshWeekPlans],
+    [selectedWeekPlanId, selectedWeekPlan, refreshWeekPlans],
   );
 
   /* ── derived ───────────────────────────────────────── */

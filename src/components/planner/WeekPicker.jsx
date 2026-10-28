@@ -6,7 +6,7 @@
 // creates it on the spot, so nothing has to be added by hand.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { preferredWeekPlans, planTaskCount } from "@/lib/calendarTasks.mjs";
+import { combinedWeekPlans, planTaskCount } from "@/lib/calendarTasks.mjs";
 import Dropdown from "@/components/ui/Dropdown";
 import { getWeekStartOf, weekLabel, weekRangeLabel, weeksOfYear } from "@/utils/timeUtils";
 
@@ -85,12 +85,10 @@ export default function WeekPicker({
   // created under the other week-start setting still show up.
   const rows = useMemo(
     () =>
-      weeksOfYear(year, weekStartsOn).flatMap((start) => {
+      weeksOfYear(year, weekStartsOn).map((start) => {
         const end = addDays(start, 6);
-        const matches = preferredWeekPlans(weekPlans.filter((p) => p.weekStart >= start && p.weekStart <= end));
-        return (matches.length ? matches : [null]).map((plan, index) => ({
-          start, end, plan, duplicate: index > 0, isCurrent: start === todayStart,
-        }));
+        const plan = combinedWeekPlans(weekPlans.filter((p) => p.weekStart >= start && p.weekStart <= end))[0] || null;
+        return { start, end, plan, isCurrent: start === todayStart };
       }),
     [year, weekStartsOn, weekPlans, todayStart],
   );
@@ -141,7 +139,7 @@ export default function WeekPicker({
         className="relative space-y-0.5 max-h-[420px] overflow-y-auto pr-0.5 [scrollbar-width:thin]"
       >
         {rows.map((row) => {
-          const isActive = !!row.plan && row.plan._id === selectedId;
+          const isActive = !!row.plan && row.plan._sourcePlans.some((plan) => plan._id === selectedId);
           const busy = creating === row.start;
           return (
             <div
@@ -175,7 +173,7 @@ export default function WeekPicker({
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 truncate">
-                  <span className="truncate">{weekLabel(row.start)}{row.duplicate ? " · saved copy" : ""}</span>
+                  <span className="truncate">{weekLabel(row.start)}</span>
                   {row.isCurrent ? (
                     <span className="text-[9px] uppercase tracking-wide px-1 rounded bg-accent-soft text-accent shrink-0">
                       Now

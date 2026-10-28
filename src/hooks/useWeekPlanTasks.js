@@ -5,6 +5,7 @@
 // dashboard's today column. `setPlan(updated)` replaces the plan in the
 // caller's state; `createPlan()` may lazily create the plan when none exists.
 
+import { weekTaskOwner } from "@/lib/calendarTasks.mjs";
 import { useCallback } from "react";
 import { apiJson } from "@/utils/apiClient";
 import { originDayAfterMove } from "@/lib/weekPlanView";
@@ -24,7 +25,7 @@ export function useWeekPlanTasks({ plan, setPlan, createPlan, onError }) {
       onError?.(e);
       if (!plan?._id) return;
       try {
-        setPlan(await apiJson(`/api/week-plans?id=${plan._id}`));
+        setPlan(await apiJson("/api/week-plans"));
       } catch (err) {
         console.error(err);
       }
@@ -98,7 +99,7 @@ export function useWeekPlanTasks({ plan, setPlan, createPlan, onError }) {
         setPlan(
           await apiJson("/api/week-plans/tasks", {
             method: "PATCH",
-            body: JSON.stringify({ weekPlanId: plan._id, dayOfWeek, taskId, ...updates }),
+            body: JSON.stringify({ weekPlanId: weekTaskOwner(plan, taskId), dayOfWeek, taskId, ...updates }),
           }),
         );
       } catch (e) {
@@ -126,7 +127,7 @@ export function useWeekPlanTasks({ plan, setPlan, createPlan, onError }) {
         setPlan(
           await apiJson("/api/week-plans/tasks", {
             method: "DELETE",
-            body: JSON.stringify({ weekPlanId: plan._id, dayOfWeek, taskId }),
+            body: JSON.stringify({ weekPlanId: weekTaskOwner(plan, taskId), dayOfWeek, taskId }),
           }),
         );
       } catch (e) {
@@ -176,7 +177,7 @@ export function useWeekPlanTasks({ plan, setPlan, createPlan, onError }) {
           await apiJson("/api/week-plans/tasks/move", {
             method: "POST",
             body: JSON.stringify({
-              weekPlanId: plan._id,
+              weekPlanId: weekTaskOwner(plan, taskId),
               fromDayOfWeek,
               toDayOfWeek,
               taskId,

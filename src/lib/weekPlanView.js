@@ -114,7 +114,7 @@ export function dayTasksForPlan({
     const dayEnd = new Date(dayStart);
     dayEnd.setDate(dayStart.getDate() + 1);
     for (const t of tasks) {
-      if (!t.scheduledDate || t.completed) continue;
+      if (!t.scheduledDate) continue;
       const d = new Date(t.scheduledDate);
       if (Number.isNaN(d.getTime())) continue;
       const local = new Date(d.getFullYear(), d.getMonth(), d.getDate());
