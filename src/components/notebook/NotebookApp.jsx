@@ -2,10 +2,10 @@
 
 // The notebook screen: sidebar (views + folder tree) next to either the
 // selected view (Folders, All notes, a saved view, the Brain graph, Quotes,
-// Saved posts) or the open note. Data comes from /api/notebook/*; the view,
+// Saved posts, Bookmarks) or the open note. Data comes from /api/notebook/*; the view,
 // folder, note and tab live in the query string so links and reloads keep
-// their place. Quotes and Saved posts load their own lists, so this screen
-// only tracks how many there are for the sidebar.
+// their place. Quotes, Saved posts and Bookmarks load their own lists, so
+// this screen only tracks how many there are for the sidebar.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,6 +20,7 @@ import NotesView from "@/components/notebook/NotesView";
 import BrainView from "@/components/notebook/BrainView";
 import QuotesView from "@/components/notebook/QuotesView";
 import PostsView from "@/components/notebook/PostsView";
+import BookmarksView from "@/components/notebook/BookmarksView";
 import DocumentEditor from "@/components/notebook/DocumentEditor";
 import ViewEditor from "@/components/notebook/ViewEditor";
 import {
@@ -83,7 +84,7 @@ export function NotebookWorkspace({ params, setParams, embedded = false, onExpan
   const [docs, setDocs] = useState([]);
   const [settings, setSettings] = useState({ subjects: [], views: [] });
   const [suggested, setSuggested] = useState([]);
-  const [counts, setCounts] = useState({ quotes: 0, posts: 0 });
+  const [counts, setCounts] = useState({ quotes: 0, posts: 0, bookmarks: 0 });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [openDoc, setOpenDoc] = useState(null);
@@ -140,7 +141,7 @@ export function NotebookWorkspace({ params, setParams, embedded = false, onExpan
       setDocs(data.documents);
       setSettings(data.settings);
       setSuggested(data.suggestedSubjects || []);
-      setCounts(data.counts || { quotes: 0, posts: 0 });
+      setCounts(data.counts || { quotes: 0, posts: 0, bookmarks: 0 });
     } catch (e) {
       if (!mountedRef.current) return;
       setLoadError(e.message || "Could not load your notebook.");
@@ -195,11 +196,13 @@ export function NotebookWorkspace({ params, setParams, embedded = false, onExpan
         ? "quotes"
         : viewParam === "posts"
           ? "posts"
-          : viewParam === "notes"
-            ? "notes"
-            : customView
-              ? "custom"
-              : "folders";
+          : viewParam === "bookmarks"
+            ? "bookmarks"
+            : viewParam === "notes"
+              ? "notes"
+              : customView
+                ? "custom"
+                : "folders";
   const activeViewKey = mode === "custom" ? `v:${customView.id}` : mode;
   const activeTabId =
     openDoc && openDoc.tabs.some((t) => t.id === tabParam) ? tabParam : openDoc?.tabs[0]?.id || null;
@@ -207,6 +210,7 @@ export function NotebookWorkspace({ params, setParams, embedded = false, onExpan
   // Stable, so the two self-loading views never see a new callback.
   const setQuoteCount = useCallback((quotes) => setCounts((c) => ({ ...c, quotes })), []);
   const setPostCount = useCallback((posts) => setCounts((c) => ({ ...c, posts })), []);
+  const setBookmarkCount = useCallback((bookmarks) => setCounts((c) => ({ ...c, bookmarks })), []);
 
   /* ── navigation ──────────────────────────────────────── */
 
@@ -542,9 +546,9 @@ export function NotebookWorkspace({ params, setParams, embedded = false, onExpan
     onSearch: (value) => {
       setSearch(value);
       if (value && docId) setParams({ doc: null, tab: null });
-      // The graph, the quotes and the posts have no note list to filter, so
-      // typing in the box takes the user back to the notes.
-      if (value && (mode === "brain" || mode === "quotes" || mode === "posts")) {
+      // The graph, the quotes, the posts and the bookmarks have no note list
+      // to filter, so typing in the box takes the user back to the notes.
+      if (value && (mode === "brain" || mode === "quotes" || mode === "posts" || mode === "bookmarks")) {
         setParams({ view: null, doc: null, tab: null });
       }
     },
@@ -601,6 +605,8 @@ export function NotebookWorkspace({ params, setParams, embedded = false, onExpan
     content = <QuotesView onCountChange={setQuoteCount} />;
   } else if (mode === "posts") {
     content = <PostsView onCountChange={setPostCount} />;
+  } else if (mode === "bookmarks") {
+    content = <BookmarksView onCountChange={setBookmarkCount} />;
   } else if (mode === "brain") {
     content = (
       <BrainView
@@ -648,7 +654,7 @@ export function NotebookWorkspace({ params, setParams, embedded = false, onExpan
   }
 
   const newNoteButton =
-    mode === "quotes" || mode === "posts" ? null : (
+    mode === "quotes" || mode === "posts" || mode === "bookmarks" ? null : (
       <ActionButton tone="primary" Icon={IconNotePlus} onClick={newNoteHere} disabled={loading || !!loadError}>
         New note
       </ActionButton>
@@ -702,7 +708,7 @@ export function NotebookWorkspace({ params, setParams, embedded = false, onExpan
             Notebook
           </h1>
           <p className="hidden sm:block text-xs text-fg-muted mt-0.5">
-            Notes with tabs, folders, saved views, a Brain graph, your quotes and your saved posts.
+            Notes with tabs, folders, saved views, a Brain graph, your quotes, saved posts and Instagram bookmarks.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

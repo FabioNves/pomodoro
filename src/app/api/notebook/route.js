@@ -3,6 +3,7 @@ import NotebookFolder from "@/models/NotebookFolder";
 import NotebookDocument from "@/models/NotebookDocument";
 import NotebookQuote from "@/models/NotebookQuote";
 import NotebookPost from "@/models/NotebookPost";
+import NotebookBookmark from "@/models/NotebookBookmark";
 import { requireUser } from "@/lib/sessionAuth";
 import { SUGGESTED_SUBJECTS } from "@/lib/notebook/subjects";
 import {
@@ -17,13 +18,14 @@ import {
 // GET /api/notebook
 // Everything the notebook screen needs in one call: folders, note summaries
 // (no tab contents), the user's subjects and saved views, and how many
-// quotes and saved posts there are (those views load their own lists).
+// quotes, saved posts and bookmarks there are (those views load their own
+// lists).
 export async function GET(req) {
   const auth = await requireUser(req, SIGN_IN);
   if (!auth.ok) return auth.response;
   return run("GET /api/notebook", async () => {
     await connectToDB();
-    const [folders, documents, settings, quotes, posts] = await Promise.all([
+    const [folders, documents, settings, quotes, posts, bookmarks] = await Promise.all([
       NotebookFolder.find({ user: auth.userId }).sort({ order: 1, name: 1 }),
       NotebookDocument.find({ user: auth.userId })
         .select("-tabs.content")
@@ -31,13 +33,14 @@ export async function GET(req) {
       ensureSettings(auth.userId),
       NotebookQuote.countDocuments({ user: auth.userId }),
       NotebookPost.countDocuments({ user: auth.userId }),
+      NotebookBookmark.countDocuments({ user: auth.userId, dismissed: false }),
     ]);
     return Response.json({
       folders: folders.map(folderDto),
       documents: documents.map(docSummaryDto),
       settings: settingsDto(settings),
       suggestedSubjects: SUGGESTED_SUBJECTS,
-      counts: { quotes, posts },
+      counts: { quotes, posts, bookmarks },
     });
   });
 }

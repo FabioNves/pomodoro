@@ -189,6 +189,26 @@ README.md has the commands.
   `src/lib/platform.js`. Forget that and the picture is simply missing in
   the phone and desktop apps while the website looks fine.
 
+## Bookmarks
+
+- `?view=bookmarks`: the posts saved on Instagram. Instagram has no API for
+  them, so they come from the "Download your information" export: the reader
+  drops the ZIP (or `saved_posts.html` / `.json` from inside it) and
+  `readExport()` in `src/lib/notebook/bookmarkImport.js` (browser only:
+  DOMParser, DecompressionStream) reads it on the device. Only the list of
+  posts is sent, in batches of `BOOKMARK_LIMITS.batch`, to
+  `POST /api/notebook/bookmarks`. The HTML parser goes by the row labels
+  (URL, Caption, Name, Username), never by Meta's generated class names.
+- A `NotebookBookmark` is keyed by (user, shortcode), so a newer export adds
+  what is new and refreshes the rest. Removing one marks it `dismissed`, so
+  the next import does not bring it back; "Delete all" really deletes.
+- Cards show Instagram's own embed page (`instagramEmbedUrl()`), drawn at
+  `EMBED_WIDTH`, shifted up past its header and scaled, so only the media
+  shows. It is mounted when the card nears the screen and takes no pointer
+  events; the card opens `PostViewer` with the full player. Previews never
+  come from fetching Instagram pages on the server: that is scraping, and
+  Instagram blocks it.
+
 ## Business
 
 - Admin only for now: the `business` feature is in no plan (see "Roles,

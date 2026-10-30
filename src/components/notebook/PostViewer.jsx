@@ -3,6 +3,7 @@
 // Full-screen viewer for a saved post: the image or video large, its note
 // and link beside it, and arrow keys to move through the collection. A link
 // post from a site with a player (embedFor()) plays in the viewer too.
+// Pin and edit are optional: Bookmarks leaves them out.
 
 import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -20,7 +21,18 @@ import {
   formatDate,
 } from "@/components/notebook/notebookUi";
 
-export default function PostViewer({ post, hasPrev, hasNext, onPrev, onNext, onClose, onEdit, onDelete, onTogglePin }) {
+export default function PostViewer({
+  post,
+  hasPrev,
+  hasNext,
+  onPrev,
+  onNext,
+  onClose,
+  onEdit = null,
+  onDelete,
+  onTogglePin = null,
+  deleteLabel = "Delete post",
+}) {
   useEffect(() => {
     if (!post) return undefined;
     const onKey = (e) => {
@@ -59,29 +71,33 @@ export default function PostViewer({ post, hasPrev, hasNext, onPrev, onNext, onC
                 {post.width ? ` · ${post.width}×${post.height}` : ""}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => onTogglePin(post)}
-              title={post.pinned ? "Unpin" : "Pin to top"}
-              aria-label={post.pinned ? "Unpin" : "Pin to top"}
-              className={`p-2 rounded-lg hover:bg-white/10 transition-colors ${post.pinned ? "text-accent" : "text-white/80"}`}
-            >
-              <IconPin className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onEdit(post)}
-              title="Edit details"
-              aria-label="Edit details"
-              className="p-2 rounded-lg text-white/80 hover:bg-white/10 transition-colors"
-            >
-              <IconEdit className="w-4 h-4" />
-            </button>
+            {onTogglePin ? (
+              <button
+                type="button"
+                onClick={() => onTogglePin(post)}
+                title={post.pinned ? "Unpin" : "Pin to top"}
+                aria-label={post.pinned ? "Unpin" : "Pin to top"}
+                className={`p-2 rounded-lg hover:bg-white/10 transition-colors ${post.pinned ? "text-accent" : "text-white/80"}`}
+              >
+                <IconPin className="w-4 h-4" />
+              </button>
+            ) : null}
+            {onEdit ? (
+              <button
+                type="button"
+                onClick={() => onEdit(post)}
+                title="Edit details"
+                aria-label="Edit details"
+                className="p-2 rounded-lg text-white/80 hover:bg-white/10 transition-colors"
+              >
+                <IconEdit className="w-4 h-4" />
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => onDelete(post)}
-              title="Delete post"
-              aria-label="Delete post"
+              title={deleteLabel}
+              aria-label={deleteLabel}
               className="p-2 rounded-lg text-white/80 hover:bg-white/10 hover:text-danger transition-colors"
             >
               <IconTrash className="w-4 h-4" />
@@ -176,7 +192,7 @@ export default function PostViewer({ post, hasPrev, hasNext, onPrev, onNext, onC
               className="shrink-0 px-4 py-3 bg-black/40 text-white/85 space-y-2"
               onMouseDown={(e) => e.stopPropagation()}
             >
-              {post.note ? <p className="text-sm whitespace-pre-wrap max-w-3xl">{post.note}</p> : null}
+              {post.note ? <p className="text-sm whitespace-pre-wrap max-w-3xl max-h-32 overflow-y-auto [scrollbar-width:thin]">{post.note}</p> : null}
               <div className="flex flex-wrap items-center gap-2">
                 {post.tags?.map((t) => (
                   <span key={t} className="px-2 py-0.5 rounded-full bg-white/10 text-[11px]">

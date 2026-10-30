@@ -78,6 +78,7 @@ export const IconExternal = icon("M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 01-1 1H5a1 1
 export const IconTag = icon("M20 12l-8 8-9-9V4h7l10 8z", <circle cx="7.5" cy="7.5" r="1.2" />);
 export const IconWords = icon("M4 7h16M4 12h10M4 17h13");
 export const IconQuote = icon("M9 7H5.5A2.5 2.5 0 003 9.5v2A2.5 2.5 0 005.5 14H7c0 2-1 3-3 3.5M20 7h-3.5A2.5 2.5 0 0014 9.5v2a2.5 2.5 0 002.5 2.5H18c0 2-1 3-3 3.5");
+export const IconBookmark = icon("M6 4a1 1 0 011-1h10a1 1 0 011 1v17l-6-4-6 4V4z");
 export const IconPosts = icon("M4 5h16v14H4zM4 15l4.5-4.5 4 4L16 11l4 4", <circle cx="9" cy="9" r="1.4" />);
 export const IconUpload = icon("M12 16V4M8 8l4-4 4 4M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3");
 export const IconSparkle = icon("M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3zM5 17l.9 2.1L8 20l-2.1.9L5 23l-.9-2.1L2 20l2.1-.9L5 17z");

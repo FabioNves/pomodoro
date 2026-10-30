@@ -7,6 +7,7 @@
 import React, { useRef } from "react";
 import FolderTree from "@/components/notebook/FolderTree";
 import {
+  IconBookmark,
   IconBrain,
   IconEdit,
   IconFolder,
@@ -29,6 +30,7 @@ const BUILT_IN_VIEWS = [
   { key: "brain", label: "Brain", Icon: IconBrain },
   { key: "quotes", label: "Quotes", Icon: IconQuote, count: "quotes" },
   { key: "posts", label: "Saved posts", Icon: IconPosts, count: "posts" },
+  { key: "bookmarks", label: "Bookmarks", Icon: IconBookmark, count: "bookmarks" },
 ];
 
 function SectionHeader({ label, children }) {
@@ -90,7 +92,7 @@ function ViewRow({ active, Icon, label, count, onClick, menu = null }) {
 export default function NotebookSidebar({
   views,
   activeViewKey,
-  counts = { quotes: 0, posts: 0 },
+  counts = { quotes: 0, posts: 0, bookmarks: 0 },
   onSelectView,
   onNewView,
   onEditView,
