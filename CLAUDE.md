@@ -244,6 +244,11 @@ README.md has the commands.
   chain of one work item per phase (`BusinessWorkItem.loop`), created by
   `POST /api/business/loops`. 100 % shows the prompt for the next loop, never
   a "finished" screen.
+- Business is a section of **Operations** (`src/app/operations/page.js`,
+  `SECTIONS`, the open one in `?section=`), beside Personal Budget, with a
+  sidebar like the planner's (a tab strip on phones). `/business` only
+  redirects there, keeping its query. The navbar tab is "Operations" and is
+  gated by `budget` (everyone); Business stays an admin-only section in it.
 - The page keeps its place in the query string: `?b=` the business (absent
   means the first one), `?phase=` the open workspace, `?item=` the open work
   item, which also opens its phase behind it. `setParams()` in `BusinessApp`
@@ -263,6 +268,68 @@ README.md has the commands.
   account below about 1100 px: `NavLink` in `src/components/Navbar.jsx` shows
   icons at `md`, labels at `lg` and both from `xl`. Check 768 px and 1024 px
   before adding a seventh.
+
+## Personal Budget
+
+- The other Operations section, feature `budget` (Free and Premium). A
+  `BudgetEntry` is income, an expense or an investment with an amount, a
+  category and two dates: `month` + `day`, when it belongs, and
+  `payMonth` + `payDay`, when it is paid and counts. "Change pay date"
+  (`PayDateDialog`) picks any date up to `BUDGET_LIMITS.maxDelay` months
+  on; picking its own date clears `payDay`. Paid in a later month, it still
+  shows in its own month as "Paying …", left out of the totals. Read the pay
+  day through `payDayOf()`; dates show as `shortDate()` ("12 Nov").
+  `done` is paid / received / done by type. Ticking `projected` income asks
+  for the actual amount (`ReceiveDialog`): it becomes real income and the
+  estimate is kept in `projectedAmount`; un-ticking puts it back to
+  projected at the estimate, out of the left over. The route does it, the
+  browser mirrors it.
+- Expenses and money put aside have a `kind` (`KINDS` in categories.js):
+  `bill` or `debt`, `investment` or `saving`. None stored is the type's
+  first kind (`kindOf()`). Each pair counts as one type; `totalsOf()` also
+  gives `bills`/`debt` and `investments`/`savings`, and the month lists
+  them apart. Adding an entry offers `ENTRY_CHOICES` (Income, Bill, Debt,
+  Investment, Savings).
+- Income is green, expenses red, investments and savings blue: `SERIES`,
+  `TYPE_BORDER`, `TYPE_TEXT` and `TYPE_DOT` in `budgetUi.jsx`, for charts,
+  tiles, panels, rows and the choice labels alike. Every pick list is the
+  app's `Dropdown` (`textClass` colours an option), never a `<select>`.
+- Cash flow: `cashFlow()` gives a month day by day (money in and out on its
+  pay day, the running balance from 0, a second balance with projected
+  income); the Graphs view draws it. The year table adds the left over up
+  month by month (`running` in `yearSummary()`).
+- Totals are never stored: `monthSummary()`, `yearSummary()` and
+  `totalsOf()` in `src/lib/budget/engine.js` (shared) derive them, always
+  from `payMonth`. Projected income stays out of income and left over; it
+  only shows as "+ … projected" and "if projected comes in".
+- A repeating entry is a `BudgetSeries`: a template plus a rule
+  (`src/lib/budget/repeat.js`, shared): every `interval` months from the
+  month of `startDate`, on each of `days` (none: once, undated), until an
+  optional `endDate`. `occurrencesIn()` is the one place that decides the
+  dates; `describeRepeat()` says it in words. `materializeSeries()` gives
+  each occurrence of a month that is looked at (up to `monthsAhead` ahead)
+  its own entry, unique per (series, `occ`), `occ` being its ISO date or its
+  month when undated, so each one is paid or moved on its own.
+- A rule is changed from an entry on, never backwards (`applyRepeat()` in
+  the entries route): a new interval or days start a new series on that
+  entry's date and end the old one the day before (`endSeriesBefore()`); a
+  new end date only edits the series; no rule makes the entry one-time.
+  Deleting one occurrence marks it `skipped` (so it is not made again);
+  "this and later ones" ends the series. `migrateBudget()` once per process
+  turns series from before rules (`day`/`startMonth`/`endMonth`) into rules,
+  gives their entries an `occ` and drops the old (series, month) index.
+- Dates in the entry form: a one-time entry picks only a day (`DayGrid`),
+  its month being the one on screen; a repeating one picks days of the month
+  with no month or year. Only the pay date and the end date are full dates.
+- Categories and the currency live in `BudgetSettings`, seeded once from
+  `DEFAULT_CATEGORIES` (`src/lib/budget/categories.js`). Removing a category
+  moves its entries to the type's `other_*`, which cannot be removed. The
+  currency is only a symbol: nothing is converted.
+- Routes: `GET /api/budget?month=|?year=`, `/api/budget/entries`,
+  `/settings`, `/categories`, all on the session JWT. UI in
+  `src/components/budget` (`BudgetApp` holds data and the URL: `?view=month|
+  graphs|year`, `?month=`, `?year=`). Every chart has a legend and a table
+  beside it.
 
 ## Projects and milestones
 

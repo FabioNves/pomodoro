@@ -127,7 +127,9 @@ export default function BusinessApp() {
         else params.set(key, String(value));
       }
       pendingQueryRef.current = params.toString();
-      const url = params.toString() ? `/business?${params.toString()}` : "/business";
+      // Business is a section of Operations; the rest of the query (?section=)
+      // is kept as it is.
+      const url = params.toString() ? `/operations?${params.toString()}` : "/operations";
       if (push) router.push(url, { scroll: false });
       else router.replace(url, { scroll: false });
     },

@@ -1,62 +1,29 @@
 "use client";
 
-// Business: six connected phases (Define, Build, Launch, Operate, Measure,
-// Improve) for creating, running and improving a business. Same sign-in gate
-// as the other pages; the app itself reads ?b= / ?phase= / ?item= (hence the
-// Suspense boundary, which the static export needs around useSearchParams).
+// Business moved under Operations. Older links (?b= / ?phase= / ?item=) are
+// sent there with their query kept, so they still open the same place.
 
-import React, { Suspense, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { jwtDecode } from "jwt-decode";
-import Navbar from "@/components/Navbar";
-import BusinessApp from "@/components/business/BusinessApp";
-import { LockedScreen } from "@/components/access/Gate";
+import React, { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import BrandLoader from "@/components/brand/BrandLoader";
 
-export default function BusinessPage() {
-  const [user, setUser] = useState(null);
-  const [hasMounted, setHasMounted] = useState(false);
+function BusinessRedirect() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    setHasMounted(true);
-    const token = localStorage.getItem("accessToken");
-    if (token && token.split(".").length === 3) {
-      try {
-        setUser(jwtDecode(token));
-        return;
-      } catch (error) {
-        console.error("Error decoding token:", error);
-        localStorage.removeItem("accessToken");
-      }
-    }
-    router.replace("/");
-  }, [router]);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("section", "business");
+    router.replace(`/operations?${params.toString()}`);
+  }, [router, searchParams]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userName");
-    setUser(null);
-    router.replace("/");
-  };
+  return <BrandLoader screen />;
+}
 
-  if (!hasMounted || !user) return <BrandLoader screen />;
-
+export default function BusinessPage() {
   return (
-    <div className="w-screen min-h-screen transition-colors duration-300">
-      <Navbar user={user} onLogout={handleLogout} />
-      <main className="pb-8">
-        <Suspense fallback={<BrandLoader />}>
-          <LockedScreen
-            feature="business"
-            title="Business"
-            description="Six connected phases for creating, running and improving a business."
-          >
-            <BusinessApp />
-          </LockedScreen>
-        </Suspense>
-      </main>
-    </div>
+    <Suspense fallback={<BrandLoader screen />}>
+      <BusinessRedirect />
+    </Suspense>
   );
 }

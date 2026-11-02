@@ -48,16 +48,23 @@ export function adminEmails() {
 }
 
 export function isAdminEmail(email) {
-  return Boolean(email) && adminEmails().includes(String(email).trim().toLowerCase());
+  return (
+    Boolean(email) && adminEmails().includes(String(email).trim().toLowerCase())
+  );
 }
 
 /** The real role of a user document (no preview applied). */
 export function roleOfUser(user) {
   if (!user) return "free";
   if (isAdminEmail(user.email)) return "admin";
-  if (user.hubAdminUntil && new Date(user.hubAdminUntil).getTime() > Date.now()) return "admin";
+  if (user.hubAdminUntil && new Date(user.hubAdminUntil).getTime() > Date.now())
+    return "admin";
   if (user.plan === "premium") {
-    if (!user.planExpiresAt || new Date(user.planExpiresAt).getTime() > Date.now()) return "premium";
+    if (
+      !user.planExpiresAt ||
+      new Date(user.planExpiresAt).getTime() > Date.now()
+    )
+      return "premium";
   }
   return "free";
 }
@@ -67,7 +74,11 @@ export function roleOfUser(user) {
 let registryCache = { value: null, at: 0 };
 
 export async function loadRegistry({ fresh = false } = {}) {
-  if (!fresh && registryCache.value && Date.now() - registryCache.at < REGISTRY_TTL_MS) {
+  if (
+    !fresh &&
+    registryCache.value &&
+    Date.now() - registryCache.at < REGISTRY_TTL_MS
+  ) {
     return registryCache.value;
   }
   await connectToDB();
@@ -78,12 +89,21 @@ export async function loadRegistry({ fresh = false } = {}) {
 }
 
 /** Store the admin's edits; returns the normalized result. */
-export async function saveRegistry({ features, plans }, { updatedBy = "" } = {}) {
+export async function saveRegistry(
+  { features, plans },
+  { updatedBy = "" } = {},
+) {
   await connectToDB();
   const normalized = normalizeRegistry({ features, plans });
   await AccessConfig.findOneAndUpdate(
     { key: "default" },
-    { $set: { features: normalized.features, plans: normalized.plans, updatedBy } },
+    {
+      $set: {
+        features: normalized.features,
+        plans: normalized.plans,
+        updatedBy,
+      },
+    },
     { upsert: true, new: true },
   );
   registryCache = { value: null, at: 0 };
@@ -126,8 +146,15 @@ export function touchActivity(userId) {
   if (Date.now() - last < ACTIVITY_THROTTLE_MS) return;
   activityTouched.set(id, Date.now());
   connectToDB()
-    .then(() => User.updateOne({ _id: id }, { $set: { lastActiveAt: new Date() } }))
-    .catch((error) => console.warn("[access] could not record activity:", error?.message || error));
+    .then(() =>
+      User.updateOne({ _id: id }, { $set: { lastActiveAt: new Date() } }),
+    )
+    .catch((error) =>
+      console.warn(
+        "[access] could not record activity:",
+        error?.message || error,
+      ),
+    );
 }
 
 /**
@@ -137,9 +164,18 @@ export function touchActivity(userId) {
 export async function describeAccess(user, registry) {
   const reg = registry || (await loadRegistry());
   const realRole = roleOfUser(user);
-  const viewAs = realRole === "admin" && VIEW_AS_ROLES.includes(user?.viewAs) ? user.viewAs : null;
+  const viewAs =
+    realRole === "admin" && VIEW_AS_ROLES.includes(user?.viewAs)
+      ? user.viewAs
+      : null;
   const role = effectiveRole(realRole, viewAs);
-  return { realRole, viewAs, role, registry: reg, features: accessMap(reg, role) };
+  return {
+    realRole,
+    viewAs,
+    role,
+    registry: reg,
+    features: accessMap(reg, role),
+  };
 }
 
 /**
@@ -149,13 +185,18 @@ export async function describeAccess(user, registry) {
  * routes, is not there for anyone else.
  */
 export function denyIfLocked(registry, role, features) {
-  const keys = (Array.isArray(features) ? features : [features]).filter(Boolean);
+  const keys = (Array.isArray(features) ? features : [features]).filter(
+    Boolean,
+  );
   for (const key of keys) {
     const feature = registry.features.find((f) => f.key === key);
     if (featureAllowed(feature, role)) continue;
     if (isAdminOnly(feature)) return notFoundResponse();
     const denial = denialFor(feature);
-    return Response.json({ error: denial.message, code: denial.code, feature: key }, { status: 403 });
+    return Response.json(
+      { error: denial.message, code: denial.code, feature: key },
+      { status: 403 },
+    );
   }
   return null;
 }
@@ -170,7 +211,12 @@ function pathOf(req) {
 
 /** The features a request must be allowed to use: the explicit ones plus the one behind its path. */
 export function featuresFor(req, features) {
-  const keys = features === undefined || features === null ? [] : Array.isArray(features) ? [...features] : [features];
+  const keys =
+    features === undefined || features === null
+      ? []
+      : Array.isArray(features)
+        ? [...features]
+        : [features];
   const derived = featureForPath(pathOf(req));
   if (derived && !keys.includes(derived)) keys.push(derived);
   return keys.filter(Boolean);
@@ -190,12 +236,18 @@ export async function gateIdentity(req, { userId = null, features } = {}) {
   try {
     user = userId ? await loadUser(userId) : null;
   } catch (error) {
-    console.warn("[access] could not load user for gating:", error?.message || error);
+    console.warn(
+      "[access] could not load user for gating:",
+      error?.message || error,
+    );
   }
   const access = await describeAccess(user);
   if (user) {
     touchActivity(user._id);
-    enterUsageContext({ userId: String(user._id), feature: keys[0] || "other" });
+    enterUsageContext({
+      userId: String(user._id),
+      feature: keys[0] || "other",
+    });
   }
   recordRequest(req, user ? String(user._id) : null, { feature: keys[0] });
   return denyIfLocked(access.registry, access.role, keys);
@@ -209,7 +261,10 @@ export async function userCanUse(userId, featureKey) {
 }
 
 export function isActiveNow(user, now = Date.now()) {
-  return Boolean(user?.lastActiveAt) && now - new Date(user.lastActiveAt).getTime() < ACTIVE_WINDOW_MS;
+  return (
+    Boolean(user?.lastActiveAt) &&
+    now - new Date(user.lastActiveAt).getTime() < ACTIVE_WINDOW_MS
+  );
 }
 
 /** What the admin routes answer to anyone who is not the admin. */

@@ -146,7 +146,9 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", short: "Home", Icon: IconDashboard },
   { href: "/planner", label: "Planner", short: "Plan", Icon: IconTasks, feature: "planner" },
   { href: "/notebook", label: "Notebook", short: "Notes", Icon: IconNotebook, feature: "notebook" },
-  { href: "/business", label: "Business", short: "Biz", Icon: IconBusiness, feature: "business" },
+  // Business and Personal Budget, as sections. The tab follows the budget,
+  // which everyone has; Business (admin only) is a section inside it.
+  { href: "/operations", label: "Operations", short: "Ops", Icon: IconBusiness, feature: "budget" },
   { href: "/analytics", label: "Analytics", short: "Stats", Icon: IconAnalytics, feature: "analytics" },
   { href: "/news", label: "News", short: "News", Icon: IconNews, feature: "news_briefing" },
 ];

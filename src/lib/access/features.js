@@ -76,6 +76,15 @@ export const FEATURE_CATALOGUE = [
     enabled: true,
   },
   {
+    key: "budget",
+    name: "Personal budget",
+    description: "Income, expenses and investments by month and by year, with delays, projected income and charts.",
+    group: "Core",
+    availableToFree: true,
+    availableToPremium: true,
+    enabled: true,
+  },
+  {
     key: "analytics",
     name: "Analytics",
     description: "Weekly, monthly and yearly focus statistics.",
@@ -278,6 +287,7 @@ export function featureForPath(pathname = "") {
   if (/^\/api\/routine-tasks\b/.test(p)) return "routines";
   if (/^\/api\/notebook\b/.test(p)) return "notebook";
   if (/^\/api\/business\b/.test(p)) return "business";
+  if (/^\/api\/budget\b/.test(p)) return "budget";
   if (/^\/api\/news\b/.test(p)) return "news_briefing";
   return null;
 }

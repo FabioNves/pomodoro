@@ -82,7 +82,8 @@ function Dot({ colorClass, color, fallback }) {
 /**
  * @param {object} props
  * @param {any} props.value
- * @param {{value:any,label:string,shortLabel?:string,hint?:string,color?:string,colorClass?:string,disabled?:boolean}[]} [props.options]
+ * @param {{value:any,label:string,shortLabel?:string,hint?:string,color?:string,colorClass?:string,textClass?:string,disabled?:boolean}[]} [props.options]
+ *        `textClass` colours the option's label (in the menu and in the trigger).
  * @param {{key:string,label:string,color?:string,colorClass?:string,options:object[]}[]} [props.groups] collapsible sections
  * @param {(value:any)=>void} props.onChange
  * @param {string} [props.label]        prefix shown in the trigger ("Focus")
@@ -274,7 +275,7 @@ export default function Dropdown({
           fallback={showDot && !opt.colorClass && !opt.color ? "bg-edge-strong" : ""}
         />
         <span className="flex-1 min-w-0">
-          <span className="block truncate font-medium">{opt.label}</span>
+          <span className={`block truncate font-medium ${opt.textClass || ""}`}>{opt.label}</span>
           {opt.hint ? (
             <span className="block text-[11px] text-fg-subtle truncate">
               {opt.hint}
@@ -368,7 +369,7 @@ export default function Dropdown({
           </span>
         ) : null}
         <span
-          className={`font-semibold tabular-nums truncate ${selected || isCustomValue ? "text-fg" : "text-fg-subtle"}`}
+          className={`font-semibold tabular-nums truncate ${selected?.textClass || (selected || isCustomValue ? "text-fg" : "text-fg-subtle")}`}
         >
           {compact && shortText ? (
             <>
