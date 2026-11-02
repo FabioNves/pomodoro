@@ -13,6 +13,7 @@ import { AccessProvider } from "../lib/access/client";
 import { TimerProvider } from "../components/timer/TimerProvider";
 import { ThemeProvider } from "../hooks/useTheme";
 import { logoCss } from "../lib/brand/logo";
+import LaunchSplash from "../components/brand/LaunchSplash";
 import {
   THEME_IDS,
   DARK_THEME_IDS,
@@ -91,7 +92,9 @@ export const metadata = {
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
-    apple: "/logo/pomodrive-new/app/apple-touch-icon.png",
+    // ?v= changes whenever the icon art does, so phones that saved the old
+    // icon at install see a new one (keep it in step with site.webmanifest).
+    apple: "/logo/pomodrive-new/app/apple-touch-icon.png?v=2",
   },
   manifest: "/site.webmanifest",
   openGraph: {
@@ -148,6 +151,8 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} antialiased`}
       >
+        {/* The installed app's animated launch screen (standalone only). */}
+        <LaunchSplash />
         <ThemeProvider>
           <GoogleOAuthProvider
             clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}

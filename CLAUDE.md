@@ -649,6 +649,17 @@ README.md has the commands.
   the same module by `npm run build:logos`. Change the module, then run it;
   never edit those files by hand. `public/logo/pomodrive-png` and
   `pomodrive-svg` are the old logo, no longer used.
+- An installed web app keeps the icon it was installed with. The manifest
+  (`public/site.webmanifest`, written by hand) and the apple-touch-icon in the
+  root layout carry `?v=` on their icon URLs: bump it with every new icon
+  art, so Android's Chrome notices the change and updates the installed app
+  (iOS only takes a new icon when the app is added to the home screen again).
+  The manifest `id` stays "/": changing it makes it a different app.
+- `LaunchSplash` (root layout) is the installed app's launch screen: the
+  tomato winding up full screen from the first paint, in standalone display
+  mode only (`.pd-launch` in globals.css), fading out once the app started.
+  The system splash before it (manifest icon on `background_color`) cannot
+  animate.
 
 ## Layout
 

@@ -503,3 +503,25 @@ body {
 .nb-editor strong {
   font-weight: 700;
 }
+
+/* The installed app's launch screen (LaunchSplash): only in standalone
+   display mode, over everything, on the theme's background. */
+.pd-launch {
+  display: none;
+}
+@media (display-mode: standalone) {
+  .pd-launch {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    transition: opacity 0.3s ease-out;
+  }
+  .pd-launch[data-fading] {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
