@@ -81,6 +81,10 @@ export function folderDto(folder) {
   };
 }
 
+export function bookmarkFolderDto(folder) {
+  return { id: String(folder._id), name: folder.name, createdAt: folder.createdAt };
+}
+
 export function tabDto(tab, { withContent = true } = {}) {
   return {
     id: String(tab._id),

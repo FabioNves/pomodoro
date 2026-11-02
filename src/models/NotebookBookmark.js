@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 // A post the user saved on Instagram, imported from the "Download your
 // information" export. One document per (user, code): importing a newer
 // export updates what is there and adds what is new. A removed bookmark is
-// kept as `dismissed`, so the next import does not bring it back.
+// kept as `dismissed`, so the next import does not bring it back. `folder`
+// is a NotebookBookmarkFolder, or null for bookmarks in no folder.
 const notebookBookmarkSchema = new mongoose.Schema(
   {
     user: { type: String, required: true, index: true },
@@ -19,12 +20,14 @@ const notebookBookmarkSchema = new mongoose.Schema(
     // The last import that listed it.
     importedAt: { type: Date, default: null },
     dismissed: { type: Boolean, default: false },
+    folder: { type: mongoose.Schema.Types.ObjectId, ref: "NotebookBookmarkFolder", default: null },
   },
   { timestamps: true },
 );
 
 notebookBookmarkSchema.index({ user: 1, code: 1 }, { unique: true });
 notebookBookmarkSchema.index({ user: 1, dismissed: 1, savedAt: -1 });
+notebookBookmarkSchema.index({ user: 1, folder: 1 });
 
 export default mongoose.models.NotebookBookmark ||
   mongoose.model("NotebookBookmark", notebookBookmarkSchema);

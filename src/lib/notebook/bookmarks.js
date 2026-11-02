@@ -9,6 +9,9 @@ export const BOOKMARK_LIMITS = {
   // Posts sent per import request: keeps each body far below the 4.5 MB
   // serverless limit even when every caption is full length.
   batch: 250,
+  folderName: 80,
+  // Bookmarks moved or removed per request in selection mode.
+  ids: 1000,
 };
 
 /**
