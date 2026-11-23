@@ -6,8 +6,10 @@
 // them in order with the arrows, a swipe, or the arrow keys). The notebook's
 // Quotes view uses the compact form as a live preview of the active quotes.
 //
-// The window is always the same height: a quote is clamped to two lines and
-// a longer one gets a "More" button that lets it out until the next quote.
+// The window is always the same height: a quote is clamped to two lines
+// (four on a phone, where the window is narrow and the slot machine keeps
+// only its left reel) and a longer one gets a "More" button that lets it
+// out until the next quote.
 // The header row holds the view switch, an expand button that opens the
 // quote browser (QuotesPlayer: authors down the side, the quotes as cards,
 // an auto mode and reading aloud) and a settings button for managing the
@@ -57,14 +59,14 @@ const VIEW_ICONS = { slot: IconReels, gallery: IconCarousel };
 
 /* ── pieces ────────────────────────────────────────────── */
 
-function Reel({ spinning, compact }) {
+function Reel({ spinning, compact, className = "" }) {
   const strip = [...REEL_SYMBOLS, ...REEL_SYMBOLS];
   return (
     <div
       aria-hidden="true"
       className={`relative shrink-0 self-stretch overflow-hidden rounded-lg border border-edge bg-surface-2/80 ${
         compact ? "w-5" : "w-6 sm:w-7"
-      }`}
+      } ${className}`}
     >
       {/* Absolute, so the strip's own length never stretches the row. */}
       <motion.div
@@ -171,7 +173,7 @@ function QuoteBody({ quote, compact, position, expanded, onToggleExpanded }) {
       <blockquote
         ref={textRef}
         className={`max-w-3xl text-fg font-medium leading-snug ${compact ? "text-sm" : "text-sm sm:text-base"} ${
-          expanded ? "" : "line-clamp-2"
+          expanded ? "" : compact ? "line-clamp-2" : "line-clamp-4 sm:line-clamp-2"
         }`}
       >
         “{quote.text}”
@@ -207,7 +209,7 @@ function QuoteBody({ quote, compact, position, expanded, onToggleExpanded }) {
  * @param {(() => void)|null} [props.onManage]  the settings button; null hides it
  * @param {string} [props.manageLabel]
  * @param {boolean} [props.compact]        the notebook preview
- * @param {boolean} [props.autoSpin]       spin once the quotes arrive
+ * @param {boolean} [props.autoSpin]       spin once the quotes arrive (off: show one, spin on a pull)
  * @param {boolean} [props.expandable]     the button that opens the browser
  * @param {"slot"|"gallery"} [props.view]
  * @param {((view: string) => void)|null} [props.onViewChange]  the view switch; null hides it
@@ -219,7 +221,7 @@ export default function QuoteSlotMachine({
   onManage = null,
   manageLabel = "Manage quotes",
   compact = false,
-  autoSpin = true,
+  autoSpin = false,
   expandable = !compact,
   view = "slot",
   onViewChange = null,
@@ -323,7 +325,10 @@ export default function QuoteSlotMachine({
   const expanded = expandedFrame === frame;
   const canStep = gallery && list.length > 1 && !spinning;
   const pad = compact ? "px-3 py-2.5" : "px-4 py-3 sm:px-5";
-  const windowHeight = compact ? (expanded ? "min-h-[5.5rem]" : "h-[5.5rem]") : expanded ? "min-h-24" : "h-24";
+  // Phones get four lines of quote in a taller window; wider screens two.
+  const windowHeight = compact
+    ? expanded ? "min-h-[5.5rem]" : "h-[5.5rem]"
+    : expanded ? "min-h-32 sm:min-h-24" : "h-32 sm:h-24";
 
   // The slot machine drops a quote in from below; the gallery slides it in
   // from the side it was stepped towards.
@@ -473,7 +478,7 @@ export default function QuoteSlotMachine({
         {gallery ? (
           <StepButton direction={1} onClick={() => step(1)} disabled={!canStep} compact={compact} />
         ) : !compact ? (
-          <Reel spinning={spinning} />
+          <Reel spinning={spinning} className="hidden sm:block" />
         ) : null}
         {!gallery && list.length > 1 ? <Lever onPull={spin} disabled={spinning} spinning={spinning} /> : null}
       </div>

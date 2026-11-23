@@ -138,15 +138,31 @@ export async function showTimerNotification({ title, body = "", actions = [] }) 
   showNotification(title, { body });
 }
 
+/**
+ * The action in a pomodrive://timer?action=… link, or null. Parsed rather
+ * than compared as text: Windows may hand it back as
+ * pomodrive://timer/?action=… or with a trailing slash. Keep in step with
+ * timerActionOf() in native/desktop/main.js.
+ */
+export function timerActionFromUrl(url) {
+  try {
+    const u = new URL(String(url).trim().replace(/^"|"$/g, ""));
+    if (u.protocol !== `${DEEP_LINK_SCHEME}:`) return null;
+    const where = (u.hostname || u.pathname.replace(/^\/+/, "")).replace(/\/+$/, "").toLowerCase();
+    if (where !== "timer") return null;
+    return (u.searchParams.get("action") || "").replace(/\/+$/, "") || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Calls `handler(actionId)` when a timer notification's button is pressed. Returns an unsubscribe. */
 export function onTimerNotificationAction(handler) {
   if (typeof window === "undefined") return () => {};
   const platform = getPlatform();
   if (platform === "electron") {
-    const prefix = `${DEEP_LINK_SCHEME}://timer?action=`;
     return onDeepLink((url) => {
-      if (typeof url !== "string" || !url.startsWith(prefix)) return;
-      const id = url.slice(prefix.length);
+      const id = timerActionFromUrl(url);
       if (ACTION_IDS.has(id)) handler(id);
     });
   }

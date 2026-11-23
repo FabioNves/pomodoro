@@ -28,7 +28,7 @@ import {
   TaskRow,
   AddTaskModal,
 } from "@/components/planner/TaskRow";
-import { COLOR_PALETTES } from "@/lib/habitPalettes";
+import { COLOR_PALETTES, autoShadeIndex, getPalette, getShadeClass, levelShadeClass } from "@/lib/habitPalettes";
 import { getProjectColorMeta } from "@/lib/projectColors";
 import WeeklyRoutine from "@/components/WeeklyRoutine";
 import RoutineTasksView from "@/components/RoutineTasksView";
@@ -389,25 +389,6 @@ function ProjectColumn({
    ║  HABITS TAB — palettes, helpers, components          ║
    ╚══════════════════════════════════════════════════════╝ */
 
-function getPalette(color) {
-  return COLOR_PALETTES[color] || COLOR_PALETTES.blue;
-}
-
-// Index into a palette's shades for an auto-derived (non-manual) level color.
-function autoShadeIndex(value, maxLevel, shadeCount = 5) {
-  if (!value) return 0;
-  return Math.min(
-    Math.round((value / maxLevel) * (shadeCount - 1)),
-    shadeCount - 1,
-  );
-}
-
-function getShadeClass(color, level, maxLevel) {
-  if (!level) return "bg-surface-2";
-  const palette = getPalette(color);
-  return palette.shades[autoShadeIndex(level, maxLevel, palette.shades.length)];
-}
-
 // Pin every still-auto-shaded level to an explicit color + shade matching its
 // CURRENT appearance. Used before adding/removing a level so that the resulting
 // change in maxLevel no longer shifts the other levels' colors.
@@ -423,23 +404,6 @@ function freezeLevelColors(levels, baseColor) {
           shade: autoShadeIndex(l.value, maxLevel, shadeCount),
         },
   );
-}
-
-// Resolve the swatch class for a single level. When the level has an explicit
-// color + shade (manually chosen by the user) it uses that; otherwise it falls
-// back to the auto-derived shade of the habit color (legacy behaviour).
-function levelShadeClass(level, fallbackColor, maxLevel) {
-  if (
-    level &&
-    level.color &&
-    COLOR_PALETTES[level.color] &&
-    typeof level.shade === "number"
-  ) {
-    const palette = COLOR_PALETTES[level.color];
-    const idx = Math.min(Math.max(level.shade, 0), palette.shades.length - 1);
-    return palette.shades[idx];
-  }
-  return getShadeClass(fallbackColor, level?.value, maxLevel);
 }
 
 // Popover swatch that lets the user manually pick a color + shade for a level.

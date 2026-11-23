@@ -174,16 +174,53 @@ function allowYouTubeEmbeds() {
 /* ── deep links (pomodrive://auth?code=...) ─────────────────────────── */
 
 function extractDeepLink(argv) {
-  return argv.find((arg) => arg.startsWith(`${DEEP_LINK_SCHEME}://`)) || null;
+  const prefix = `${DEEP_LINK_SCHEME}://`;
+  const arg = argv.find((a) => String(a).replace(/^"/, "").toLowerCase().startsWith(prefix));
+  return arg ? String(arg).replace(/^"|"$/g, "") : null;
+}
+
+// The last timer links received, to see what Windows really hands over when
+// a notification button misbehaves: %APPDATA%/PomoDRIVE/timer-links.log.
+function logTimerLink(url, action) {
+  try {
+    const file = path.join(app.getPath("userData"), "timer-links.log");
+    const old = fs.existsSync(file) ? fs.readFileSync(file, "utf8").split("\n").slice(-49) : [];
+    fs.writeFileSync(file, [...old, `${new Date().toISOString()}  ${JSON.stringify(url)}  -> ${action}`].join("\n"));
+  } catch {}
+}
+
+/**
+ * The action of a timer notification link, or null. Windows does not hand
+ * the link back as written: it may arrive as pomodrive://timer/?action=…
+ * (a slash added after the host) or with a trailing slash, so it is parsed
+ * rather than compared as text. Keep in step with timerActionFromUrl() in
+ * src/utils/notifications.js.
+ */
+function timerActionOf(url) {
+  try {
+    const u = new URL(String(url).trim().replace(/^"|"$/g, ""));
+    if (u.protocol !== `${DEEP_LINK_SCHEME}:`) return null;
+    const where = (u.hostname || u.pathname.replace(/^\/+/, "")).replace(/\/+$/, "").toLowerCase();
+    if (where !== "timer") return null;
+    const action = (u.searchParams.get("action") || "").replace(/\/+$/, "");
+    return action || null;
+  } catch {
+    return null;
+  }
 }
 
 function deliverDeepLink(url) {
   if (!url) return;
   // A timer button in a notification (pomodrive://timer?action=pause) acts
   // in the background: the window is not brought to the front for it.
-  const timerAction = url.startsWith(`${DEEP_LINK_SCHEME}://timer?action=`) && !url.endsWith("action=open");
-  if (timerAction && mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("deep-link", url);
+  const action = timerActionOf(url);
+  if (action) logTimerLink(url, action);
+  if (action && action !== "open") {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("deep-link", `${DEEP_LINK_SCHEME}://timer?action=${action}`);
+    } else {
+      launchUrl = `${DEEP_LINK_SCHEME}://timer?action=${action}`;
+    }
     return;
   }
   if (mainWindow && !mainWindow.isDestroyed()) {

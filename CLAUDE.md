@@ -92,8 +92,11 @@ README.md has the commands.
   and passes `quotesReady`, so the window says it is loading rather than
   spinning on something else, and with none switched on it says so and
   offers the notebook. `DEFAULT_QUOTES` is shown nowhere any more (the
-  speech route still accepts one). The caption still marks a finished day.
+  speech route still accepts one). On load it shows one quote at random;
+  it only spins when the lever (or Spin) is pulled (`autoSpin` is off by
+  default).
 - The window is always the same height: a quote is clamped to two lines
+  (four on a phone, where the slot machine keeps only its left reel)
   (`QuoteBody` measures the overflow) and a longer one gets a More/Less
   toggle, `expandedFrame`, which lets the window grow until the next quote.
   The header row holds the view switch (`QUOTE_VIEWS`: slot machine or
@@ -345,6 +348,23 @@ README.md has the commands.
   `src/components/budget` (`BudgetApp` holds data and the URL: `?view=month|
   graphs|year`, `?month=`, `?year=`). Every chart has a legend and a table
   beside it.
+
+## Dashboard
+
+- Order of the main grid: the timer with three stat tiles under it (focus
+  today, focus this week, today's blocks) and the Today calendar running
+  down beside both on xl (explicit `xl:row-*`/`col-*`), then Tasks (full
+  width), Habits and Cycles. Today's session count sits in the Today card's
+  subtitle, not under the timer.
+- Tasks and Habits act in place (`src/components/dashboard/DashboardCards.jsx`):
+  tick a task, put it on the calendar at a day, time and length (PATCH
+  `/api/tasks` with `scheduledDate` + `startMinute` + `durationMinutes`,
+  which the calendar already draws), unfold every task and project; click a
+  habit's day square to log it (`PUT /api/habits/entries`; several levels
+  open a small menu). The page owns the data and saving (`toggleTask`,
+  `scheduleTask`, `setHabitLevel` in `src/app/dashboard/page.js`), updating
+  first and rolling back on failure. Level colours come from
+  `levelShadeClass()` in `src/lib/habitPalettes.js`, shared with the planner.
 
 ## Projects and milestones
 

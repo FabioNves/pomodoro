@@ -9,6 +9,8 @@ import React, { useMemo, useState } from "react";
 import { toYMD, dayIndexOf, weekDayLabels } from "@/utils/timeUtils";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
 import { routineOccursOn } from "@/lib/routineSchedule";
+import { datedTaskView } from "@/lib/calendarTasks.mjs";
+import { HabitsCardBody, TasksCardBody } from "@/components/dashboard/DashboardCards";
 import QuoteSlotMachine from "@/components/quotes/QuoteSlotMachine";
 import { useDashboardSettings } from "@/hooks/useDashboardSettings";
 import {
@@ -43,7 +45,6 @@ const IconTimer = icon(
   "M12 9v4l2.5 2.5M12 5V3M10 3h4",
   <circle cx="12" cy="13" r="8" />,
 );
-const IconAnalytics = icon("M4 19V10M10 19V4M16 19v-7M22 19H2");
 const IconTasks = icon(
   "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
 );
@@ -51,7 +52,6 @@ const IconCalendar = icon(
   "M3 10h18M8 3v4M16 3v4",
   <rect x="3" y="5" width="18" height="16" rx="2" />,
 );
-const IconSchedule = icon("M4 6h16M4 12h16M4 18h10");
 const IconHabits = icon("M5 13l4 4L19 7");
 const IconRoutines = icon(
   "M4 4v5h5M20 20v-5h-5M20 9A8 8 0 006.3 6.3L4 9m0 6a8 8 0 0013.7 2.7L20 15",
@@ -185,6 +185,9 @@ export default function DashboardOverview({
   calendarDayCount = 1,
   canExpandCalendar = false,
   onToggleCalendar = null,
+  onToggleTask = () => {},
+  onScheduleTask = () => {},
+  onSetHabitLevel = () => {},
   onNavigate,
 }) {
   // The preference is read from storage after mount; until then it is the
@@ -318,17 +321,27 @@ export default function DashboardOverview({
           .filter((t) => t.startMinute != null && span(t).end > 1440)
           .map((t) => ({ task: t, start: 0, end: span(t).end - 1440, label: `until ${minutesToTime(span(t).end - 1440)} (from yesterday)` }))
       : [];
+    // Tasks given today's date (from the Tasks card or the calendar) count
+    // as today's blocks too, as the calendar draws them.
+    const datedToday = tasks
+      .filter((t) => {
+        if (!t.scheduledDate || t.parentTask) return false;
+        const d = new Date(t.scheduledDate);
+        return !Number.isNaN(d.getTime()) && toYMD(new Date(d.getFullYear(), d.getMonth(), d.getDate())) === toYMD(now);
+      })
+      .map(datedTaskView);
+    const todayAll = [...today.tasks, ...datedToday];
     const timed = [
       ...carriedOver,
-      ...today.tasks
+      ...todayAll
         .filter((t) => t.startMinute != null)
         .map((t) => ({ task: t, ...span(t), label: timeRangeLabel(span(t).start, span(t).end) })),
     ].sort((a, b) => a.start - b.start);
-    const untimed = today.tasks.filter((t) => t.startMinute == null);
+    const untimed = todayAll.filter((t) => t.startMinute == null);
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const next = timed.find((b) => b.end > nowMin && !b.task.completed);
     return { days, total, done, pct, today, timed, untimed, next, nowMin };
-  }, [weekPlan, todayDow, now]);
+  }, [weekPlan, tasks, todayDow, now]);
 
   /* Habits */
   const habitSummary = useMemo(() => {
@@ -428,17 +441,42 @@ export default function DashboardOverview({
             loading={!quotesReady}
             view={dashboard.quotesView}
             onViewChange={(view) => updateDashboard({ quotesView: view })}
-            caption={dayDone ? `Every block done today · ${weekSummary.timed.length} of them` : ""}
             onManage={() => onNavigate?.("quotes")}
             manageLabel={quotes.length ? "Manage quotes" : "Add your quotes"}
           />
         ) : null}
 
-        {/* One grid for everything so phones can put the timer and today's
-            calendar first (order-*) while larger screens keep the DOM order. */}
+        {/* One grid for everything so phones can put the timer, its stats and
+            today's calendar first (order-*) while larger screens keep the DOM
+            order; on xl the first three are placed explicitly. */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {/* Timer, with the quick stats under it; the calendar runs down
+            beside both on wide screens (xl), so it gets the height and the
+            timer only takes what it needs. Phones: timer, stats, calendar. */}
+          <SectionCard
+            title="Timer"
+            Icon={IconTimer}
+            actionLabel="Open Timer"
+            onAction={go("timer")}
+            // Gives up width to the calendar when that is expanded, so the two
+            // still fill one row instead of leaving a gap.
+            className={`order-1 md:order-none md:col-span-2 xl:col-start-1 xl:row-start-1 min-h-0 ${
+              calendarExpanded ? "xl:col-span-1" : ""
+            }`}
+          >
+            {timerSlot || (
+              <EmptyHint actionLabel="Open Timer" onAction={go("timer")}>
+                Run focused sessions and keep your streak going.
+              </EmptyHint>
+            )}
+          </SectionCard>
+
         {/* Quick stats */}
-        <div className="order-3 md:order-none md:col-span-2 xl:col-span-3 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div
+          className={`order-2 md:order-none md:col-span-2 xl:col-start-1 xl:row-start-2 grid grid-cols-3 gap-3 ${
+            calendarExpanded ? "xl:col-span-1" : ""
+          }`}
+        >
           <StatTile
             label="Focus today"
             value={hoursLabel(analytics.todayMinutes)}
@@ -452,16 +490,6 @@ export default function DashboardOverview({
             onClick={go("analytics")}
           />
           <StatTile
-            label="Pending tasks"
-            value={taskSummary.pending.length}
-            hint={
-              taskSummary.later
-                ? `${taskSummary.later} scheduled for later`
-                : `${taskSummary.doneTotal} completed`
-            }
-            onClick={go("tasks")}
-          />
-          <StatTile
             label="Today's blocks"
             value={weekSummary.timed.length}
             hint={
@@ -471,61 +499,26 @@ export default function DashboardOverview({
             }
             onClick={go("calendar")}
           />
-          <StatTile
-            label="Week progress"
-            value={`${weekSummary.pct}%`}
-            hint={`${weekSummary.done} of ${weekSummary.total} tasks done`}
-            onClick={go("schedule")}
-          />
-          <StatTile
-            label="Habits today"
-            value={`${habitSummary.doneToday}/${habits.length}`}
-            hint={habits.length ? "logged so far" : "no habits yet"}
-            onClick={go("habits")}
-          />
         </div>
-
-        {/* Timer + analytics */}
-          <SectionCard
-            title="Timer"
-            subtitle={
-              analytics.todaySessions
-                ? `${analytics.todaySessions} session${analytics.todaySessions === 1 ? "" : "s"} today · ${formatMinutes(analytics.todayMinutes)} focused`
-                : "Start a focus session right here"
-            }
-            Icon={IconTimer}
-            actionLabel="Open Timer"
-            onAction={go("timer")}
-            // Gives up width to the calendar when that is expanded, so the two
-            // still fill one row instead of leaving a gap.
-            className={`order-1 md:order-none md:col-span-2 ${
-              calendarExpanded ? "xl:col-span-1" : ""
-            }`}
-          >
-            {timerSlot || (
-              <EmptyHint actionLabel="Open Timer" onAction={go("timer")}>
-                Run focused sessions and keep your streak going.
-              </EmptyHint>
-            )}
-          </SectionCard>
 
           {/* Today / Calendar */}
           <SectionCard
             title={calendarExpanded && calendarDayCount > 1 ? "Next days" : "Today"}
+            // Today's focus so far, which used to sit under the timer.
             subtitle={
-              calendarExpanded && calendarDayCount > 1
-                ? `${dayLabels[todayDow]}–${dayLabels[Math.min(6, todayDow + calendarDayCount - 1)]} · hour by hour`
-                : `${dayLabels[todayDow]} · hour by hour`
+              analytics.todaySessions
+                ? `${analytics.todaySessions} session${analytics.todaySessions === 1 ? "" : "s"} today · ${formatMinutes(analytics.todayMinutes)} focused`
+                : null
             }
             Icon={IconCalendar}
             actionLabel="Open Calendar"
             onAction={go("calendar")}
             // Always a full row on medium screens, so Analytics below it
             // starts a row of its own rather than sitting alongside.
-            className={`order-2 md:order-none md:col-span-2 ${
-              calendarExpanded ? "xl:col-span-2" : "xl:col-span-1"
+            className={`order-3 md:order-none md:col-span-2 xl:row-start-1 xl:row-span-2 ${
+              calendarExpanded ? "xl:col-start-2 xl:col-span-2" : "xl:col-start-3 xl:col-span-1"
             }`}
-            bodyClassName={todaySlot ? "p-2" : undefined}
+            bodyClassName={todaySlot ? "p-2 relative min-h-[420px]" : undefined}
             headerExtra={
               todaySlot && onToggleCalendar ? (
                 <button
@@ -555,7 +548,8 @@ export default function DashboardOverview({
             }
           >
             {todaySlot ? (
-              <div className="h-[400px]">{todaySlot}</div>
+              // Fills whatever height the card gets beside the timer and stats.
+              <div className="absolute inset-2">{todaySlot}</div>
             ) : weekSummary.timed.length || weekSummary.untimed.length ? (
               <div className="space-y-1.5">
                 {weekSummary.timed.map(({ task, start, end, label }) => {
@@ -612,214 +606,29 @@ export default function DashboardOverview({
             )}
           </SectionCard>
 
-          <SectionCard
-            title="Analytics"
-            subtitle="Focus hours this week"
-            Icon={IconAnalytics}
-            actionLabel="Open Analytics"
-            onAction={go("analytics")}
-            className="order-4 md:order-none"
-          >
-            {analytics.totalSessions ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-7 gap-1.5 items-end">
-                  {analytics.days.map((d) => {
-                    const pct = (d.minutes / analytics.max) * 100;
-                    const isToday = d.d === todayDow;
-                    return (
-                      <div
-                        key={d.d}
-                        className="text-center"
-                        title={`${dayLabels[d.d]}: ${formatMinutes(d.minutes)} in ${d.sessions} session${d.sessions === 1 ? "" : "s"}`}
-                      >
-                        <div className="h-16 rounded-md bg-surface-2 border border-edge relative overflow-hidden">
-                          <div
-                            className={`absolute bottom-0 left-0 right-0 ${
-                              isToday ? "bg-accent" : "bg-chart-1"
-                            } ${d.minutes ? "" : "opacity-0"}`}
-                            style={{ height: `${Math.max(pct, d.minutes ? 6 : 0)}%` }}
-                          />
-                        </div>
-                        <div
-                          className={`mt-1 text-[10px] font-semibold ${
-                            isToday ? "text-primary" : "text-fg-subtle"
-                          }`}
-                        >
-                          {dayLabels[d.d]}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <dl className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-lg bg-surface-2 px-2 py-1.5">
-                    <dt className="text-[10px] uppercase tracking-wide text-fg-subtle">
-                      Week
-                    </dt>
-                    <dd className="text-sm font-semibold text-fg tabular-nums">
-                      {hoursLabel(analytics.weekMinutes)}
-                    </dd>
-                  </div>
-                  <div className="rounded-lg bg-surface-2 px-2 py-1.5">
-                    <dt className="text-[10px] uppercase tracking-wide text-fg-subtle">
-                      Month
-                    </dt>
-                    <dd className="text-sm font-semibold text-fg tabular-nums">
-                      {hoursLabel(analytics.monthMinutes)}
-                    </dd>
-                  </div>
-                  <div className="rounded-lg bg-surface-2 px-2 py-1.5">
-                    <dt className="text-[10px] uppercase tracking-wide text-fg-subtle">
-                      All time
-                    </dt>
-                    <dd className="text-sm font-semibold text-fg tabular-nums">
-                      {analytics.totalSessions}
-                      <span className="text-[10px] font-normal text-fg-subtle">
-                        {" "}
-                        sess.
-                      </span>
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-            ) : (
-              <EmptyHint actionLabel="Start a session" onAction={go("timer")}>
-                Complete a focus session and your weekly, monthly and yearly
-                charts will start filling up.
-              </EmptyHint>
-            )}
-          </SectionCard>
-
         {/* Planner sections */}
-          {/* This week / Schedule */}
-          <SectionCard
-            title="This week"
-            subtitle={
-              weekPlan
-                ? `${weekPlan.name} · ${weekSummary.done}/${weekSummary.total} done`
-                : "No week plan yet"
-            }
-            Icon={IconSchedule}
-            actionLabel="Open Schedule"
-            onAction={go("schedule")}
-            className="order-5 md:order-none"
-          >
-            {weekPlan ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-7 gap-1.5">
-                  {weekSummary.days.map((d) => {
-                    const pct = d.total ? (d.done / d.total) * 100 : 0;
-                    const isToday = d.d === todayDow;
-                    return (
-                      <div key={d.d} className="text-center">
-                        <div
-                          className={`text-[10px] font-semibold ${
-                            isToday ? "text-primary" : "text-fg-subtle"
-                          }`}
-                        >
-                          {dayLabels[d.d]}
-                        </div>
-                        <div className="mt-1 h-14 rounded-md bg-surface-2 border border-edge relative overflow-hidden">
-                          <div
-                            className={`absolute bottom-0 left-0 right-0 ${
-                              pct === 100 ? "bg-success" : "bg-primary"
-                            } ${d.total ? "" : "opacity-0"}`}
-                            style={{ height: `${Math.max(pct, d.total ? 8 : 0)}%` }}
-                          />
-                        </div>
-                        <div className="mt-1 text-[10px] text-fg-muted tabular-nums">
-                          {d.done}/{d.total}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div>
-                  <div className="flex items-center justify-between text-[11px] text-fg-muted mb-1">
-                    <span>Overall</span>
-                    <span className="tabular-nums">
-                      {weekSummary.pct}% ·{" "}
-                      {formatMinutes(
-                        weekSummary.days.reduce((s, x) => s + x.minutes, 0),
-                      )}{" "}
-                      planned
-                    </span>
-                  </div>
-                  <ProgressBar
-                    pct={weekSummary.pct}
-                    tone={weekSummary.pct === 100 ? "bg-success" : "bg-primary"}
-                  />
-                </div>
-              </div>
-            ) : (
-              <EmptyHint actionLabel="Create a week" onAction={go("schedule")}>
-                Plan your week by project and day, then check things off as you
-                go.
-              </EmptyHint>
-            )}
-          </SectionCard>
-
-          {/* Tasks */}
+          {/* Tasks: the full width, every project and task one click away */}
           <SectionCard
             title="Tasks"
             subtitle={`${taskSummary.pending.length} pending across ${projects.length} project${projects.length === 1 ? "" : "s"}`}
             Icon={IconTasks}
             actionLabel="Open Tasks"
             onAction={go("tasks")}
-            className="order-6 md:order-none"
+            className="order-4 md:order-none md:col-span-2 xl:col-span-3"
           >
-            {taskSummary.groups.length ? (
-              <div className="space-y-3">
-                {taskSummary.groups.slice(0, 3).map((g) => (
-                  <div key={g.pid}>
-                    <div className="flex items-center justify-between text-[11px] mb-1">
-                      <span className="font-semibold text-fg-muted truncate">
-                        {g.name}
-                      </span>
-                      <span className="text-fg-subtle tabular-nums">
-                        {g.tasks.length}
-                      </span>
-                    </div>
-                    <ul className="space-y-0.5">
-                      {g.tasks.slice(0, 3).map((t) => (
-                        <li
-                          key={t._id}
-                          className="flex items-center gap-2 text-xs text-fg"
-                        >
-                          <span className="w-3 h-3 rounded border border-edge shrink-0" />
-                          <span className="truncate">{t.title}</span>
-                          {t.scheduledDate ? (
-                            <span className="ml-auto text-[10px] text-primary shrink-0">
-                              {new Date(t.scheduledDate).toLocaleDateString(
-                                undefined,
-                                { day: "2-digit", month: "2-digit" },
-                              )}
-                            </span>
-                          ) : null}
-                        </li>
-                      ))}
-                      {g.tasks.length > 3 ? (
-                        <li className="text-[10px] text-fg-subtle pl-5">
-                          +{g.tasks.length - 3} more
-                        </li>
-                      ) : null}
-                    </ul>
-                  </div>
-                ))}
-                {taskSummary.groups.length > 3 ? (
-                  <div className="text-[10px] text-fg-subtle">
-                    +{taskSummary.groups.length - 3} more project
-                    {taskSummary.groups.length - 3 === 1 ? "" : "s"}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <EmptyHint actionLabel="Add a task" onAction={go("tasks")}>
-                {projects.length
-                  ? "All caught up. Nothing is pending."
-                  : "Create a project and add your first tasks."}
-              </EmptyHint>
-            )}
+            <TasksCardBody
+              tasks={tasks}
+              projects={projects}
+              onToggle={onToggleTask}
+              onSchedule={onScheduleTask}
+              empty={
+                <EmptyHint actionLabel="Add a task" onAction={go("tasks")}>
+                  {projects.length
+                    ? "All caught up. Nothing is pending."
+                    : "Create a project and add your first tasks."}
+                </EmptyHint>
+              }
+            />
           </SectionCard>
 
           {/* Habits */}
@@ -829,49 +638,18 @@ export default function DashboardOverview({
             Icon={IconHabits}
             actionLabel="Open Habits"
             onAction={go("habits")}
-            className="order-7 md:order-none"
+            className="order-5 md:order-none"
           >
-            {habitSummary.rows.length ? (
-              <div className="space-y-2">
-                {habitSummary.rows.slice(0, 6).map((r) => (
-                  <div key={r.habit._id} className="flex items-center gap-2">
-                    <span
-                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.swatch}`}
-                    />
-                    <span className="text-xs text-fg truncate flex-1 min-w-0">
-                      {r.habit.name}
-                    </span>
-                    <span
-                      className="flex items-center gap-0.5 shrink-0"
-                      title={`${r.weekCount}/7 this week`}
-                    >
-                      {r.week.map((d) => (
-                        <span
-                          key={d.ymd}
-                          className={`w-3 h-3 rounded-sm ${
-                            d.level > 0
-                              ? r.swatch
-                              : "bg-surface-2 border border-edge"
-                          } ${d.ymd === todayYMD ? "ring-1 ring-focus/60" : ""}`}
-                        />
-                      ))}
-                    </span>
-                    <span className="text-[10px] text-fg-subtle tabular-nums w-9 text-right shrink-0">
-                      {r.streak ? `${r.streak}d` : "–"}
-                    </span>
-                  </div>
-                ))}
-                {habitSummary.rows.length > 6 ? (
-                  <div className="text-[10px] text-fg-subtle">
-                    +{habitSummary.rows.length - 6} more
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <EmptyHint actionLabel="Create a habit" onAction={go("habits")}>
-                Track daily habits and watch your year fill up.
-              </EmptyHint>
-            )}
+            <HabitsCardBody
+              rows={habitSummary.rows}
+              todayYMD={todayYMD}
+              onSetLevel={onSetHabitLevel}
+              empty={
+                <EmptyHint actionLabel="Create a habit" onAction={go("habits")}>
+                  Track daily habits and watch your year fill up.
+                </EmptyHint>
+              }
+            />
           </SectionCard>
 
           {/* Routines */}
@@ -881,7 +659,7 @@ export default function DashboardOverview({
             Icon={IconRoutines}
             actionLabel="Open Cycles"
             onAction={go("routines")}
-            className="order-8 md:order-none md:col-span-2"
+            className="order-6 md:order-none md:col-span-2"
           >
             {routineTasks.length ? (
               <div className="grid sm:grid-cols-2 gap-4">

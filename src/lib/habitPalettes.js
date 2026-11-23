@@ -69,3 +69,42 @@ export const COLOR_PALETTES = {
     ],
   },
 };
+
+/* ── level shades (shared by the planner and the dashboard) ── */
+
+export function getPalette(color) {
+  return COLOR_PALETTES[color] || COLOR_PALETTES.blue;
+}
+
+// Index into a palette's shades for an auto-derived (non-manual) level color.
+export function autoShadeIndex(value, maxLevel, shadeCount = 5) {
+  if (!value) return 0;
+  return Math.min(
+    Math.round((value / maxLevel) * (shadeCount - 1)),
+    shadeCount - 1,
+  );
+}
+
+export function getShadeClass(color, level, maxLevel) {
+  if (!level) return "bg-surface-2";
+  const palette = getPalette(color);
+  return palette.shades[autoShadeIndex(level, maxLevel, palette.shades.length)];
+}
+
+// Resolve the swatch class for a single level. When the level has an explicit
+// color + shade (manually chosen by the user) it uses that; otherwise it falls
+// back to the auto-derived shade of the habit color (legacy behaviour).
+export function levelShadeClass(level, fallbackColor, maxLevel) {
+  if (
+    level &&
+    level.color &&
+    COLOR_PALETTES[level.color] &&
+    typeof level.shade === "number"
+  ) {
+    const palette = COLOR_PALETTES[level.color];
+    const idx = Math.min(Math.max(level.shade, 0), palette.shades.length - 1);
+    return palette.shades[idx];
+  }
+  return getShadeClass(fallbackColor, level?.value, maxLevel);
+}
+

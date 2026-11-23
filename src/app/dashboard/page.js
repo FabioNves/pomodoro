@@ -22,6 +22,7 @@ import {
   dayTasksForPlan,
   routineColorMap,
   makeProjectResolver,
+  idOf,
 } from "@/lib/weekPlanView";
 import { getWeekStartOf, dayIndexOf, weekLabel } from "@/utils/timeUtils";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
@@ -216,6 +217,56 @@ export default function DashboardPage() {
     }
   }, [weekStart]);
 
+  /* ── acting from the cards ──────────────────────── */
+  // Tick a task off (or back on) from the Tasks card. Shown at once, saved
+  // after; a failure puts it back.
+  const toggleTask = useCallback(async (task) => {
+    const id = String(task._id);
+    const completed = !task.completed;
+    setTasks((prev) => prev.map((t) => (String(t._id) === id ? { ...t, completed } : t)));
+    try {
+      await apiJson("/api/tasks", { method: "PATCH", body: JSON.stringify({ id, completed }) });
+    } catch (error) {
+      console.error(error);
+      setTasks((prev) => prev.map((t) => (String(t._id) === id ? { ...t, completed: !completed } : t)));
+      toast.error("Could not update the task. Please try again.");
+    }
+  }, []);
+
+  // Give a task a day and a time on the calendar, or take them away (null).
+  const scheduleTask = useCallback(async (task, placement) => {
+    const id = String(task._id);
+    const fields = placement
+      ? { scheduledDate: placement.date, startMinute: placement.startMinute, durationMinutes: placement.durationMinutes }
+      : { scheduledDate: null, startMinute: null, durationMinutes: null };
+    try {
+      const updated = await apiJson("/api/tasks", { method: "PATCH", body: JSON.stringify({ id, ...fields }) });
+      setTasks((prev) => prev.map((t) => (String(t._id) === id ? updated : t)));
+      if (placement) toast.success(`“${task.title}” is on the calendar.`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not save the task’s time. Please try again.");
+    }
+  }, []);
+
+  // A habit square on the dashboard: set that day's level (0 clears it).
+  const setHabitLevel = useCallback(async (habitId, date, level) => {
+    const hid = String(habitId);
+    let before = null;
+    setEntries((prev) => {
+      before = prev;
+      const others = prev.filter((e) => !(String(idOf(e.habit)) === hid && e.date === date));
+      return level ? [...others, { habit: hid, date, level }] : others;
+    });
+    try {
+      await apiJson("/api/habits/entries", { method: "PUT", body: JSON.stringify({ habitId: hid, date, level }) });
+    } catch (error) {
+      console.error(error);
+      if (before) setEntries(before);
+      toast.error("Could not save the habit. Please try again.");
+    }
+  }, []);
+
   /* ── timer ────────────────────────────────────────── */
   // The countdown runs in the provider mounted in the root layout, so it
   // keeps going on any page; what the session is about is the run's own
@@ -320,6 +371,9 @@ export default function DashboardPage() {
           calendarDayCount={visibleDays.length}
           canExpandCalendar={canExpandCalendar}
           onToggleCalendar={toggleCalendar}
+          onToggleTask={toggleTask}
+          onScheduleTask={scheduleTask}
+          onSetHabitLevel={setHabitLevel}
           onNavigate={navigate}
         />
       </main>
