@@ -224,7 +224,9 @@ const Navbar = ({ user, onLogout }) => {
 
             {/* Account, pricing and the running session */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {showPricing ? (
+              {/* Signed in, plans and pricing live in the profile menu only;
+                  a signed-out visitor has no menu, so gets the button. */}
+              {!user ? (
                 <Link
                   href="/pricing"
                   className="inline-flex items-center px-3 py-1.5 rounded-lg border border-accent/40 bg-accent-soft text-accent text-xs font-semibold hover:bg-accent hover:text-accent-fg transition-colors"
@@ -343,7 +345,7 @@ const Navbar = ({ user, onLogout }) => {
 };
 
 // NavLink Component for desktop navigation items. The tabs have to share the
-// bar with the logo, Pricing, the running timer and the account, so they are
+// bar with the logo, the running timer and the account, so they are
 // icons on a tablet (md), labels on a small laptop (lg) and both from xl up.
 const NavLink = ({ href, label, Icon, locked = false }) => {
   const pathname = usePathname();

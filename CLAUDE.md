@@ -684,8 +684,9 @@ README.md has the commands.
   and answer 404, not 403, to anyone else; `/admin` renders `notFound()`.
 - Account things (Settings, the admin page, the view-as switcher, pricing)
   belong in `src/components/nav/UserMenu.jsx`, not in `NAV_ITEMS`: the main
-  menu is for the app's screens. The Pricing button shows for anyone not on
-  Premium; the welcome page has no navbar, so it carries its own link.
+  menu is for the app's screens. "Plans and pricing" is in that menu for
+  anyone not on Premium, and nowhere else in a signed-in navbar; only a
+  signed-out visitor (who has no menu) gets a Pricing button in the bar.
 - The browser learns its role from `GET /api/me` through `AccessProvider`
   (`src/lib/access/client.js`, mounted in the root layout); components call
   `useAccess()` / `useFeatureGate()`. The admin bar (`ViewAsBar`) and the
