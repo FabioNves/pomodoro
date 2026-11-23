@@ -12,18 +12,16 @@ import Navbar from "@/components/Navbar";
 import TimerControls from "@/components/TimerControls";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import WeekCalendar from "@/components/weekplan/WeekCalendar";
-import Dropdown from "@/components/ui/Dropdown";
 import { useWeekPlanTasks } from "@/hooks/useWeekPlanTasks";
 import { apiJson } from "@/utils/apiClient";
 import { useTimerControls } from "@/components/timer/TimerProvider";
 import { notebookApi } from "@/lib/notebook/client";
 import { COLOR_PALETTES } from "@/lib/habitPalettes";
-import { projectOptions, getProjectColorMeta } from "@/lib/projectColors";
+import { getProjectColorMeta } from "@/lib/projectColors";
 import {
   dayTasksForPlan,
   routineColorMap,
   makeProjectResolver,
-  idOf,
 } from "@/lib/weekPlanView";
 import { getWeekStartOf, dayIndexOf, weekLabel } from "@/utils/timeUtils";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
@@ -42,24 +40,13 @@ const ROUTES = {
   quotes: "/notebook?view=quotes",
 };
 
-function loadActiveProject() {
-  try {
-    const saved = localStorage.getItem("activeProject");
-    if (!saved) return { projectId: "", title: "" };
-    const parsed = JSON.parse(saved);
-    return { projectId: parsed?.projectId || "", title: parsed?.title || "" };
-  } catch {
-    return { projectId: "", title: "" };
-  }
-}
-
 // Today plus the next two days, when the calendar card is widened.
 const CALENDAR_EXPANDED_DAYS = 3;
 const CALENDAR_WIDTH_KEY = "dashboardCalendarExpanded";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { setSessionContext, completedAt } = useTimerControls();
+  const { completedAt } = useTimerControls();
   const [user, setUser] = useState(null);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -77,13 +64,6 @@ export default function DashboardPage() {
   const [quotesReady, setQuotesReady] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // Same persisted selection the timer page uses, so both stay in sync.
-  const [activeProject, setActiveProject] = useState({
-    projectId: "",
-    title: "",
-  });
-  // What is being worked on: a todo, a routine task, or a typed name.
-  const [activeTask, setActiveTask] = useState("");
   // Calendar card width, remembered per device.
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
@@ -101,7 +81,6 @@ export default function DashboardPage() {
   useEffect(() => {
     setHasMounted(true);
     requestNotificationPermission();
-    setActiveProject(loadActiveProject());
     try {
       setCalendarExpanded(localStorage.getItem(CALENDAR_WIDTH_KEY) === "1");
     } catch {}
@@ -238,27 +217,10 @@ export default function DashboardPage() {
   }, [weekStart]);
 
   /* ── timer ────────────────────────────────────────── */
-  const chooseProject = (projectId) => {
-    const p = projects.find((x) => String(x._id) === projectId);
-    const next = p ? { projectId: String(p._id), title: p.name } : { projectId: "", title: "" };
-    setActiveProject(next);
-    setActiveTask(""); // tasks belong to a project
-    try {
-      localStorage.setItem("activeProject", JSON.stringify(next));
-    } catch {}
-  };
-
   // The countdown runs in the provider mounted in the root layout, so it
-  // keeps going on any page. This only says what the session is about and
-  // refreshes the lists once one is saved.
-  useEffect(() => {
-    setSessionContext({
-      projectId: activeProject.projectId,
-      title: activeProject.title,
-      tasks: activeTask ? [{ task: activeTask, completed: false }] : [],
-    });
-  }, [activeProject, activeTask, setSessionContext]);
-
+  // keeps going on any page; what the session is about is the run's own
+  // context, set by the timer's "working on" picker. This only refreshes
+  // the lists once a session is saved.
   useEffect(() => {
     if (completedAt) refreshSessions();
   }, [completedAt, refreshSessions]);
@@ -270,74 +232,9 @@ export default function DashboardPage() {
 
   if (!hasMounted || !user) return <BrandLoader screen />;
 
-  // Optional project + task row under the timer controls, inside the panel.
-  const activeProjectId = activeProject.projectId;
-  const taskGroups = activeProjectId
-    ? [
-        {
-          key: "todo",
-          label: "Tasks",
-          options: tasks
-            .filter(
-              (t) =>
-                !t.completed && String(idOf(t.project)) === String(activeProjectId),
-            )
-            .map((t) => ({ value: t.title, label: t.title })),
-        },
-        {
-          key: "routine",
-          label: "Routines",
-          options: routineTasks
-            .filter(
-              (rt) => String(idOf(rt.project)) === String(activeProjectId),
-            )
-            .map((rt) => ({
-              value: rt.title,
-              label: rt.title,
-              color: rt.color || undefined,
-              hint: rt.estimatedTime ? `${rt.estimatedTime} min` : undefined,
-            })),
-        },
-      ]
-    : [];
-
-  const projectPicker = (
-    <div className="flex flex-wrap items-center justify-center gap-2">
-      <Dropdown
-        id="dashboard-project"
-        label="Project"
-        value={activeProjectId}
-        options={[
-          { value: "", label: "No project" },
-          ...projectOptions(projects),
-        ]}
-        onChange={chooseProject}
-        placeholder="Optional"
-        tone="primary"
-        align="center"
-        menuLabel="Project"
-      />
-      {activeProjectId ? (
-        <Dropdown
-          id="dashboard-task"
-          label="Task"
-          value={activeTask}
-          groups={taskGroups}
-          onChange={(v) => setActiveTask(v)}
-          placeholder="Optional"
-          tone="accent"
-          align="center"
-          menuLabel="Task"
-          custom={{ type: "text", label: "Custom", placeholder: "Task name" }}
-        />
-      ) : null}
-    </div>
-  );
-
+  // The timer's "working on" picker reuses the lists loaded above.
   const timerSlot = (
-    <TimerControls
-      extra={projectPicker}
-    />
+    <TimerControls session={{ projects, tasks, routineTasks }} />
   );
 
   // Today's column of the week calendar, with the same add / drag flow.
@@ -401,7 +298,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="min-h-screen transition-colors duration-300">
+    <div className="flex-1 transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pb-8">
         <DashboardOverview

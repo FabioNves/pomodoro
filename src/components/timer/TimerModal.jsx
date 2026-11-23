@@ -31,7 +31,7 @@ export default function TimerModal({ open, onClose }) {
   }, [open]);
   return (
     <ModalShell open={open} onClose={onClose} title="Focus timer" size="md">
-      <div ref={contentRef}><TimerControls quick /></div>
+      <div ref={contentRef}><TimerControls quick session /></div>
     </ModalShell>
   );
 }

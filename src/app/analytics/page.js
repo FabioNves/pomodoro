@@ -292,7 +292,7 @@ const Analytics = () => {
   };
 
   return (
-    <div className="w-screen min-h-screen flex flex-col justify-start items-center gap-4 overflow-y-auto transition-colors duration-300">
+    <div className="w-screen flex-1 flex flex-col justify-start items-center gap-4 overflow-y-auto transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <LockedScreen feature="analytics" title="Analytics" description="Weekly, monthly and yearly focus statistics.">
       <h1 className="text-3xl font-bold py-4 bg-gradient-to-r from-gradient-start to-gradient-end bg-clip-text text-transparent">

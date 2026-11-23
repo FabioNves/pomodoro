@@ -94,7 +94,7 @@ function OperationsInner({ user, onLogout }) {
     );
 
   return (
-    <div className="w-screen min-h-screen transition-colors duration-300">
+    <div className="w-screen flex-1 transition-colors duration-300">
       <Navbar user={user} onLogout={onLogout} />
 
       {/* Phones: the sections as a strip above the content. */}

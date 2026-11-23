@@ -11,13 +11,20 @@ export const WEEK_STARTS = [
   { id: "sunday", name: "Sunday", hint: "Sunday to Saturday" },
 ];
 
-export const DEFAULT_WEEK_SETTINGS = { weekStartsOn: "monday" };
+export const DEFAULT_WEEK_SETTINGS = {
+  weekStartsOn: "monday",
+  // The calendar labels and lines every half hour (01:30, 02:30, …), not
+  // only the hours.
+  showHalfHours: true,
+};
 
 export function normaliseWeekSettings(raw) {
   const s = { ...DEFAULT_WEEK_SETTINGS, ...(raw && typeof raw === "object" ? raw : {}) };
   if (!WEEK_STARTS.some((w) => w.id === s.weekStartsOn)) {
     s.weekStartsOn = DEFAULT_WEEK_SETTINGS.weekStartsOn;
   }
+  s.showHalfHours =
+    typeof s.showHalfHours === "boolean" ? s.showHalfHours : DEFAULT_WEEK_SETTINGS.showHalfHours;
   return s;
 }
 

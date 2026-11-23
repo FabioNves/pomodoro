@@ -158,7 +158,7 @@ const PomodoroTimer = () => {
   if (!hasMounted) return null;
 
   return (
-    <div className="min-h-screen text-fg p-4">
+    <div className="text-fg p-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col items-center gap-8">
           {/* Header */}

@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld("pomodrive", {
     },
   },
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
+  // A timer notification with buttons (see showTimerNotification in main.js).
+  notify: (payload) => ipcRenderer.invoke("timer-notify", payload),
   getLaunchUrl: () => ipcRenderer.invoke("get-launch-url"),
   onDeepLink: (handler) => {
     const listener = (_event, url) => handler(url);

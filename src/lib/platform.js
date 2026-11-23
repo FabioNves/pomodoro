@@ -109,6 +109,19 @@ export async function openExternal(url) {
  * Subscribe to deep links (pomodrive://...). The handler also receives the
  * link the app was launched with, if any. Returns an unsubscribe function.
  */
+/**
+ * Desktop app only: a notification with buttons, drawn by the main process
+ * (a Windows toast). Resolves false where it is not available.
+ */
+export async function showDesktopNotification(payload) {
+  if (getPlatform() !== "electron" || typeof window.pomodrive?.notify !== "function") return false;
+  try {
+    return Boolean(await window.pomodrive.notify(payload));
+  } catch {
+    return false;
+  }
+}
+
 export function onDeepLink(handler) {
   const platform = getPlatform();
 

@@ -3460,7 +3460,7 @@ function PlannerPageInner() {
           : renderScheduleMain("list");
 
   return (
-    <div className="w-screen min-h-screen transition-colors duration-300">
+    <div className="w-screen flex-1 transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
 
       {/* Phones have no room for the sidebar, so the section it is on and the

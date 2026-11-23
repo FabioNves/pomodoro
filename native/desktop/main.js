@@ -18,6 +18,7 @@ const {
   Tray,
   Menu,
   dialog,
+  Notification,
 } = require("electron");
 const { createVoiceService } = require('./voice.cjs');
 const { createLocalAI } = require('./local-ai.cjs');
@@ -178,6 +179,13 @@ function extractDeepLink(argv) {
 
 function deliverDeepLink(url) {
   if (!url) return;
+  // A timer button in a notification (pomodrive://timer?action=pause) acts
+  // in the background: the window is not brought to the front for it.
+  const timerAction = url.startsWith(`${DEEP_LINK_SCHEME}://timer?action=`) && !url.endsWith("action=open");
+  if (timerAction && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("deep-link", url);
+    return;
+  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
     if (mainWindow.isMinimized()) mainWindow.restore();
@@ -331,6 +339,49 @@ ipcMain.handle("open-external", (_event, url) => {
     return shell.openExternal(url);
   }
   return undefined;
+});
+/* ── timer notifications with buttons ────────────────────────────────── */
+// Windows shows buttons only from a toast written as XML; each button opens
+// a pomodrive://timer?action=… link, which comes back through
+// second-instance → deliverDeepLink → the "deep-link" event the page reads.
+// macOS uses the native `actions`; elsewhere a click just opens the window.
+
+const TIMER_ACTIONS = new Set(["pause", "resume", "start-break", "start-focus", "end"]);
+let timerToast = null;
+const xmlText = (v) =>
+  String(v ?? "").replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]);
+
+function showTimerNotification({ title, body, actions }) {
+  if (!Notification.isSupported()) return false;
+  const buttons = (Array.isArray(actions) ? actions : [])
+    .filter((a) => a && TIMER_ACTIONS.has(a.id) && typeof a.label === "string")
+    .slice(0, 3);
+  const link = (action) => `${DEEP_LINK_SCHEME}://timer?action=${action}`;
+  timerToast?.close();
+  let toast;
+  if (process.platform === "win32") {
+    const xml = `<toast activationType="protocol" launch="${xmlText(link("open"))}" scenario="reminder">
+  <visual><binding template="ToastGeneric"><text>${xmlText(title)}</text><text>${xmlText(body)}</text></binding></visual>
+  <actions>${buttons.map((b) => `<action content="${xmlText(b.label)}" activationType="protocol" arguments="${xmlText(link(b.id))}"/>`).join("")}</actions>
+</toast>`;
+    toast = new Notification({ toastXml: xml });
+  } else {
+    toast = new Notification({
+      title: String(title || ""),
+      body: String(body || ""),
+      actions: buttons.map((b) => ({ type: "button", text: b.label })),
+    });
+    toast.on("action", (_e, index) => buttons[index] && deliverDeepLink(link(buttons[index].id)));
+  }
+  toast.on("click", () => deliverDeepLink(link("open")));
+  toast.show();
+  timerToast = toast;
+  return true;
+}
+
+ipcMain.handle("timer-notify", (event, payload) => {
+  trustedSender(event);
+  return showTimerNotification(payload || {});
 });
 ipcMain.handle("get-launch-url", () => {
   const url = launchUrl;

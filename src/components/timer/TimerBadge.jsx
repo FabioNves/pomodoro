@@ -18,8 +18,8 @@ export default function TimerBadge({ className = "" }) {
   const paused = active && !run.running;
   const label = onBreak ? "Break" : "Focus";
   const tone = onBreak ? "text-success" : "text-accent";
-  // Already on the dashboard: the panel is right there, so this is a status
-  // read-out rather than a link.
+  // On the dashboard the panel is right there, so an idle badge is left out;
+  // a running one still opens the timer like everywhere else.
   const here = pathname === "/dashboard";
 
   const body = (
@@ -39,13 +39,6 @@ export default function TimerBadge({ className = "" }) {
   const title = `${paused ? `${label} paused` : `${label} running`} · ${formatTimer(seconds, "verbose")} left`;
 
   if (here && !active) return null;
-  if (here) {
-    return (
-      <span className={classes} title={title} aria-label={title} data-testid="timer-badge">
-        {body}
-      </span>
-    );
-  }
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} disabled={!ready} className={`${classes} hover:border-edge-strong`} title={active ? `${title} · open timer` : "Open focus timer"} aria-label="Open focus timer" aria-haspopup="dialog" aria-expanded={open} data-testid="timer-badge">

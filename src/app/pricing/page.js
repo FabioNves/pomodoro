@@ -169,7 +169,7 @@ export default function PricingPage() {
   const orderedFeatures = data ? groups.flatMap((g) => data.features.filter((f) => f.group === g)) : [];
 
   return (
-    <div className="w-screen min-h-screen transition-colors duration-300">
+    <div className="w-screen flex-1 transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="container mx-auto px-4 pb-12 max-w-4xl">
         <div className="mb-6 text-center">

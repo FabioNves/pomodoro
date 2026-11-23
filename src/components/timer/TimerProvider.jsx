@@ -21,7 +21,8 @@ import toast from "react-hot-toast";
 import { useTimerSettings } from "@/hooks/useTimerSettings";
 import { createSoundKit } from "@/utils/sounds";
 import { apiJson } from "@/utils/apiClient";
-import { showNotification } from "@/utils/notifications";
+import { TIMER_ACTIONS, onTimerNotificationAction, showTimerNotification } from "@/utils/notifications";
+import { formatTimer } from "@/lib/timerSettings";
 import {
   TIMER_RUN_KEY,
   blankRun,
@@ -68,6 +69,42 @@ function sessionTask(task, label) {
     ...(text ? { task: text.slice(0, 200) } : {}),
     completed: Boolean(task?.completed),
     brand: { title: label },
+  };
+}
+
+
+/* ── notifications with buttons ─────────────────────────── */
+
+const { pause: A_PAUSE, resume: A_RESUME, startBreak: A_BREAK, startFocus: A_FOCUS, end: A_END } = TIMER_ACTIONS;
+
+/**
+ * The notification describing a run as it stands, with the buttons that
+ * make sense next: pause or resume, start the break, and stop (during the
+ * focus, saving nothing, like Reset) or end the session (after it, saving
+ * it, like Finish).
+ */
+function stateNotification(run, { title } = {}) {
+  const left = formatTimer(secondsLeft(run), "digital");
+  const about = run.context?.tasks?.[0]?.task || run.context?.title || "";
+  const on = about ? ` · ${about}` : "";
+  if (run.phase === "focus") {
+    return {
+      title: title || (run.running ? "Focus running" : "Focus paused"),
+      body: `${left} left${on}`,
+      actions: [
+        run.running ? { id: A_PAUSE, label: "Pause" } : { id: A_RESUME, label: "Resume" },
+        { id: A_END, label: "Stop" },
+      ],
+    };
+  }
+  const waiting = !run.running && !run.breakStarted;
+  return {
+    title: title || (waiting ? "Focus complete" : run.running ? "Break running" : "Break paused"),
+    body: waiting ? `${run.focusMinutes} minutes of focus done${on}` : `${left} of break left${on}`,
+    actions: [
+      waiting ? { id: A_BREAK, label: "Start break" } : run.running ? { id: A_PAUSE, label: "Pause" } : { id: A_RESUME, label: "Resume" },
+      { id: A_END, label: "End session" },
+    ],
   };
 }
 
@@ -188,9 +225,10 @@ export function TimerProvider({ children }) {
         }),
       });
       toast.success(`Saved a ${finished.focusMinutes}-minute session on ${on}.`);
-      showNotification("🎯 Session Completed!", {
+      showTimerNotification({
+        title: "🎯 Session completed!",
         body: `Great work! You completed a ${finished.focusMinutes}-minute focus session on ${on}.`,
-        icon: "/favicon.ico",
+        actions: [{ id: A_FOCUS, label: "Start focus" }],
       });
       setCompletedAt(Date.now());
     } catch (error) {
@@ -243,12 +281,9 @@ export function TimerProvider({ children }) {
       const auto = settingsRef.current.autoStartBreak && ended.breakMinutes > 0;
       commit(auto ? startBreakOn(ended) : ended);
       if (auto) soundsRef.current.breakStart();
-      showNotification("🎉 Focus Session Complete!", {
-        body: auto
-          ? `Nice work. Your ${ended.breakMinutes}-minute break has started.`
-          : `Great job! You completed ${current.focusMinutes} minutes of focused work.`,
-        icon: "/favicon.ico",
-      });
+      showTimerNotification(stateNotification(runRef.current, {
+        title: auto ? "🎉 Focus complete, break started" : "🎉 Focus complete!",
+      }));
       return;
     }
 
@@ -335,6 +370,32 @@ export function TimerProvider({ children }) {
       },
     };
   }, [commit, completeSession, freshRun]);
+
+  /* ── buttons in the notifications ───────────────────── */
+  // Pressed in Windows (or any desktop) while the page may be in the
+  // background. Each press answers with a fresh notification for the new
+  // state, so the timer can be paused and resumed from there alone.
+  useEffect(() => {
+    return onTimerNotificationAction((id) => {
+      const r = runRef.current;
+      if (!r) return;
+      if (id === A_END) {
+        if (r.focusEnded) controls.finish(); // saves, and notifies with "Start focus"
+        else if (isActiveRun(r)) {
+          controls.reset();
+          showTimerNotification({ title: "Timer stopped", body: "Nothing was saved.", actions: [{ id: A_FOCUS, label: "Start focus" }] });
+        }
+        return;
+      }
+      if (id === A_PAUSE && r.running) controls.pause();
+      else if ((id === A_RESUME || id === A_BREAK || id === A_FOCUS) && !r.running) {
+        if (r.focusEnded) controls.startBreak();
+        else controls.start();
+      }
+      const next = runRef.current;
+      if (next && next !== r) showTimerNotification(stateNotification(next));
+    });
+  }, [controls]);
 
   const controlValue = useMemo(() => ({ ...controls, completedAt }), [controls, completedAt]);
 

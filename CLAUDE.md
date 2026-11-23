@@ -397,7 +397,18 @@ README.md has the commands.
   `src/lib/weekSettings.js` (`useWeekSettings()` in components). Never
   assume Monday: use `getWeekStartOf()`, `dayIndexOf()`, `weekDates()`,
   `weekDayLabels()` and `weeksOfYear()` from `src/utils/timeUtils.js`, and
-  derive day names from a plan's real dates. A `WeekPlan.weekStart` is the
+  derive day names from a plan's real dates. The same module holds
+  `showHalfHours` (on by default, Settings > Planner): `WeekCalendar` then
+  labels 00:30, 01:30, … and draws a fainter line between the hours. An hour is
+  `HOUR_PX` (60) tall. The "No time yet" label folds that row to one slim
+  line showing a count per day (`pomo.calendarStripCollapsed`, per device);
+  tasks can still be dropped on it.
+- Adding a task to the calendar (a dragged range, a day's "no time yet" +)
+  or to the planner's week grid opens `AddTaskPopover` from
+  `src/components/weekplan/AddTaskDialog.jsx`: a centred dialog with the
+  projects down the side and Cycles / Tasks / New tabs. Each cycle shows how
+  often it runs (`describeRoutineSchedule()`). It calls `onAdd` with the
+  same payloads the calendar always took. A `WeekPlan.weekStart` is the
   first day of that plan's week (whatever the setting was when it was
   created); `days[i].dayOfWeek` is the offset from it. The planner sidebar
   (`WeekPicker`) lists every week of a year and creates a plan on click, so
@@ -587,6 +598,33 @@ README.md has the commands.
 - With a 0-minute break there is nothing after the focus, so the provider
   saves the session the moment the focus ends and goes back to idle,
   without waiting for "Finish session".
+- What the session is about (project + task) is picked in the timer itself
+  with `SessionPicker` (`src/components/timer`), which reads and writes the
+  run's own context (`useSessionChoice()`), so the dashboard and the navbar
+  timer show the same choice. `TimerControls session` loads the lists itself
+  (navbar modal); `session={{ projects, tasks, routineTasks }}` reuses a
+  screen's lists (dashboard). Do not keep a project/task selection in page
+  state next to it.
+- `TimerPanel` puts every control in one glass bar under the clock: the
+  primary action, focus + break as one control (`DurationPicker`), reset
+  and restart as small icons named in a tooltip, and "working on" first in
+  the row, taking its free width. The bar is a size container: on a narrow
+  one the play button keeps only its icon and the
+  task name is left out. Pickers open in `TimerPopover`, which closes on
+  Escape without closing the modal underneath.
+- Timer notifications carry buttons (`showTimerNotification()` and
+  `onTimerNotificationAction()` in `src/utils/notifications.js`): Pause /
+  Resume, Start break, Start focus, and Stop (during the focus, saving
+  nothing) or End session (after it, saving). On the website they are
+  service-worker notifications (`public/sw.js` passes a press to an open
+  tab as `{ type: "timer-action" }`); in the desktop app the main process
+  shows a Windows toast (`showTimerNotification` in `native/desktop/main.js`)
+  whose buttons open `pomodrive://timer?action=…`, delivered without
+  bringing the window forward. Each press answers with a notification for
+  the new state (`stateNotification()` in `TimerProvider`).
+- `TimerBadge` opens the timer modal on every screen, the dashboard
+  included, while a session runs or is on break; only an idle badge is
+  left out on the dashboard, where the panel is right there.
 - The timer is reached from the dashboard, not from the navbar: `NAV_ITEMS`
   in `src/components/Navbar.jsx` deliberately has no Timer entry, and
   `TimerBadge` is the way back to a running session.
@@ -677,6 +715,12 @@ README.md has the commands.
   animate.
 
 ## Layout
+
+- The root layout's box (`app-bg … min-h-screen flex flex-col`) already
+  leaves room for the fixed navbar (top padding) and the phone tab bar
+  (bottom padding). A page's root takes `flex-1`, never `min-h-screen`:
+  a full screen height inside that padding makes every short page scroll by
+  exactly the navbar's height.
 
 - `src/` shared frontend plus API routes (the website)
 - `src/proxy.js` CORS so the app shells can call the API

@@ -3,7 +3,7 @@
 // API; the mobile app uses native local notifications, because Android's
 // WebView has no Notification API at all.
 
-import { getPlatform } from "@/lib/platform";
+import { DEEP_LINK_SCHEME, getPlatform, onDeepLink, showDesktopNotification } from "@/lib/platform";
 
 async function nativeNotifications() {
   const { LocalNotifications } = await import("@capacitor/local-notifications");
@@ -50,18 +50,8 @@ export const showNotification = (title, options = {}) => {
     return undefined;
   }
 
-  // `actions` and the callback props are only meaningful for persistent
-  // (service-worker) notifications. Passing `actions` to the plain
-  // Notification constructor throws a TypeError, which would abort whatever
-  // called us (e.g. the focus-end handler before it can play the alarm), so
-  // keep them out of the constructor.
-  const {
-    actions,
-    onClick,
-    onStartBreak,
-    onFinishSession,
-    ...notificationOptions
-  } = options;
+  // Buttons need a service-worker notification: see showTimerNotification.
+  const { actions: _actions, onClick, ...notificationOptions } = options;
 
   let notification;
   try {
@@ -88,24 +78,6 @@ export const showNotification = (title, options = {}) => {
     }
   };
 
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.addEventListener(
-      "notificationclick",
-      function (event) {
-        event.preventDefault();
-        window.focus();
-
-        if (event.action === "start-break" && onStartBreak) {
-          onStartBreak();
-        } else if (event.action === "finish-session" && onFinishSession) {
-          onFinishSession();
-        }
-
-        event.notification.close();
-      }
-    );
-  }
-
   setTimeout(() => {
     if (notification) {
       notification.close();
@@ -114,3 +86,77 @@ export const showNotification = (title, options = {}) => {
 
   return notification;
 };
+
+/* ── timer notifications with buttons ──────────────────── */
+
+// The buttons a timer notification can carry. The ids travel through the
+// service worker (website) or a pomodrive://timer?action= link (desktop
+// app), and TimerProvider maps them onto its controls.
+export const TIMER_ACTIONS = {
+  pause: "pause",
+  resume: "resume",
+  startBreak: "start-break",
+  startFocus: "start-focus",
+  end: "end",
+};
+const ACTION_IDS = new Set(Object.values(TIMER_ACTIONS));
+const TIMER_TAG = "pomodrive-timer";
+
+/**
+ * A timer notification with up to two buttons ({ id, label }):
+ *  - desktop app: a Windows toast from the main process;
+ *  - website: a service-worker notification (Chrome and Edge show the
+ *    buttons; elsewhere it is a plain notification);
+ *  - phone app, or no service worker: the plain notification, no buttons.
+ */
+export async function showTimerNotification({ title, body = "", actions = [] }) {
+  const buttons = actions.filter((a) => ACTION_IDS.has(a.id)).slice(0, 2);
+  const platform = getPlatform();
+  if (platform === "electron") {
+    if (await showDesktopNotification({ title, body, actions: buttons })) return;
+  }
+  if (platform === "web" && "serviceWorker" in navigator && "Notification" in window && Notification.permission === "granted") {
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.showNotification(title, {
+          body,
+          icon: "/favicon.ico",
+          badge: "/favicon.ico",
+          tag: TIMER_TAG,
+          renotify: true,
+          requireInteraction: true,
+          actions: buttons.map((b) => ({ action: b.id, title: b.label })),
+          data: { timer: true },
+        });
+        return;
+      }
+    } catch (error) {
+      console.error("Timer notification failed, falling back:", error);
+    }
+  }
+  showNotification(title, { body });
+}
+
+/** Calls `handler(actionId)` when a timer notification's button is pressed. Returns an unsubscribe. */
+export function onTimerNotificationAction(handler) {
+  if (typeof window === "undefined") return () => {};
+  const platform = getPlatform();
+  if (platform === "electron") {
+    const prefix = `${DEEP_LINK_SCHEME}://timer?action=`;
+    return onDeepLink((url) => {
+      if (typeof url !== "string" || !url.startsWith(prefix)) return;
+      const id = url.slice(prefix.length);
+      if (ACTION_IDS.has(id)) handler(id);
+    });
+  }
+  if (platform === "web" && "serviceWorker" in navigator) {
+    const onMessage = (event) => {
+      const data = event.data;
+      if (data?.type === "timer-action" && ACTION_IDS.has(data.action)) handler(data.action);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }
+  return () => {};
+}

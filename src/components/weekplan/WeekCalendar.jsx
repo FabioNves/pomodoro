@@ -19,7 +19,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AddTaskPopover,
   TaskEditPopover,
   TaskColorLines,
   IconCheck,
@@ -34,16 +33,22 @@ import {
   taskDuration,
   useNotesPeek,
 } from "./WeekPlanShared";
+import AddTaskPopover from "./AddTaskDialog";
 import { endExternalDrag, externalDrag, isExternalTaskDrag } from "@/lib/plannerDrag";
 import { dayShortName, weekDates, weekDayLabels } from "@/utils/timeUtils";
 import { useWeekSettings } from "@/hooks/useWeekSettings";
 
-const HOUR_PX = 48; // height of one hour row
+const HOUR_PX = 60; // height of one hour row (15 px per 15-minute step)
 const SNAP = 15; // minutes
 const DAY_MINUTES = 24 * 60;
 const MIN_BLOCK = 15;
 const CLICK_BLOCK = 60; // plain click (no drag) selects this many minutes
 const INITIAL_SCROLL_HOUR = 7;
+const STRIP_COLLAPSED_KEY = "pomo.calendarStripCollapsed";
+// Column background: a line every hour and, when the week setting asks for
+// half hours, a fainter dashed-looking one halfway.
+const HOUR_LINES = `repeating-linear-gradient(to bottom, color-mix(in oklab, var(--border) 70%, transparent) 0 1px, transparent 1px ${HOUR_PX}px)`;
+const HALF_HOUR_LINES = `repeating-linear-gradient(to bottom, transparent 0 ${HOUR_PX / 2}px, color-mix(in oklab, var(--border) 32%, transparent) ${HOUR_PX / 2}px ${HOUR_PX / 2 + 1}px, transparent ${HOUR_PX / 2 + 1}px ${HOUR_PX}px)`;
 const GUTTER_PX = 56;
 const RESIZE_REACH_PX = 4; // a resize edge also grabs this far outside the block
 
@@ -183,6 +188,7 @@ export default function WeekCalendar({
   // Day names come from the week's real dates (a plan may start on Monday
   // or Sunday); without a plan yet, from the "week starts on" setting.
   const { settings: weekSettings } = useWeekSettings();
+  const showHalfHours = weekSettings.showHalfHours;
   const dayNames = useMemo(
     () =>
       weekPlan?.weekStart
@@ -215,6 +221,22 @@ export default function WeekCalendar({
   useEffect(() => () => edgeScrollRef.current?.stop(), []);
 
   const [addingStripDay, setAddingStripDay] = useState(null);
+  // The "no time yet" row can be folded to one slim line, per device.
+  const [stripCollapsed, setStripCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setStripCollapsed(localStorage.getItem(STRIP_COLLAPSED_KEY) === "1");
+    } catch {}
+  }, []);
+  const toggleStrip = useCallback(() => {
+    setAddingStripDay(null);
+    setStripCollapsed((was) => {
+      try {
+        localStorage.setItem(STRIP_COLLAPSED_KEY, was ? "0" : "1");
+      } catch {}
+      return !was;
+    });
+  }, []);
   const [editingKey, setEditingKey] = useState(null);
 
   // The details of the task under the pointer (project, time, notes with a
@@ -286,6 +308,8 @@ export default function WeekCalendar({
       ),
     [dayTasks],
   );
+  // Shown on the folded "no time yet" label: untimed tasks on the days in view.
+  const stripTotal = visibleDays.reduce((n, d) => n + (stripByDay[d]?.length || 0), 0);
 
   // The project the task shows under: its own, or that of its cycle.
   const projectIdFor = useCallback(
@@ -933,11 +957,33 @@ export default function WeekCalendar({
               })}
             </div>
 
-            {/* Unscheduled strip */}
+            {/* Unscheduled strip (folds to one slim line) */}
             <div className="grid border-t border-edge" style={gridCols}>
-              <div className="px-2 py-1.5 text-[10px] leading-tight text-fg-subtle flex items-center">
-                No time yet
-              </div>
+              <button
+                type="button"
+                onClick={toggleStrip}
+                aria-expanded={!stripCollapsed}
+                aria-label={stripCollapsed ? `No time yet${stripTotal ? `, ${stripTotal} tasks` : ""}` : "No time yet"}
+                title={stripCollapsed ? "No time yet: show these tasks" : "Hide tasks without a time"}
+                className={`group min-w-0 overflow-hidden ${stripCollapsed ? "px-1 py-1 gap-0.5 text-[9px]" : "px-1.5 py-1.5 gap-1 text-[10px]"} leading-tight text-fg-subtle hover:text-fg flex items-center text-left transition-colors`}
+              >
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className={`w-3 h-3 shrink-0 transition-transform ${stripCollapsed ? "-rotate-90" : ""}`}
+                  aria-hidden="true"
+                >
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+                {stripCollapsed ? (
+                  <>
+                    <span className="sr-only">No time yet</span>
+                    {stripTotal ? <span className="font-semibold tabular-nums">{stripTotal}</span> : null}
+                  </>
+                ) : (
+                  <span>No time yet</span>
+                )}
+              </button>
               {visibleDays.map((dayIdx) => {
                 const chips = stripByDay[dayIdx] || [];
                 const isOver = dragOverStrip === dayIdx;
@@ -946,7 +992,7 @@ export default function WeekCalendar({
                   <div
                     key={dayIdx}
                     data-strip-day={dayIdx}
-                    className={`min-h-[40px] px-1 py-1 border-l border-edge space-y-1 transition-colors ${
+                    className={`${stripCollapsed ? "min-h-[24px] flex items-center justify-center py-0.5" : "min-h-[40px] space-y-1 py-1"} px-1 border-l border-edge transition-colors ${
                       isOver ? "bg-primary-soft" : ""
                     }`}
                     onDragOver={(e) => handleStripDragOver(e, dayIdx)}
@@ -956,6 +1002,19 @@ export default function WeekCalendar({
                     }}
                     onDrop={(e) => handleStripDrop(e, dayIdx)}
                   >
+                    {stripCollapsed ? (
+                      chips.length ? (
+                        <button
+                          type="button"
+                          onClick={toggleStrip}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-2 border border-edge text-[10px] font-semibold text-fg-muted hover:text-fg hover:border-edge-strong transition-colors"
+                          title="Show tasks without a time"
+                        >
+                          {chips.length} {chips.length === 1 ? "task" : "tasks"}
+                        </button>
+                      ) : null
+                    ) : (
+                    <>
                     {chips.map((task) => renderStripChip(task, dayIdx))}
                     <div className="relative">
                       <button
@@ -979,12 +1038,15 @@ export default function WeekCalendar({
                           projectNameMap={projectNameMap}
                           projectColorMap={projectColorMap}
                           projectId={null}
+                          when={`${dayNames[dayIdx] || ""}${dayDates?.[dayIdx] ? ` ${dayDates[dayIdx]}` : ""} · no time yet`}
                           onAdd={(data) => onAddTask?.(dayIdx, data)}
                           onClose={() => setAddingStripDay(null)}
                           anchorRef={{ current: addBtnRefs.current[addKey] }}
                         />
                       ) : null}
                     </div>
+                    </>
+                    )}
                   </div>
                 );
               })}
@@ -995,17 +1057,26 @@ export default function WeekCalendar({
           <div className="grid" style={gridCols}>
             {/* Gutter */}
             <div className="relative" style={{ height: minuteToY(DAY_MINUTES) }}>
-              {Array.from({ length: 24 }, (_, h) =>
-                h === 0 ? null : (
-                  <div
-                    key={h}
-                    className="absolute right-2 -translate-y-1/2 text-[10px] text-fg-subtle tabular-nums"
-                    style={{ top: minuteToY(h * 60) }}
-                  >
-                    {String(h).padStart(2, "0")}:00
-                  </div>
-                ),
-              )}
+              {Array.from({ length: 24 }, (_, h) => (
+                <React.Fragment key={h}>
+                  {h === 0 ? null : (
+                    <div
+                      className="absolute right-2 -translate-y-1/2 text-[10px] text-fg-subtle tabular-nums"
+                      style={{ top: minuteToY(h * 60) }}
+                    >
+                      {String(h).padStart(2, "0")}:00
+                    </div>
+                  )}
+                  {showHalfHours ? (
+                    <div
+                      className="absolute right-2 -translate-y-1/2 text-[9px] text-fg-subtle/60 tabular-nums"
+                      style={{ top: minuteToY(h * 60 + 30) }}
+                    >
+                      {String(h).padStart(2, "0")}:30
+                    </div>
+                  ) : null}
+                </React.Fragment>
+              ))}
             </div>
 
             {visibleDays.map((dayIdx) => {
@@ -1036,7 +1107,7 @@ export default function WeekCalendar({
                   }`}
                   style={{
                     height: minuteToY(DAY_MINUTES),
-                    backgroundImage: `repeating-linear-gradient(to bottom, color-mix(in oklab, var(--border) 70%, transparent) 0 1px, transparent 1px ${HOUR_PX}px)`,
+                    backgroundImage: showHalfHours ? `${HOUR_LINES}, ${HALF_HOUR_LINES}` : HOUR_LINES,
                   }}
                   onMouseDown={(e) => handleColumnMouseDown(e, dayIdx)}
                   onDragOver={(e) => handleColumnDragOver(e, dayIdx)}
@@ -1096,6 +1167,8 @@ export default function WeekCalendar({
           projectNameMap={projectNameMap}
           projectColorMap={projectColorMap}
           projectId={null}
+          timed
+          when={`${dayNames[selection.day] || ""}${dayDates?.[selection.day] ? ` ${dayDates[selection.day]}` : ""} · ${timeRangeLabel(selection.start, selection.end)}`}
           onAdd={(data) =>
             onAddTask?.(selection.day, {
               ...data,

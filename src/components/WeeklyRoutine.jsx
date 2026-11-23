@@ -15,7 +15,6 @@ import {
   IconPlus,
   IconCheck,
   IconDotsVertical,
-  AddTaskPopover,
   TaskEditPopover,
   TaskColorLines,
   NotesButton,
@@ -23,6 +22,7 @@ import {
   projectOptionsFrom,
   useNotesPeek,
 } from "./weekplan/WeekPlanShared";
+import AddTaskPopover from "./weekplan/AddTaskDialog";
 import { datedTaskView } from "@/lib/calendarTasks.mjs";
 import WeekCalendar from "./weekplan/WeekCalendar";
 import { getProjectColorMeta } from "@/lib/projectColors";

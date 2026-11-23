@@ -58,7 +58,7 @@ export default function App() {
   // Show welcome page with public timer when logged out
   if (!user) {
     return (
-      <div className="min-h-screen overflow-hidden transition-colors duration-300">
+      <div className="flex-1 overflow-hidden transition-colors duration-300">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden">
           <motion.div

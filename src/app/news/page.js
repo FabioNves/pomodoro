@@ -43,7 +43,7 @@ export default function NewsPage() {
   if (!hasMounted || !user) return <BrandLoader screen />;
 
   return (
-    <div className="w-screen min-h-screen transition-colors duration-300">
+    <div className="w-screen flex-1 transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pb-8">
         <Suspense fallback={<BrandLoader />}>

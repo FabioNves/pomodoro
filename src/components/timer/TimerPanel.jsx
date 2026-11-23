@@ -1,116 +1,267 @@
 "use client";
 
-// Presentational timer box shared by the signed-in timer and the public one.
-// The parent owns the countdown state machine; this renders the face, the
-// duration pickers and the controls with soft motion.
+// Presentational timer box shared by the signed-in timer, the navbar timer
+// and the public one. The parent owns the countdown state machine; this
+// renders the face and, under it, one slim glass bar with every control:
+// the timing (focus + break as one control), the primary action, the rarely
+// used tools (reset, restart) as small icons named in a tooltip, and "working
+// on" when the screen passes `renderSession`:
+//
+//   [● Project › Task ▾ ……] [⏱ 25·5] | [Start] [tools]
 
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import TimerFace from "./TimerFace";
-import Dropdown from "@/components/ui/Dropdown";
-import { BREAK_PRESETS, FOCUS_PRESETS } from "@/lib/timerSettings";
+import DurationPicker from "./DurationPicker";
 
-const minuteOptions = (presets) =>
-  presets.map((p) => ({ value: p, label: `${p} min`, shortLabel: `${p}m` }));
-const FOCUS_OPTIONS = minuteOptions(FOCUS_PRESETS);
-const BREAK_OPTIONS = minuteOptions(BREAK_PRESETS);
+/* ── icons ─────────────────────────────────────────────── */
 
-const IconPlay = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+const IconPlay = ({ className = "w-4 h-4" }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
     <path d="M8 5.5v13a1 1 0 001.53.85l10-6.5a1 1 0 000-1.7l-10-6.5A1 1 0 008 5.5z" />
   </svg>
 );
-const IconPause = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+const IconPause = ({ className = "w-4 h-4" }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
     <rect x="6" y="5" width="4" height="14" rx="1" />
     <rect x="14" y="5" width="4" height="14" rx="1" />
   </svg>
 );
-const IconReset = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+const IconReset = ({ className = "w-3.5 h-3.5" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
     <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8" />
     <path d="M3 3v5h5" />
   </svg>
 );
-const IconCheck = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+const IconRestart = ({ className = "w-3.5 h-3.5" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="M4 5v14" />
+    <path d="M9 6.5v11a1 1 0 001.5.86l8.5-5.5a1 1 0 000-1.72l-8.5-5.5A1 1 0 009 6.5z" />
+  </svg>
+);
+const IconCheck = ({ className = "w-4 h-4" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
     <path d="M5 13l4 4L19 7" />
   </svg>
 );
-const IconCoffee = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+const IconCoffee = ({ className = "w-4 h-4" }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
     <path d="M17 8h1a4 4 0 010 8h-1M3 8h14v9a4 4 0 01-4 4H7a4 4 0 01-4-4V8zM6 2v2M10 2v2M14 2v2" />
   </svg>
 );
 
 const spring = { type: "spring", stiffness: 420, damping: 30 };
 
-function ActionButton({ variant = "primary", glow = false, children, ...rest }) {
-  const base =
-    "inline-flex items-center gap-2 rounded-full font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus/50 disabled:opacity-50 disabled:cursor-not-allowed";
-  const variants = {
-    primary:
-      "px-4 sm:px-7 py-2.5 sm:py-3 text-sm sm:text-base bg-accent hover:bg-accent-hover text-accent-fg",
-    warning:
-      "px-4 sm:px-7 py-2.5 sm:py-3 text-sm sm:text-base bg-warning hover:bg-warning-hover text-white",
-    success:
-      "px-4 sm:px-6 py-2.5 sm:py-3 text-sm bg-success hover:bg-success-hover text-white",
-    secondary:
-      "px-4 sm:px-6 py-2.5 sm:py-3 text-sm bg-primary hover:bg-primary-hover text-primary-fg",
-    ghost:
-      "px-4 sm:px-5 py-2.5 sm:py-3 text-sm bg-surface/70 hover:bg-surface-hover text-fg-muted hover:text-fg border border-edge",
-    danger:
-      "px-4 sm:px-5 py-2.5 sm:py-3 text-sm bg-surface/70 hover:bg-danger-soft text-fg-muted hover:text-danger border border-edge",
-  };
+const TONES = {
+  accent: "bg-accent hover:bg-accent-hover text-accent-fg",
+  success: "bg-success hover:bg-success-hover text-white",
+  warning: "bg-warning hover:bg-warning-hover text-white",
+  primary: "bg-primary hover:bg-primary-hover text-primary-fg",
+};
+const glowOf = (tone) => `0 0 26px color-mix(in oklab, var(--${tone}) 42%, transparent)`;
+
+/* ── what the buttons do in each state ─────────────────── */
+
+function primaryAction(p) {
+  if (!p.focusEnded) {
+    if (p.isRunning) return { key: "pause", label: "Pause", short: "Pause", Icon: IconPause, tone: "warning", onClick: p.onPause };
+    const resume = p.seconds < p.focusTime * 60;
+    return { key: "start", label: resume ? "Resume focus" : "Start focus", short: resume ? "Resume" : "Start", Icon: IconPlay, tone: "accent", glow: true, onClick: p.onStart };
+  }
+  if (p.breakTime > 0 && !p.breakEnded) {
+    if (p.isBreakRunning) return { key: "pause-break", label: "Pause break", short: "Pause", Icon: IconPause, tone: "warning", onClick: p.onPauseBreak };
+    const resume = p.seconds < p.breakTime * 60;
+    return { key: "break", label: resume ? "Resume break" : "Start break", short: resume ? "Resume" : "Break", Icon: IconCoffee, tone: "success", glow: true, onClick: p.onStartBreak };
+  }
+  return p.onFinish ? { key: "finish", label: p.finishLabel, short: "Finish", Icon: IconCheck, tone: "primary", onClick: p.onFinish } : null;
+}
+
+/** Finish once the focus is over (unless it already is the primary action). */
+function finishAction(p, primary) {
+  if (!p.focusEnded || !p.onFinish || primary?.key === "finish") return null;
+  return { label: p.finishLabel, onClick: p.onFinish };
+}
+
+/* ── buttons ───────────────────────────────────────────── */
+
+/** Small round tool with its name in a tooltip (reset, restart). */
+function ToolButton({ label, onClick, tone = "neutral", children }) {
+  const colours =
+    tone === "danger"
+      ? "text-fg-subtle hover:text-danger hover:bg-danger-soft hover:border-danger/40"
+      : "text-fg-subtle hover:text-fg hover:bg-surface-hover";
+  return (
+    <span className="relative inline-flex group/tip">
+      <motion.button
+        type="button"
+        onClick={onClick}
+        aria-label={label}
+        className={`w-8 h-8 grid place-items-center rounded-full border border-edge/70 bg-surface/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus/50 ${colours}`}
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.92 }}
+        transition={spring}
+      >
+        {children}
+      </motion.button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-md border border-edge bg-surface-2 px-2 py-1 text-[11px] font-medium text-fg opacity-0 shadow-lg transition-all duration-150 group-hover/tip:translate-y-0 group-hover/tip:opacity-100 group-has-[:focus-visible]/tip:translate-y-0 group-has-[:focus-visible]/tip:opacity-100"
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
+/** Finish (once the focus is over), restart and reset. */
+function tools(p, primary) {
+  const list = [];
+  const finish = finishAction(p, primary);
+  if (finish) {
+    list.push(
+      <motion.button
+          key="finish"
+          type="button"
+          onClick={finish.onClick}
+          aria-label={finish.label}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-primary/40 bg-primary-soft text-primary text-xs font-semibold hover:bg-primary hover:text-primary-fg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus/50"
+          whileTap={{ scale: 0.95 }}
+          transition={spring}
+        >
+          <IconCheck className="w-3.5 h-3.5" /> Finish
+        </motion.button>,
+    );
+  }
+  if (p.focusLocked && p.onRestart && !p.focusEnded) {
+    list.push(
+      <ToolButton key="restart" label="Restart focus" onClick={p.onRestart}>
+        <IconRestart />
+      </ToolButton>,
+    );
+  }
+  if (p.focusLocked && p.showReset) {
+    list.push(
+      <ToolButton key="reset" label="Reset timer" onClick={p.onReset} tone="danger">
+        <IconReset />
+      </ToolButton>,
+    );
+  }
+  return list;
+}
+
+/** Pill-shaped primary button with its label. */
+function PrimaryPill({ action, block = false, short = false }) {
+  // In the bar (a size container) a narrow phone keeps only the icon.
+  const pad = short ? "px-3 @min-[24rem]:px-4" : "px-5";
+  if (!action) return null;
+  const { Icon } = action;
   return (
     <motion.button
       type="button"
-      className={`${base} ${variants[variant]}`}
-      style={glow ? { boxShadow: "0 0 28px color-mix(in oklab, var(--accent) 45%, transparent)" } : undefined}
-      whileHover={{ scale: 1.04, y: -1 }}
+      onClick={action.onClick}
+      aria-label={action.label}
+      className={`inline-flex items-center justify-center gap-2 h-10 ${pad} rounded-full text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus/50 ${TONES[action.tone]} ${block ? "w-full" : ""}`}
+      style={action.glow ? { boxShadow: glowOf(action.tone) } : undefined}
+      whileHover={{ scale: 1.03 }}
       whileTap={{ scale: 0.96 }}
       transition={spring}
       layout
-      {...rest}
     >
-      {children}
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span
+          key={action.key}
+          className="inline-flex items-center gap-2"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.15 }}
+        >
+          <Icon />
+          {short ? <span className="hidden @min-[24rem]:inline">{action.short}</span> : action.label}
+        </motion.span>
+      </AnimatePresence>
     </motion.button>
   );
 }
 
-export default function TimerPanel({
-  settings,
-  sounds,
-  // state
-  phase = "focus", // "focus" | "break"
-  seconds,
-  total,
-  isRunning,
-  isBreakRunning,
-  focusEnded,
-  breakEnded = false,
-  focusTime,
-  breakTime,
-  focusLocked,
-  breakLocked,
-  // handlers
-  onFocusTime,
-  onBreakTime,
-  onStart,
-  onPause,
-  onReset,
-  onStartBreak,
-  onPauseBreak,
-  onFinish,
-  finishLabel = "Finish session",
-  showReset = true,
-  extra = null,
-}) {
+/* ── the bar ───────────────────────────────────────────── */
+
+const Divider = () => <span className="w-px h-5 shrink-0 bg-edge/80" aria-hidden="true" />;
+
+/** The row: "working on" first and taking the free width, then the controls. */
+function ControlBar({ p, timing, primary, session }) {
+  const right = tools(p, primary);
+  const toolsGroup = right.length ? <div className="flex shrink-0 items-center gap-1">{right}</div> : null;
+  const play = <div className="shrink-0"><PrimaryPill action={primary} short /></div>;
+
+  return (
+    <motion.div
+      layout
+      className={`@container w-full ${session ? "max-w-[36rem]" : "max-w-[22rem]"} flex items-center gap-1 rounded-full border border-edge/70 bg-surface-2/50 p-1 backdrop-blur-md`}
+      style={{ boxShadow: "inset 0 1px 0 color-mix(in oklab, var(--fg) 5%, transparent)" }}
+    >
+      {session ? (
+        <>
+          {session({ align: "start", grow: true })}
+          {timing("center")}
+          <Divider />
+          {play}
+          {toolsGroup}
+        </>
+      ) : (
+        <>
+          <div className="flex-1 flex justify-start">{timing("start")}</div>
+          {play}
+          <div className="flex-1 flex justify-end">{toolsGroup}</div>
+        </>
+      )}
+    </motion.div>
+  );
+}
+
+/* ── the panel ─────────────────────────────────────────── */
+
+export default function TimerPanel(props) {
+  const {
+    settings,
+    sounds,
+    phase = "focus", // "focus" | "break"
+    seconds,
+    total,
+    isRunning,
+    isBreakRunning,
+    focusEnded,
+    breakEnded = false,
+    focusTime,
+    breakTime,
+    focusLocked,
+    breakLocked,
+    onFocusTime,
+    onBreakTime,
+    // A function ({ align, grow }) => node for the "working on" chip, or null.
+    renderSession = null,
+    extra = null,
+  } = props;
+  const p = { finishLabel: "Finish session", showReset: true, ...props };
   const format = settings?.timerFormat || "digital";
   const face = settings?.faceStyle || "ring";
   const running = phase === "break" ? !!isBreakRunning : !!isRunning;
   const done = phase === "focus" ? !!focusEnded : !!breakEnded;
   const tone = phase === "break" ? "success" : "accent";
+  const primary = primaryAction(p);
+
+  const timing = (align) => (
+    <DurationPicker
+      align={align}
+      sounds={sounds}
+      focusTime={focusTime}
+      breakTime={breakTime}
+      onFocusTime={onFocusTime}
+      onBreakTime={onBreakTime}
+      focusLocked={focusLocked}
+      breakLocked={breakLocked}
+    />
+  );
 
   return (
     <motion.div
@@ -128,7 +279,7 @@ export default function TimerPanel({
         aria-hidden="true"
       />
 
-      <div className="relative flex flex-col items-center gap-5 px-3 py-4 md:py-5">
+      <div className="relative flex flex-col items-center gap-4 px-3 py-4 md:py-5">
         <TimerFace
           seconds={seconds}
           total={total}
@@ -138,99 +289,7 @@ export default function TimerPanel({
           format={format}
           style={face}
         />
-
-        {/* controls: primary action, focus / break lengths, reset */}
-        <motion.div layout className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-3">
-          <AnimatePresence mode="popLayout" initial={false}>
-            {!focusEnded ? (
-              <motion.div
-                key="focus-controls"
-                className="flex items-center gap-2 sm:gap-3"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-              >
-                {isRunning ? (
-                  <ActionButton variant="warning" onClick={onPause} aria-label="Pause focus">
-                    <IconPause /> Pause
-                  </ActionButton>
-                ) : (
-                  <ActionButton variant="primary" glow onClick={onStart} aria-label="Start focus">
-                    <IconPlay /> {seconds < focusTime * 60 ? "Resume" : "Start focus"}
-                  </ActionButton>
-                )}
-              </motion.div>
-            ) : (
-              <motion.div
-                key="break-controls"
-                className="flex flex-wrap items-center justify-center gap-2 sm:gap-3"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-              >
-                {breakTime > 0 && !breakEnded ? (
-                  isBreakRunning ? (
-                    <ActionButton variant="warning" onClick={onPauseBreak} aria-label="Pause break">
-                      <IconPause /> Pause break
-                    </ActionButton>
-                  ) : (
-                    <ActionButton variant="success" onClick={onStartBreak} aria-label="Start break">
-                      <IconCoffee /> {seconds < breakTime * 60 ? "Resume break" : "Start break"}
-                    </ActionButton>
-                  )
-                ) : null}
-                {onFinish ? (
-                  <ActionButton variant="secondary" onClick={onFinish}>
-                    <IconCheck /> {finishLabel}
-                  </ActionButton>
-                ) : null}
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <Dropdown
-            id="focus-length"
-            label="Focus"
-            value={focusTime}
-            options={FOCUS_OPTIONS}
-            onChange={onFocusTime}
-            tone="accent"
-            custom={{ min: 1, max: 180, unit: "min", label: "Custom" }}
-            compact
-            align="center"
-            disabled={focusLocked}
-            onOpen={sounds?.click}
-          />
-          <Dropdown
-            id="break-length"
-            label="Break"
-            value={breakTime}
-            options={BREAK_OPTIONS}
-            onChange={onBreakTime}
-            tone="success"
-            custom={{ min: 0, max: 60, unit: "min", label: "Custom" }}
-            compact
-            align="center"
-            disabled={breakLocked}
-            onOpen={sounds?.click}
-          />
-
-          {/* Reset only matters once a session is under way */}
-          <AnimatePresence initial={false}>
-            {focusLocked && showReset ? (
-              <motion.div
-                key="reset"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-              >
-                <ActionButton variant="danger" onClick={onReset} aria-label="Reset timer">
-                  <IconReset /> Reset
-                </ActionButton>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-        </motion.div>
-
+        <ControlBar p={p} timing={timing} primary={primary} session={renderSession} />
         {extra}
       </div>
     </motion.div>

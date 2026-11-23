@@ -44,7 +44,7 @@ export default function NotebookPage() {
   if (!hasMounted || !user) return <BrandLoader screen />;
 
   return (
-    <div className="w-screen min-h-screen transition-colors duration-300">
+    <div className="w-screen flex-1 transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pb-4">
         <Suspense fallback={<BrandLoader />}>

@@ -40,7 +40,7 @@ export default function TimerPage() {
   if (!hasMounted || !user) return <BrandLoader screen />;
 
   return (
-    <div className="min-h-screen transition-colors duration-300">
+    <div className="flex-1 transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
       <main className="pb-8">
         <LockedScreen feature="timer" title="Timer" description="Focus and break sessions with your projects.">

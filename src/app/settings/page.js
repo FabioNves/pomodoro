@@ -189,7 +189,7 @@ export default function SettingsPage() {
   const currentTheme = themes.find((t) => t.id === theme) || themes[0];
 
   return (
-    <div className="w-screen min-h-screen transition-colors duration-300">
+    <div className="w-screen flex-1 transition-colors duration-300">
       <Navbar user={user} onLogout={handleLogout} />
 
       <div className="container mx-auto px-4 pb-12 max-w-4xl">
@@ -551,6 +551,18 @@ export default function SettingsPage() {
                 })}
               </div>
             </SettingRow>
+            <div className="mt-4 pt-4 border-t border-edge">
+              <SettingRow
+                title="Show half hours"
+                hint="Label and line every half hour in the calendar (01:30, 02:30, …), not only the hours."
+              >
+                <Toggle
+                  checked={week.showHalfHours}
+                  onChange={(v) => updateWeek({ showHalfHours: v })}
+                  label="Show half hours"
+                />
+              </SettingRow>
+            </div>
           </div>
         </div>
 

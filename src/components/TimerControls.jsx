@@ -2,17 +2,37 @@
 
 // The signed-in timer panel. The countdown itself lives in
 // src/components/timer/TimerProvider.jsx, mounted once in the root layout,
-// so this is only a view: the dashboard and the timer page both render it
-// and both show the same running session.
+// so this is only a view: the dashboard, the timer page and the navbar timer
+// all render it and all show the same running session.
+//
+// `session` adds the "working on" picker: true loads the projects itself
+// (the navbar timer), an object passes lists the screen already has
+// ({ projects, tasks, routineTasks }), false leaves it out (the timer page,
+// which has its own task lists).
 
-import React from "react";
+import React, { useCallback } from "react";
 import TimerPanel from "./timer/TimerPanel";
+import SessionPicker from "./timer/SessionPicker";
 import { useTimerControls, useTimerDisplay } from "@/components/timer/TimerProvider";
 
-const TimerControls = ({ extra = null, quick = false }) => {
-  const { run, seconds, total, settings, sounds, active } = useTimerDisplay();
+const TimerControls = ({ extra = null, quick = false, session = false }) => {
+  const { run, seconds, total, settings, sounds } = useTimerDisplay();
   const controls = useTimerControls();
   const onFocus = run.phase === "focus";
+  const lists = session && typeof session === "object" ? session : {};
+
+  const renderSession = useCallback(
+    ({ align, grow }) => (
+      <SessionPicker
+        align={align}
+        grow={grow}
+        projects={lists.projects}
+        tasks={lists.tasks}
+        routineTasks={lists.routineTasks}
+      />
+    ),
+    [lists.projects, lists.tasks, lists.routineTasks],
+  );
 
   return (
     <TimerPanel
@@ -34,17 +54,13 @@ const TimerControls = ({ extra = null, quick = false }) => {
       onStart={controls.start}
       onPause={controls.pause}
       onReset={controls.reset}
+      onRestart={quick ? controls.restart : undefined}
       onStartBreak={controls.startBreak}
       onPauseBreak={controls.pauseBreak}
       onFinish={controls.finish}
       finishLabel="Finish session"
-      showReset={!quick}
-      extra={quick ? (
-        <div className="flex items-center justify-center gap-3">
-          <button type="button" onClick={controls.restart} disabled={!active} className="px-4 py-2 rounded-full border border-edge text-sm text-fg hover:bg-surface-hover disabled:opacity-40" aria-label="Restart timer">Restart</button>
-          <button type="button" onClick={controls.reset} disabled={!active} className="px-4 py-2 rounded-full border border-edge text-sm text-danger hover:bg-danger-soft disabled:opacity-40" aria-label="Stop timer">Stop</button>
-        </div>
-      ) : extra}
+      renderSession={session ? renderSession : null}
+      extra={extra}
     />
   );
 };
